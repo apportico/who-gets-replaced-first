@@ -154,6 +154,11 @@ to include the anchors.
 For UI changes, `npm run build` passing is not evidence the page renders — a
 runtime error still builds clean. Load the page.
 
+**Toolchain.** Node 24 and Python 3.13, both pinned in CI. The pipeline is
+stdlib-only, so the interpreter version is the only variable in a pipeline test
+run — `unittest`'s exit code 5 for an empty suite, for instance, only exists
+from 3.12.
+
 **`main` enforces this.** `verify` is a required status check and
 `enforce_admins` is `true`, so nobody merges red CI — administrators included
 (spec 0005 R3/R4). Branches do not have to be up to date with `main` to merge

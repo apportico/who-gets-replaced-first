@@ -1,6 +1,6 @@
 # 0005 — CI on pull requests
 
-**Status:** draft
+**Status:** in-progress
 **Depends on:** 0003 (provides `npm run verify`); 0004 for the test step only
 **Issue:** [#3](https://github.com/apportico/who-gets-replaced-first/issues/3)
 
@@ -54,30 +54,34 @@ CI, so this job is fully deterministic — no third-party API can turn it red.
 |---|---|---|
 | Clean | [33272749615](https://github.com/apportico/who-gets-replaced-first/actions/runs/33272749615) | `verify` **pass**, 11s |
 | Deliberately broken lint | [33272786304](https://github.com/apportico/who-gets-replaced-first/actions/runs/33272786304) | `verify` **fail**, 9s |
-| Break reverted | [33272820922](https://github.com/apportico/who-gets-replaced-first/actions/runs/33272820922) | `verify` **pass**, 11s |
+| Break reverted | [33272821035](https://github.com/apportico/who-gets-replaced-first/actions/runs/33272821035) | `verify` **pass**, 11s |
 
 Observed on a real PR rather than inferred from the YAML — the failing case is
 the one that matters, and a workflow that has only ever been seen passing has
 not been tested.
 
-### R2. [ ] The offline pipeline test suite runs in CI
+The third row originally cited run `33272820922`, which is the **Claude review**
+workflow on that commit, not CI. Caught in review. Worth recording rather than
+silently correcting: a passing job is not evidence unless you know *which* job
+passed, and `claude-review.yml` is precisely the workflow that goes green
+without doing anything.
 
-Add `python3 -m unittest discover pipeline/tests` to the same workflow, once
-0004 lands it.
-
-This is the step that actually guards the numbers. 0004 R7 runs the real pilot
-against a committed gzipped fixture with the network patched out and diffs
-against an expected CSV, so it catches a moved anchor, a changed number format
-and a reordered column — offline, in seconds.
-
-**Do not duplicate 0004's work here.** This requirement is one step in a
-workflow; the fixture, the golden master and the patching all belong to 0004.
-
-**Acceptance:** the CI job runs the suite and fails when it fails. Verified by
-pointing a branch at a deliberately broken expectation and watching the job go
-red. If 0004 has not landed when the rest of this spec is ready, this closes
-`[~]` with the step written but unverified, and the reason recorded — never
-`[x]` on an unrun suite.
+> **R2 was moved out of this spec, to #43.** It required
+> `python3 -m unittest discover pipeline/tests` in the CI job — but that suite
+> arrives with spec 0004, and the step is one unconditional line in the workflow
+> this spec already created.
+>
+> The first attempt kept it here behind an `if [ -d pipeline/tests ]` guard that
+> warned instead of running. Review caught that the guard had **no removal
+> trigger**: once 0004 landed nothing would delete it, and a later rename of
+> `pipeline/tests/` would turn the one status check gating `main` green again,
+> with a `::warning::` visible only inside the run page and never on the PR
+> checks list. That is the same green-when-absent failure this project keeps
+> finding, deferred rather than avoided.
+>
+> So the scaffold is gone and the step belongs to 0004, where the suite it runs
+> is being written. `setup-python` stays here, pinned, so the step lands in a
+> pinned interpreter. The number is left unused rather than renumbered.
 
 ### R3. [x] CI is a required status check on `main`
 

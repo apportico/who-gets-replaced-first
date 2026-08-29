@@ -57,19 +57,38 @@ write step, and record the decision in `CLAUDE.md` so it is not re-litigated.
 `grep -c '^\*\*Issue:\*\*' specs/0003-ai-native-sdlc.md` returns 1; the `/spec`
 skill instructs filling it; `CLAUDE.md` states the source-of-truth decision.
 
-### R2. [ ] A single verification command
+### R2. [~] A single verification command — revised
 
 `npm run verify` runs everything that must pass before work is handed to a
 human, so a session iterates until it is green rather than the human
 discovering the failure. It must be one command with a pass/fail exit code.
 
-Scope it to what exists today — `npm run lint`, `npm run build`, and
-`npm run pipeline:pilot` with its regression anchors — and extend it when the
-pipeline tests from #2 land.
+**Revised (2026-08-29).** Two things changed during implementation, both
+widening the requirement rather than narrowing it:
 
-**Acceptance:** `npm run verify` exits 0 on a clean checkout of `main`.
-Deliberately breaking lint makes it exit non-zero. `CLAUDE.md` names it as the
-command to run before declaring anything done.
+1. **`pipeline/run.py` had no exit-code logic at all** — `grep -c 'sys.exit'`
+   returned 0. It printed `PASS` / `FAIL` per anchor and exited 0 regardless, so
+   wrapping it in a verify command would have produced a green build with red
+   anchors. Fixing the exit code became part of this requirement. Outliers are
+   deliberately **not** gated — they are a standing review queue (4 on a healthy
+   run), not a regression signal.
+2. **The stated acceptance only tested breaking lint.** The case worth gating is
+   a moved regression anchor, so the acceptance was widened to cover it.
+
+Also added `scripts/verify.sh` rather than an inline `package.json` chain,
+because the cache condition needs a real conditional.
+
+**Acceptance (as widened, all four run 2026-08-29):**
+
+| Check | Result |
+|---|---|
+| `npm run verify` on a clean checkout | exit **0** |
+| Deliberately broken lint | exit **1** — `verify FAILED at: lint` |
+| Pilot against the cache | exit **0** — `Pilot checks passed: 4 anchors on target, 0 validation problems` |
+| Deliberately moved USA anchor (79.0 → 42.0) | exit **1** — `[FAIL] 1 regression anchor(s) moved` |
+
+The last check is the one this requirement exists for, and it returned exit 0
+before this change.
 
 ### R3. [ ] `REVIEW.md` defines the review contract
 

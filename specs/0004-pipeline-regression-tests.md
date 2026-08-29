@@ -44,7 +44,11 @@ probes run 2026-08-29 against the working tree at `43f30c1`.
 | Manual overrides carry a citation contract | Read `apply_overrides` in `build.py:496` and `manual_overrides.json` | **Present.** Six keys required per entry (`value`, `year`, `source_name`, `source_url`, `retrieved`, `note`); an entry missing any is printed and skipped, never merged. `overrides` is `{}` — ARM, NZL, SAU sit in `_unfilled_gaps` on purpose. Assertable without inventing a figure. |
 | A machine-readable field→tier map | `grep -c 'OFFICIAL\|DERIVED\|PROXY\|MODELED' pipeline/README.md` → **0**; `grep` across `pipeline/*.py` | **Does not exist.** Tiers appear only as prose in `report.py`'s methodology tables (lines 101–102, 360–367) and as a partial 5-entry `sources` dict in `run.py:232`. There is nothing for a test to assert against — the registry has to be built. See R3. |
 | What scope `--pilot` actually fetches | Read `run.py:274-277`; evaluated `set(C.PILOT) \| set(C.EU27)` | **32 areas**, not 6 — `C.PILOT` is 6, EU27 adds 27, DEU overlaps. Output is then filtered to `set(C.PILOT) \| {"EU27","WLD"}` = **7 rows** (WLD, EU27, ARM, CHN, DEU, IND, USA), matching the committed CSV. The "6-area batch" in `run.py:4` and `CLAUDE.md` describes output rows, not fetch scope. EU27 is a weighted aggregate over all 27 members, so all 27 must be cached. |
-| A pilot fixture cache is small enough to commit | Sliced `pipeline/raw/` to the **32-area** fetch scope and measured, raw and gzipped | **Feasible gzipped, not raw.** Raw slice **18.32MB** (ILOSTAT 15.70 / WB 2.51 / Eurostat 0.11) — too large to commit. **Gzipped: 0.78MB**, the SDMX-CSV being highly repetitive. An earlier draft of this spec measured 2.27MB against the wrong 6-area slice; that figure is withdrawn. Row-filtering to what the pipeline keeps would give 6.77MB raw / 0.39MB gzipped, but is rejected — it would bake today's `AGE`/`OCU` filter criteria into the fixture. |
+| A pilot fixture cache is small enough to commit | Sliced `pipeline/raw/` to the **32-area** fetch scope and measured, raw and gzipped | **Feasible gzipped, not raw.** Raw slice **18.32MB** (ILOSTAT 15.70 / WB 2.51 / Eurostat 0.11) — too large to commit. **Gzipped: 0.725MB**, the SDMX-CSV being highly repetitive. (An earlier
+revision of this row said 0.78MB. That was 0.055MB too high: it summed
+Eurostat's *raw* 0.113MB into a gzipped total. Re-measured 2026-08-30 —
+Eurostat is JSON-stat and compresses only **2.6x**, to 0.044MB, not the ~23x
+the CSV caches manage.) An earlier draft of this spec measured 2.27MB against the wrong 6-area slice; that figure is withdrawn. Row-filtering to what the pipeline keeps would give 6.77MB raw / 0.39MB gzipped, but is rejected — it would bake today's `AGE`/`OCU` filter criteria into the fixture. |
 | Where the pilot run writes, and where the cache is read from | Read `fetch.py:5`, `run.py:20`, `run.py:277` | **Both hardcoded module constants.** `fetch.RAW` and `run.DATA` take no argument and nothing redirects them; the pilot writes to `os.path.join(DATA, "pilot_labor_dataset.csv")`. So the expected output cannot live at that path or the test would diff the file against itself. `_get` (`fetch.py:16`) returns the cached file whenever it exists, so a populated fixture cache makes the run offline. |
 | The four regression anchors are reachable in the pilot | Read `REGRESSION_CHECKS`, `run.py:71-76`, against the 7 output rows | **All four resolve** — WLD ≈50%, USA ≈79%, EU27 ≈72%, IND ≈31.5%, exactly the anchors `CLAUDE.md` names. An earlier draft committed only to US and India. |
 | The committed pilot output is usable as a golden master | Compared `run.COLUMNS` (89) against the headers of both committed CSVs | **`global_labor_dataset.csv` is current** — 89 cols, exact match. **`pilot_labor_dataset.csv` is stale** — 87 cols, still carrying `early_career_white_collar_pct` and `data_year_early_career`, the columns 0002 R11 replaced when it was revised `[~]` to the career-stage profile. It is missing `prime_white_collar_pct`, `late_career_white_collar_pct`, `prime_white_collar_year`, `late_career_white_collar_year`. It must be regenerated before it can be an expected output. See R8. |
@@ -239,7 +243,7 @@ the first EU member.
 
 **The fixture ships gzipped.** Re-measured on the correct 32-area scope: the
 raw slice is 18.32MB (ILOSTAT 15.70, World Bank 2.51, Eurostat 0.11) — too
-large to commit — but **0.78MB gzipped**, because the ILOSTAT SDMX-CSV is
+large to commit — but **0.725MB gzipped**, because the ILOSTAT SDMX-CSV is
 extremely repetitive. Commit the gzipped slice and have the test decompress it
 into a `tempfile.TemporaryDirectory()` in **`setUpClass`**, not `setUp` — the
 expansion is 18.32MB, so a per-method `setUp` would pay it again for every test
@@ -293,7 +297,7 @@ committed fixture directory is under 1MB.
 
 **Revised (2026-08-30):** the requirement got *smaller* than written. It specified patching both `fetch.RAW` and `run.DATA`; #42 merged after it was written and supplied the output side properly — `--out-dir` on `main()`, and `run()` returning `failures` already evaluated against the tolerances. So the built version patches `fetch.RAW` only, passes an explicit path to `export_csv`, and asserts `failures == []` instead of scraping stdout. Original intent unchanged: the run must not write where the master is compared from. Requirement text above rewritten to match.
 
-**Done (2026-08-30):** `test_golden_master.py` — 15 tests, plus `make_fixture.py` committed so the slice is reproducible rather than an opaque blob. Fixture is **0.68MB gzipped** (18.32MB raw), inside the 1MB bound, sliced by area only and covering all 32 areas `--pilot` fetches. The whole suite is 107 tests in 0.29s.
+**Done (2026-08-30):** `test_golden_master.py` — 15 tests, plus `make_fixture.py` committed so the slice is reproducible rather than an opaque blob. Fixture is **0.681MB gzipped** (18.32MB raw), inside the 1MB bound, sliced by area only and covering all 32 areas `--pilot` fetches. The whole suite is 107 tests in 0.29s.
 
 The fixture run reproduces `fixtures/expected/pilot_labor_dataset.csv` byte for byte, and — the cross-check the plan's risk section called for — that expected file is itself **byte-identical to the output of a real run against the full 80MB cache**, verified with `cmp`. So the slice is faithful, not merely self-consistent. Offline is proven rather than assumed: `getaddrinfo` is patched to raise for the duration, and the run logs 24 cache hits and 0 fetches. All four anchors hold — WLD 48.2, USA 79.6, EU27 72.9, IND 32.6 — asserted via the `failures` list `run()` now returns (a #42 addition), so no stdout scraping.
 
@@ -373,10 +377,11 @@ both were checked rather than assumed:
   `run(scope, "pilot")`. The 0.11MB Eurostat cache is therefore dead weight in
   the fixture and is excluded.
 
-Net fixture ≈ **0.68MB gzipped**, inside R7's 1MB bound. Reconciling that
-against the 0.78MB in the source-verification table: 0.78 − 0.11 (Eurostat,
-dropped) + 0.01 (`countries.json`, added whole) = 0.68. `make_fixture.py`
-prints the measured total on every run.
+Net fixture **0.681MB gzipped** (measured, not derived — `make_fixture.py`
+prints the total on every run), inside R7's 1MB bound. It reconciles exactly
+against the corrected source-table figure: 0.725MB for all 32 areas gzipped,
+minus Eurostat's 0.044MB, is 0.681MB. `countries.json` shipping whole is
+already inside that number.
 
 ### Files to create
 
@@ -395,7 +400,7 @@ prints the measured total on every run.
 | `pipeline/tests/test_columns.py` | Committed CSV headers vs `COLUMNS` | R8 |
 | `pipeline/tests/test_validate.py` | `validate()` catches each violation | R9 |
 | `pipeline/tests/make_fixture.py` | Regenerates the fixture from a full `pipeline/raw/` — committed so the slice is reproducible rather than a mystery blob | R7 |
-| `pipeline/tests/fixtures/raw/**.gz` | 32-area gzipped slice, ~0.68MB | R7 |
+| `pipeline/tests/fixtures/raw/**.gz` | 32-area gzipped slice, 0.681MB | R7 |
 | `pipeline/tests/fixtures/expected/pilot_labor_dataset.csv` | Golden master, on a path nothing in the pipeline writes to | R7 |
 
 ### Files to modify

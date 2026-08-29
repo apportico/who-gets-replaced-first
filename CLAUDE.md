@@ -154,6 +154,11 @@ to include the anchors.
 For UI changes, `npm run build` passing is not evidence the page renders — a
 runtime error still builds clean. Load the page.
 
+**`main` enforces this.** `verify` is a required status check and
+`enforce_admins` is `true`, so nobody merges red CI — administrators included
+(spec 0005 R3/R4). Branches do not have to be up to date with `main` to merge
+(`strict: false`), so an unrelated merge does not force a rebase.
+
 ## Gotchas
 
 - `vite preview` caches `index.html` in memory; it can serve a stale page and

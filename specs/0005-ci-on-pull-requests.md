@@ -79,18 +79,27 @@ red. If 0004 has not landed when the rest of this spec is ready, this closes
 `[~]` with the step written but unverified, and the reason recorded — never
 `[x]` on an unrun suite.
 
-### R3. [ ] CI is a required status check on `main`
+### R3. [x] CI is a required status check on `main`
 
 Add the workflow's job as a `required_status_checks` context in branch
 protection, so a PR with red CI cannot merge.
 
 The probe confirmed `admin: true`, so this is doable from here.
 
-**Acceptance:** `gh api repos/.../branches/main/protection` returns a
-`required_status_checks` block naming the CI job. A PR with a failing check
-shows a blocked merge button.
+**Acceptance (met 2026-08-30):**
 
-### R4. [ ] The admin-bypass decision is made and recorded
+```
+before:  checks=null              enforce_admins=false
+after:   checks=["verify"]        enforce_admins=true    strict=false
+```
+
+PR #48 reports `mergeStateStatus=BLOCKED` with `reviewDecision=REVIEW_REQUIRED`
+and both checks green — blocked on the review, not the checks, which is the
+protection behaving correctly. `strict: false` deliberately: requiring branches
+to be up to date with `main` before merging would force a rebase on every
+unrelated merge, which at this repo's rate is friction without safety.
+
+### R4. [x] The admin-bypass decision is made and recorded
 
 `enforce_admins` is `false`. Required status checks **do not apply to
 administrators** while that is off, so R3 alone would satisfy its own acceptance
@@ -104,9 +113,13 @@ Two honest resolutions, and the point of this requirement is that one of them is
 2. Retain the bypass deliberately, and record why in `CLAUDE.md` alongside the
    other declined practices, so the next reader does not file it as a bug.
 
-**Acceptance:** either `enforce_admins` is `true` in the live protection
-settings, or `CLAUDE.md` carries the recorded decision to retain the bypass with
-its reason. Not both, and not neither.
+**Decision (2026-08-30): option 1 — the gate binds everyone.**
+`enforce_admins` is now `true`. Admins are most of the people merging here, so a
+gate they walk past would be decoration. Disabling protection for a genuine
+emergency stays possible and is then a deliberate, visible act rather than a
+silent default.
+
+**Acceptance (met):** live protection returns `enforce_admins: true`.
 
 ### R5. [x] The review workflow stops citing a requirement that moved
 

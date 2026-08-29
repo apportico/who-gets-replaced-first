@@ -266,7 +266,8 @@ Two things came out of reading the code, and both change what R2 has to do:
 6. **R5** — the two agent definitions.
 7. **R6** — `claude-review.yml`, which cites the `REVIEW.md` from step 3.
 8. **R8** — `CLAUDE.md`, last, because it documents everything above.
-9. **R9** — blocked on the account holder; stays `[ ]`.
+9. **Activation** — the Claude GitHub App and its key. Not a requirement of
+   this spec; an account-holder action, tracked as #44.
 
 ### Requirement mapping
 
@@ -279,7 +280,7 @@ Two things came out of reading the code, and both change what R2 has to do:
 | R5 | Two scoped subagent definitions | `.claude/agents/` | Valid frontmatter and `tools:`; the prober returns a filled verification row |
 | R6 | Workflow file written and valid | `.github/workflows/claude-review.yml` | Parses as YAML, references `REVIEW.md`, triggers on `pull_request` |
 | R8 | SDLC recorded for the next person | `CLAUDE.md` | Names `npm run verify`, `REVIEW.md`, the intent decision, and the declined list |
-| R9 | — | — | **Blocked.** Opening a test PR produces an automated review. Stays `[ ]` until `/install-github-app` is run and a key added. |
+| — | Activation (App install + key) is **not a requirement of this spec** — an account-holder action, tracked as #44 | — | Opening a **draft** PR labelled `spec-review` produces an automated review comment. Test it on a draft, or it passes while the case this repo cares about stays broken |
 
 ### Tier and vintage handling
 
@@ -310,7 +311,8 @@ No new data check is needed — this spec touches no data.
   it with a loud notice when it is not — fast and deterministic locally, with CI
   choosing its own fetch policy in #3.
 - **R6 cannot be tested end to end** until the App is installed. That is exactly
-  why R9 exists; do not let a valid YAML file be mistaken for a working review.
+  why activation is tracked separately as #44; do not let a valid YAML file, or a
+  green tick on a workflow that skipped, be mistaken for a working review.
 - **R5's acceptance requires actually invoking the agents**, which means a live
   API call for the prober. If that proves impractical in this environment, R5
   closes `[~]` with the check reduced to frontmatter validity, and the reason

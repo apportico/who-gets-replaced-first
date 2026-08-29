@@ -47,7 +47,7 @@ probes run 2026-08-29 against the working tree at `43f30c1`.
 
 ## Requirements
 
-### R1. [ ] Derived arithmetic is pinned to known inputs and known outputs
+### R1. [x] Derived arithmetic is pinned to known inputs and known outputs
 
 Unit-test the arithmetic in `build.derive()` over synthetic rows with
 hand-computed expected values: `employed_total = labour_force × (1 −
@@ -68,7 +68,9 @@ and R3 requires that to be recorded in the registry, not just here in prose.
 group values are distinct and non-round. Mutating the `1 -` to `1 +` in
 `build.py` fails at least one test.
 
-### R2. [ ] A missing input produces a null and a flag — never a zero, never a guess
+**Done (2026-08-30):** `test_derive.py` — 16 tests. `employed_total == 900` and `employed_share_of_population_pct == 18.0` reproduced; ISCO bands summed from distinct non-round values (34.90 / 18.78 / 65.10, partitioning to 100.0). Mutation check run: flipping `1 -` to `1 +` in `build.py:282` fails 3 tests (`1100 != 900`, `22.0 != 18.0`). `num()` and `latest()` covered, including that a measured `0.0` is not treated as missing.
+
+### R2. [x] A missing input produces a null and a flag — never a zero, never a guess
 
 The single most important test in the suite. A country missing an input must
 emerge with `None` in that field and a `data_quality_flag` naming the gap; it
@@ -90,6 +92,8 @@ group values present yields `white_collar_pct is None`, and
 `assertIsNot(row["white_collar_pct"], 0.0)` passes. A row with no population,
 no labour force and no ISCO yields a flag beginning `sparse — `. Deleting the
 `if have_isco else None` guard makes the suite fail rather than emit `0.0`.
+
+**Done (2026-08-30):** `test_nulls.py` — 11 tests. A row with `data_year_occupation=None` and ISCO groups present yields `white_collar_pct is None`; the all-null-groups row — the real production shape — also yields `None`. Mutation check run: removing the `if have_isco else None` guard fails with `AssertionError: 0.0 is not None` and `30.0 is not None`, i.e. it fabricates exactly the number the requirement names. `quality_flag` covered for complete / partial / sparse, stale vintage and ISCO-88 fallback.
 
 ### R3. [ ] Every emitted field carries a tier, in a registry the tests can read
 
@@ -142,7 +146,7 @@ set(keep)`, and `field_tiers` is exported filtered to `keep` rather than whole.
 Every value is in the closed set or `NOT_A_MEASUREMENT`. A test asserts the
 five anchors above by name, including `entry_level_squeeze_index == "MODELED"`.
 
-### R4. [ ] Aggregates are weighted, and their coverage is published
+### R4. [x] Aggregates are weighted, and their coverage is published
 
 Test `build._wavg()` and `build.make_aggregate()` on a fixture **constructed so
 the weighted and simple-average answers differ materially** — a large country
@@ -161,7 +165,9 @@ must then be null, not `0`.
 `isco_coverage_pct_of_employment == 90.91`. An all-null fixture yields
 `white_collar_pct is None`.
 
-### R5. [ ] A row is never presented as a single-year snapshot
+**Done (2026-08-30):** `test_aggregates.py` — 12 tests. 900 @ 20.0% and 100 @ 80.0% yields `26.0`, asserted `!= 50.0`; adding a null member with 100 employed holds `26.0` and sets `isco_coverage_pct_of_employment == 90.91`; an all-null fixture yields `None` and a `0/2 members with ISCO data` flag.
+
+### R5. [x] A row is never presented as a single-year snapshot
 
 Vintages differ per field — population may be 2025 while occupation is 2017.
 Test that `build.latest()` selects the newest non-null year and returns it
@@ -178,7 +184,9 @@ aggregate over members with occupation years 2017 and 2023 yields
 `data_year_occupation == 2023` and `data_year_occupation_range == "2017-2023"`.
 `latest({2020: 5.0, 2023: None, 2021: 7.0})` returns `(7.0, 2021)`.
 
-### R6. [ ] An override without a citation is refused, not merged
+**Done (2026-08-30):** `test_vintages.py` — 9 tests. Population 2025 and occupation 2017 both survive on one row, as do four differing vintages at once. Aggregate over 2017 and 2023 members yields `data_year_occupation == 2023` with `data_year_occupation_range == "2017-2023"`; all five tracked vintage fields carry a span. `latest({2020: 5.0, 2023: None, 2021: 7.0})` returns `(7.0, 2021)`.
+
+### R6. [x] An override without a citation is refused, not merged
 
 `build.apply_overrides()` requires six keys per entry — `value`, `year`,
 `source_name`, `source_url`, `retrieved`, `note`. Test that a complete entry is
@@ -197,6 +205,8 @@ complete entry sets the value and appends
 `"white_collar_pct=<v> (<year>, <source_name>)"`. A test over the committed
 `manual_overrides.json` passes today with `overrides == {}` and would fail on a
 future uncited entry.
+
+**Done (2026-08-30):** `test_overrides.py` — 12 tests, all fixtures written to a `tempfile.TemporaryDirectory()`. Dropping any one of the six required keys leaves the field at its pre-override value and `data_source_override` at `None` — parameterised over all six via `subTest`. A complete entry sets the value and tags `white_collar_pct=42.5 (2024, Test Statistical Office)`. An unknown ISO3 is skipped without raising. Tests over the committed `manual_overrides.json` pass with `overrides == {}` and assert ARM, NZL and SAU stay documented in `_unfilled_gaps` rather than filled.
 
 ### R7. [ ] A golden-master pilot run, offline, in CI
 
@@ -304,7 +314,7 @@ non-null `prime_white_collar_pct`. The implementation notes record the column
 delta above and state whether this spec performed the regeneration or inherited
 it from #42, so the change is auditable rather than silent.
 
-### R9. [ ] The published invariants stay assertable
+### R9. [x] The published invariants stay assertable
 
 `build.validate()` already encodes the arithmetic that must hold — percentage
 fields inside [0, 100], age bands summing to ~100, sector shares to ~100,
@@ -316,6 +326,8 @@ into returning an empty list.
 `blue_collar_service_pct=60.0` produces a problem string naming the row and the
 sum. A fixture with `lfp_rate_total=150.0` produces an out-of-range problem. A
 clean fixture produces `[]`.
+
+**Done (2026-08-30):** `test_validate.py` — 10 tests. `white_collar_pct=60.0` with `blue_collar_service_pct=60.0` produces `BAD: white+blue collar = 120.00, not 100`; `lfp_rate_total=150.0` and `-5.0` both produce `outside [0,100]`; age bands and sector shares caught at 115.00 and 125.00. A clean row and an all-null row both produce `[]`, and the tolerances that allow real-world rounding are pinned.
 
 ## Implementation Plan
 
@@ -377,6 +389,7 @@ Net fixture ≈ **0.68MB gzipped**, inside R7's 1MB bound.
 5. **R8** — check whether #42 landed the regeneration; regenerate if not; add the header test.
 6. **R7** — `make_fixture.py`, commit the slice, golden master. Last, because it
    locks in output that steps 4 and 5 change.
+
 
 ### Requirement mapping
 

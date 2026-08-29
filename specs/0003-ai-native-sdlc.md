@@ -29,7 +29,7 @@ Probed 2026-08-29. Everything below is what came back, not what was expected.
 | AI-native SDLC playbook | WebFetch, 2026-08-29 | Six stages, artifact chain Intent → Spec → Plan → Diff+Tests → PR+Review → Incident → Intent. Per-stage artifacts, role changes and metrics. Basis for R1–R8. |
 | `claude` CLI non-interactive | `claude --help`, 2026-08-29 | `-p/--print`, `--output-format`, `--allowed-tools`, `--agent`, `--agents <json>` all present. CI invocation is viable. |
 | `anthropics/claude-code-action` | WebFetch, 2026-08-29 | Official action. PR-review mode, `@claude` mentions, automation mode. Works on public repos. Needs an API key, wired by `/install-github-app`. API usage billed to the account holder. |
-| Claude GitHub App on this repo | `gh api repos/.../installation`, 2026-08-29 | **Not installed.** R6 cannot be verified until it is. |
+| Claude GitHub App on this repo | `gh api repos/.../installation`, 2026-08-29 | **Could not verify with available credentials.** That endpoint authenticates as a GitHub App via JWT and returns `401 A JSON web token could not be decoded` with a user token, whether or not the App is installed; `/user/installations` returns 403 for the same reason. Installation state is **unknown from the CLI** — the earlier reading of this 401 as "not installed" was an inference, not a probe result. Activation is blocked on the account holder regardless, so no requirement moves. |
 | Repo Actions secrets | `gh secret list`, 2026-08-29 | **None set.** Org-level check returned HTTP 403 (not an org admin), so org secrets are unknown. |
 | Branch protection on `main` | `gh api .../branches/main/protection`, 2026-08-29 | 1 required approving review; `enforce_admins: false`; **no `required_status_checks`**. CI cannot gate a merge today. Drives R7. |
 | Repo visibility | `gh repo view`, 2026-08-29 | `PUBLIC` — GitHub Actions minutes are free, so CI cost is not a constraint. |
@@ -80,14 +80,30 @@ because the cache condition needs a real conditional.
 
 **Acceptance (as widened, all four run 2026-08-29):**
 
-| Check | Result |
-|---|---|
-| `npm run verify` on a clean checkout | exit **0** |
-| Deliberately broken lint | exit **1** — `verify FAILED at: lint` |
-| Pilot against the cache | exit **0** — `Pilot checks passed: 4 anchors on target, 0 validation problems` |
-| Deliberately moved USA anchor (79.0 → 42.0) | exit **1** — `[FAIL] 1 regression anchor(s) moved` |
+`pipeline/raw/` is gitignored, so a clean checkout has **no cache** — which
+makes "exits 0 on a clean checkout" precisely the case where the pilot would
+have to fetch live from the World Bank and ILOSTAT. A verify command that takes
+minutes and can go red because an upstream is having a bad afternoon trains
+people to ignore it. So the commands are split by determinism:
 
-The last check is the one this requirement exists for, and it returned exit 0
+| Command | What it runs | Deterministic? |
+|---|---|---|
+| `npm run verify` | lint + build, then the pilot **only if `pipeline/raw/` is present** | Yes — offline, no upstream can fail it |
+| `npm run verify:data` | the pilot unconditionally, fetching if there is no cache | No — depends on two third-party APIs |
+
+`verify` is the fast gate to iterate against and the one CI can require.
+`verify:data` is the slow networked one, for changes touching `pipeline/**`.
+
+| Check | Command | Result |
+|---|---|---|
+| Clean checkout, no cache | `verify` | exit **0** — pilot **skipped**, with a loud notice saying why |
+| Deliberately broken lint | `verify` | exit **1** — `verify FAILED at: lint` |
+| Cache present | `verify` | exit **0** — `Pilot checks passed: 4 anchors on target, 0 validation problems` |
+| Deliberately moved USA anchor (79.0 → 42.0) | `verify` | exit **1** — `[FAIL] 1 regression anchor(s) moved` |
+
+The first row passes *because the pilot was skipped*, not because anchors were
+checked — stated plainly so the row is not misread as a stronger claim than it
+is. The last row is the one this requirement exists for, and it returned exit 0
 before this change.
 
 ### R3. [x] `REVIEW.md` defines the review contract
@@ -171,20 +187,15 @@ next person does not re-propose them.
 **Acceptance:** `CLAUDE.md` names `npm run verify`, `REVIEW.md` and the
 issues-as-intent decision, and carries the declined-practices list.
 
-### R9. [ ] Automated review actually runs — BLOCKED on the account holder
-
-The probe found no Claude GitHub App installed on this repo and no Actions
-secret set (`gh secret list` returned empty; branch protection confirms no
-status checks). Until `/install-github-app` has been run and the API key added,
-the workflow from R6 sits inert.
-
-**This cannot be worked on from inside the repo.** It is recorded as its own
-requirement so the gap stays visible rather than being assumed away or quietly
-folded into R6.
-
-**Acceptance:** opening a test PR produces an automated review comment applying
-`REVIEW.md`. Stays `[ ]` with the blocker recorded until the App is installed —
-never `[x]` on the strength of the workflow file alone.
+> **R9 was moved out of this spec.** Activating the automated review needs the
+> Claude GitHub App installed and an API key added — an action only the account
+> holder can take. Left as a requirement here it would hold spec 0003 open
+> indefinitely: `/update-spec` refuses `in-progress -> done` while any
+> requirement is `[ ]`, so one item outside our control would block the seven
+> inside it. `[!]` would be the wrong mark — installing an App is entirely
+> feasible, just not by us, and `[!]` means investigated and *not feasible*.
+> Tracked as [#44](https://github.com/apportico/who-gets-replaced-first/issues/44)
+> instead. The number is left unused rather than renumbered.
 
 ## Implementation Plan
 
@@ -290,6 +301,9 @@ No new data check is needed — this spec touches no data.
   issue #34 and its own spec.
 - **The hook scripts themselves** — issue #4. R4 only creates the settings file
   they plug into.
+- **Installing the Claude GitHub App and adding the API key** — an account-holder
+  action, tracked as [#44](https://github.com/apportico/who-gets-replaced-first/issues/44). The workflow from R6 is inert until then, and
+  a green tick on it is not evidence a review ran.
 - **Making CI a required status check on `main`** — moved to issue #3. Branch
   protection today requires 1 approving review and sets no status checks, so a
   PR with red CI can still merge. But the check to require is the one #3 builds,

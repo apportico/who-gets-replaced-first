@@ -21,8 +21,10 @@ else
   echo "==> pipeline:pilot SKIPPED"
   echo "    No pipeline/raw/ cache in this checkout, so the pilot would fetch"
   echo "    from the network. This is expected in a fresh clone or a worktree."
-  echo "    Run 'npm run pipeline:pilot' once to populate the cache, then"
-  echo "    re-run verify to include the regression anchors."
+  echo "    This gate is deliberately deterministic — no upstream API can fail"
+  echo "    it. Run 'npm run verify:data' to check the regression anchors"
+  echo "    against live data; that also populates the cache, after which"
+  echo "    verify includes the anchors automatically."
 fi
 
 echo ""

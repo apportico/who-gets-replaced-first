@@ -42,7 +42,7 @@ build-first-document-later approach.
 |---|---|---|
 | [0001](0001-labor-dataset.md) | Core dataset + map page | complete (written retrospectively) |
 | [0002](0002-gaps-timeseries-and-app.md) | Coverage gaps, time series, derived measures, app features | 15 done · 1 revised · 1 not feasible |
-| [0003](0003-ai-native-sdlc.md) | AI-native SDLC — verify command, review contract, settings, subagents, automated review | 4 done · 3 revised |
+| [0003](0003-ai-native-sdlc.md) | AI-native SDLC — verify command, review contract, settings, subagents, automated review | done — 4 done · 3 revised |
 
 ## Starting a new spec
 

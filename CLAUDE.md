@@ -63,6 +63,26 @@ pipeline/         Python data pipeline (stdlib only, no pip installs)
 src/              React + Vite app (Leaflet map)
 ```
 
+## The workflow
+
+Project skills in `.claude/skills/` drive the spec loop. Use them rather than
+improvising the steps:
+
+```
+/next             pick the next task off the GitHub board
+/spec             probe the sources, write requirements, open a draft PR
+/update-spec      approve; later, mark requirements [x] / [!] / [~]
+/implement        approved spec -> plan mapped to requirement IDs
+/evaluate         run the acceptance checks, verdict per requirement
+/review-pr        review a PR against its spec
+/address-reviews  fix, reply, resolve review threads
+/status           where every spec stands
+```
+
+`/spec` will not let you write a requirement against a source it has not probed,
+and `/update-spec` will not let a spec reach `done` while a requirement is still
+`[ ]`. That is the point. See `.claude/skills/README.md`.
+
 ## Commands
 
 ```bash

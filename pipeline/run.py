@@ -296,16 +296,21 @@ def main():
     ap.add_argument("--pilot", action="store_true",
                     help="run the 6-area validation batch only")
     ap.add_argument("--no-app-json", action="store_true")
+    ap.add_argument("--out-dir", default=None,
+                    help="write pilot output here instead of pipeline/data/. "
+                         "Verification uses this so checking the pipeline does "
+                         "not rewrite a tracked artifact.")
     args = ap.parse_args()
 
     if args.pilot:
         scope = set(C.PILOT) | set(C.EU27)
         rows, problems, _, _, failures = run(scope, "pilot")
         rows = [r for r in rows if r["iso3"] in set(C.PILOT) | {"EU27", "WLD"}]
-        export_csv(rows, os.path.join(DATA, "pilot_labor_dataset.csv"))
+        out_dir = args.out_dir or DATA
+        out_path = os.path.join(out_dir, "pilot_labor_dataset.csv")
+        export_csv(rows, out_path)
         console_summary(rows)
-        print("\nPilot done. Inspect pipeline/data/pilot_labor_dataset.csv, "
-              "then run without --pilot.")
+        print(f"\nPilot done. Inspect {out_path}, then run without --pilot.")
         return report_status(problems, failures, "Pilot")
 
     rows, problems, outliers, ref, failures = run(None, "full")

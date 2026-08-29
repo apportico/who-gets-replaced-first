@@ -88,7 +88,24 @@ git push -u origin feat/NNNN-short-name
 gh pr view --json url 2>/dev/null   # skip creation if a PR already exists
 ```
 
-Create the draft PR with the body:
+Create the draft PR **with the `spec-review` label**:
+
+```bash
+gh pr create --draft --label spec-review \
+  --title "feat: NNNN — <short name>" --base main --body-file <path>
+```
+
+**The label is not optional.** The automated review workflow
+(`.github/workflows/claude-review.yml`) reviews a draft PR *only* when it carries
+`spec-review` — draft is the spec-review step in this project, not a
+work-in-progress signal, so the gate keys on intent rather than on the draft
+flag. Without the label the spec review is silently skipped, which is the one
+review this project most wants automated. If `gh` rejects the label because it
+does not exist, create it with
+`gh label create spec-review --description "Draft PR opened for spec review"`
+and retry rather than dropping the flag.
+
+Use this body:
 
 ```markdown
 > **Spec review** — draft PR for reviewing the spec. No implementation code yet.

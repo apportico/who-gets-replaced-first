@@ -156,7 +156,7 @@ property that matters most — it cannot write while probing.
 and the data-diff reviewer against two committed CSV vintages. Worth running
 once before either is relied on — neither has been exercised end to end.
 
-### R6. [x] Automated review workflow is written and valid
+### R6. [~] Automated review workflow is written and valid — revised
 
 Add `.github/workflows/claude-review.yml` so every PR receives the same passes
 from `REVIEW.md`, with `@claude` able to address comments. Human approval stays
@@ -165,11 +165,32 @@ required — the agent writes, a human approves.
 This requirement covers **writing the workflow**, which is entirely in our
 control and checkable. Whether the review actually *runs* depends on the Claude
 GitHub App being installed and a key added — an action only the account holder
-can take, split out as R9 so this requirement can close on its own merits.
+can take, tracked as #44 so this requirement can close on its own merits.
 
-**Acceptance:** `.github/workflows/claude-review.yml` exists, parses as valid
-YAML, references `REVIEW.md` as the review contract, and triggers on
-`pull_request`.
+**Revised (2026-08-29).** The original acceptance — exists, parses, references
+`REVIEW.md`, triggers on `pull_request` — was met by a workflow that **would not
+have reviewed this pull request**, or any spec PR. It carried
+`if: github.event.pull_request.draft == false`, and in this project draft is not
+a work-in-progress signal: `CLAUDE.md` describes `/spec` as "probe the sources,
+write requirements, open a draft PR", so every spec review is a draft review,
+and both open PRs were drafts. The criterion tested that the file was
+well-formed, not that it fires on the changes this project actually opens.
+
+The gate now keys on intent rather than the draft flag: a draft is reviewed when
+it carries the `spec-review` label, which `/spec` applies when it opens the PR.
+That lets spec reviews through while keeping out drafts carrying half-written
+implementation code.
+
+**Acceptance (as widened):** the workflow exists, parses as valid YAML,
+references `REVIEW.md`, triggers on `pull_request`, **and its `if:` condition
+evaluates true for a draft PR labelled `spec-review`** — the shape every spec PR
+in this repo has.
+
+Verified 2026-08-29: YAML parses; trigger is `pull_request`; guard is
+`draft == false || contains(labels.*.name, 'spec-review')`; PR #42 is a draft
+carrying `spec-review`, so the guard is true for it. Whether a review actually
+*appears* is #44, and must be tested **on a draft PR**, or it will pass while the
+case this repo cares about stays broken.
 
 > **R7 was moved out of this spec.** It required branch protection to name a CI
 > job as a required status check — but that job is built by issue #3, which has

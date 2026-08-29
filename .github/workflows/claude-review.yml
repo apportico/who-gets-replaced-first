@@ -23,8 +23,15 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
-    # Skip cleanly rather than failing the PR while the key is absent.
-    if: ${{ github.event.pull_request.draft == false }}
+    # Draft is not a work-in-progress signal in this repo — CLAUDE.md describes
+    # /spec as "probe the sources, write requirements, open a draft PR", so the
+    # spec review IS a draft review, and it is the one most worth automating.
+    # Gate on what the PR is for, not on its draft flag: /spec labels the PRs it
+    # opens `spec-review`, which lets those through while still keeping drafts
+    # that carry half-written implementation code out.
+    if: >-
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'spec-review')
     steps:
       - uses: actions/checkout@v4
         with:

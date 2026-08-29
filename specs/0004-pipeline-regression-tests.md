@@ -1,8 +1,9 @@
 # 0004 — Pipeline regression test suite
 
-**Status:** draft
+**Status:** approved
 **Depends on:** none
 **Issue:** #2
+**Approved:** 2026-08-29 — @syymza, PR #43, re-review at `b4eed82`. Moved draft -> in-review -> approved; all four review findings resolved before approval, and the `setUpClass` refinement landed in `fcaf633`.
 
 ## Objective
 

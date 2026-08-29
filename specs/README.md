@@ -42,7 +42,7 @@ build-first-document-later approach.
 |---|---|---|
 | [0001](0001-labor-dataset.md) | Core dataset + map page | complete (written retrospectively) |
 | [0002](0002-gaps-timeseries-and-app.md) | Coverage gaps, time series, derived measures, app features | 15 done · 1 revised · 1 not feasible |
-| [0004](0004-pipeline-regression-tests.md) | Pipeline regression test suite — tiers, nulls, weighting, vintages, golden master | draft |
+| [0004](0004-pipeline-regression-tests.md) | Pipeline regression test suite — tiers, nulls, weighting, vintages, golden master | approved |
 
 ## Starting a new spec
 

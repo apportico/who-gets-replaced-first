@@ -36,7 +36,7 @@ Recorded so a reviewer can see it was considered rather than skipped.
 
 ## Requirements
 
-### R1. [ ] Lint and build run on every pull request
+### R1. [x] Lint and build run on every pull request
 
 A `ci.yml` workflow triggering on `pull_request` that runs `npm ci` then
 `npm run verify`.
@@ -48,10 +48,17 @@ nobody can reproduce locally is how green builds and broken checkouts diverge.
 `verify` skips the pilot when `pipeline/raw/` is absent, which is always true in
 CI, so this job is fully deterministic — no third-party API can turn it red.
 
-**Acceptance:** `.github/workflows/ci.yml` exists and triggers on
-`pull_request`. Opening a PR with deliberately broken lint shows the job
-**failing**; the same PR with lint fixed shows it **passing**. Both observed on
-a real PR, not inferred from the YAML.
+**Acceptance (met 2026-08-30, observed on PR #48):**
+
+| State | Run | Result |
+|---|---|---|
+| Clean | [33272749615](https://github.com/apportico/who-gets-replaced-first/actions/runs/33272749615) | `verify` **pass**, 11s |
+| Deliberately broken lint | [33272786304](https://github.com/apportico/who-gets-replaced-first/actions/runs/33272786304) | `verify` **fail**, 9s |
+| Break reverted | [33272820922](https://github.com/apportico/who-gets-replaced-first/actions/runs/33272820922) | `verify` **pass**, 11s |
+
+Observed on a real PR rather than inferred from the YAML — the failing case is
+the one that matters, and a workflow that has only ever been seen passing has
+not been tested.
 
 ### R2. [ ] The offline pipeline test suite runs in CI
 
@@ -101,7 +108,7 @@ Two honest resolutions, and the point of this requirement is that one of them is
 settings, or `CLAUDE.md` carries the recorded decision to retain the bypass with
 its reason. Not both, and not neither.
 
-### R5. [ ] The review workflow stops citing a requirement that moved
+### R5. [x] The review workflow stops citing a requirement that moved
 
 `.github/workflows/claude-review.yml` refers to "R9" at lines 5 and 47,
 including in the runtime `::notice::` a maintainer reads when the job skips. R9

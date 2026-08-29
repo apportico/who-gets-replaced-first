@@ -66,6 +66,8 @@ silently correcting: a passing job is not evidence unless you know *which* job
 passed, and `claude-review.yml` is precisely the workflow that goes green
 without doing anything.
 
+### R2. [~] The offline pipeline test suite runs in CI — moved to #43
+
 > **R2 was moved out of this spec, to #43.** It required
 > `python3 -m unittest discover pipeline/tests` in the CI job — but that suite
 > arrives with spec 0004, and the step is one unconditional line in the workflow

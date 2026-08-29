@@ -1,6 +1,6 @@
 # 0003 — AI-native SDLC
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** none (spec-level). Consumes output of issues #2, #3 and #4.
 **Issue:** [#33](https://github.com/apportico/who-gets-replaced-first/issues/33)
 

@@ -210,7 +210,7 @@ future uncited entry.
 
 **Done (2026-08-30):** `test_overrides.py` — 12 tests, all fixtures written to a `tempfile.TemporaryDirectory()`. Dropping any one of the six required keys leaves the field at its pre-override value and `data_source_override` at `None` — parameterised over all six via `subTest`. A complete entry sets the value and tags `white_collar_pct=42.5 (2024, Test Statistical Office)`. An unknown ISO3 is skipped without raising. Tests over the committed `manual_overrides.json` pass with `overrides == {}` and assert ARM, NZL and SAU stay documented in `_unfilled_gaps` rather than filled.
 
-### R7. [ ] A golden-master pilot run, offline, in CI
+### R7. [x] A golden-master pilot run, offline, in CI
 
 Commit a slice of the response cache as `pipeline/tests/fixtures/raw/`, and a
 test that runs the real pilot pipeline against it with no network and diffs the
@@ -278,6 +278,14 @@ comparing its contents before and after, so a future refactor that redirects
 output back into it fails the suite. All four `REGRESSION_CHECKS` pass within
 tolerance. Changing a rounding call in `build.py` fails this test. The
 committed fixture directory is under 1MB.
+
+**Done (2026-08-30):** `test_golden_master.py` — 15 tests, plus `make_fixture.py` committed so the slice is reproducible rather than an opaque blob. Fixture is **0.68MB gzipped** (18.32MB raw), inside the 1MB bound, sliced by area only and covering all 32 areas `--pilot` fetches. The whole suite is 107 tests in 0.29s.
+
+The fixture run reproduces `fixtures/expected/pilot_labor_dataset.csv` byte for byte, and — the cross-check the plan's risk section called for — that expected file is itself **byte-identical to the output of a real run against the full 80MB cache**, verified with `cmp`. So the slice is faithful, not merely self-consistent. Offline is proven rather than assumed: `getaddrinfo` is patched to raise for the duration, and the run logs 24 cache hits and 0 fetches. All four anchors hold — WLD 48.2, USA 79.6, EU27 72.9, IND 32.6 — asserted via the `failures` list `run()` now returns (a #42 addition), so no stdout scraping.
+
+Mutation check run: changing `white_collar_pct`'s rounding from 4 to 2 decimals fails with `line 2 differs`. The self-comparison failure mode is now structurally impossible — output goes to a `TemporaryDirectory` and the master lives under `fixtures/expected/`, a path nothing writes to — and `test_pipeline_data_directory_is_untouched` guards it with a content digest, verified sensitive to a one-line rewrite.
+
+Two parts of the plan were already done upstream: #42 added `--out-dir`, which is the injectable output the review asked for, and changed `run()` to return `failures` as a fifth value. `pilot_scope()` and `pilot_rows()` were extracted from `main()` so the test drives exactly what `--pilot` drives.
 
 ### R8. [x] Regenerate the stale pilot expected output, and record why
 

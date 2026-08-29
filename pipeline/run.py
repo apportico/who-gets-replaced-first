@@ -302,6 +302,28 @@ def console_summary(rows):
     print("=" * 62)
 
 
+# ------------------------------------------------------------ 0004 R7. pilot
+# Extracted out of main() so the golden-master test drives exactly what
+# `--pilot` drives. Inlined, the test would carry its own copy of the scope and
+# the filter, and the two would drift apart the first time either changed --
+# leaving a golden master that proved something nobody was running.
+
+def pilot_scope():
+    """Areas the pilot FETCHES: 32, not the 6 in C.PILOT.
+
+    EU27 is a weighted aggregate over all 27 members, so producing that output
+    row requires every member's data. The "6-area batch" in the CLI help and in
+    CLAUDE.md describes the seven output rows, not this.
+    """
+    return set(C.PILOT) | set(C.EU27)
+
+
+def pilot_rows(rows):
+    """The 7 rows the pilot WRITES: C.PILOT plus the EU27 and WLD aggregates."""
+    keep = set(C.PILOT) | {"EU27", "WLD"}
+    return [r for r in rows if r["iso3"] in keep]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pilot", action="store_true",
@@ -314,9 +336,8 @@ def main():
     args = ap.parse_args()
 
     if args.pilot:
-        scope = set(C.PILOT) | set(C.EU27)
-        rows, problems, _, _, failures = run(scope, "pilot")
-        rows = [r for r in rows if r["iso3"] in set(C.PILOT) | {"EU27", "WLD"}]
+        rows, problems, _, _, failures = run(pilot_scope(), "pilot")
+        rows = pilot_rows(rows)
         out_dir = args.out_dir or DATA
         out_path = os.path.join(out_dir, "pilot_labor_dataset.csv")
         export_csv(rows, out_path)

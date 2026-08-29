@@ -122,12 +122,13 @@ Recorded so they are not re-proposed. From the AI-native SDLC playbook, spec
 ## Commands
 
 ```bash
-npm run verify           # lint + build + pipeline:pilot — run this before saying anything is done
+npm run verify           # lint + build + pipeline tests + pipeline:pilot — the gate; run before saying anything is done
 npm run dev              # app at localhost:5173
 npm run build            # production build (base path /who-gets-replaced-first/)
 npm run pipeline:pilot   # 6-area validation batch, prints regression checks
 npm run pipeline         # full run: 218 countries + 11 aggregates
 npm run lint
+npm run test:pipeline    # 107-test regression suite, offline, <1s
 ```
 
 The pipeline caches every API response under `pipeline/raw/`, so re-runs are
@@ -136,9 +137,17 @@ offline and free. Delete a cached file to force a refresh of that source.
 ## Verify before claiming
 
 **`npm run verify` is the single command that must pass before work is handed to
-a human.** It runs lint, the build, and the pilot batch with its regression
-anchors, and exits non-zero if any of them fail — so iterate until it is green
-rather than letting a reviewer find the failure.
+a human.** It runs lint, the build, **spec 0004's regression suite**, and the
+pilot batch with its anchors, exiting non-zero if any of them fail — so iterate
+until it is green rather than letting a reviewer find the failure.
+
+**CI runs the same command.** That is the point of it being one command: a
+contributor who is green locally does not land red on the check that gates
+`main`. If you add a check to CI, add it to `verify` in the same change.
+
+The regression suite is unconditional — its fixture and expected CSVs are all
+in-tree, so it runs in a fresh clone with no network. Only the pilot is
+conditional, on the response cache being present.
 
 The pipeline has regression checks against independently published figures
 (World services ≈50%, US ≈79%, EU-27 ≈72%, India ≈31.5%) and an Eurostat

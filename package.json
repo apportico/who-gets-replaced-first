@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "pipeline": "python3 pipeline/run.py",
     "pipeline:pilot": "python3 pipeline/run.py --pilot",
+    "test:pipeline": "python3 -m unittest discover pipeline/tests",
     "report": "python3 pipeline/report.py",
     "verify": "bash scripts/verify.sh",
     "verify:data": "npm run pipeline:pilot"

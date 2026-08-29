@@ -1,4 +1,4 @@
-# Deterministic checks on every pull request (spec 0005, R1).
+# Deterministic checks on every pull request (spec 0005, R1 and R2).
 #
 # Runs `npm run verify` rather than lint and build separately, so CI and a
 # developer's local gate are the same command. A check that CI runs but nobody
@@ -6,10 +6,8 @@
 #
 # `verify` skips the pipeline pilot when `pipeline/raw/` is absent, which is
 # always true here, so nothing in this job depends on ILOSTAT or the World Bank
-# being up. The numbers are guarded by spec 0004's offline suite, which adds one
-# unconditional step to this job in #43 — deliberately not stubbed here, because
-# a step that passes when the thing it checks is absent is a green tick that is
-# not evidence.
+# being up. The numbers are guarded by spec 0004's offline suite, run
+# unconditionally in the last step.
 name: CI
 
 on:
@@ -35,10 +33,9 @@ jobs:
           node-version: 24
           cache: npm
 
-      # The pipeline is stdlib-only, so once 0004's suite runs here (#43) the
-      # interpreter version is the ONLY variable in that step. Pinning it now
-      # means the step lands in a known environment rather than whatever the
-      # runner image happens to ship.
+      # The pipeline is stdlib-only, so the interpreter version is the only
+      # variable in the pipeline tests step below. Pinned rather than inherited
+      # from the runner image.
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
@@ -49,3 +46,13 @@ jobs:
       # anchor when a cache is present (spec 0003 R2).
       - name: npm run verify
         run: npm run verify
+
+      # Spec 0004's offline suite — the step that actually guards the numbers.
+      # Runs the real pilot against a committed gzipped fixture with the network
+      # patched out, so a moved anchor, a changed number format or a reordered
+      # column fails here in under a second. Unconditional by design: a guard
+      # that skips when the suite is absent is a green tick that is not evidence.
+      # Kept as its own named step so it fails distinguishably from lint on the
+      # checks list. `npm run verify` also runs it, so local and CI are one gate.
+      - name: pipeline tests
+        run: npm run test:pipeline

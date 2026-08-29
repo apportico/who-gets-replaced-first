@@ -299,6 +299,11 @@ committed fixture directory is under 1MB.
 
 **Done (2026-08-30):** `test_golden_master.py` — 15 tests, plus `make_fixture.py` committed so the slice is reproducible rather than an opaque blob. Fixture is **0.681MB gzipped** (18.32MB raw), inside the 1MB bound, sliced by area only and covering all 32 areas `--pilot` fetches. The whole suite is 107 tests in 0.29s.
 
+The **`in CI`** half of this requirement's title is #3's, delivered in spec 0005
+R2 (#49); this requirement delivered the offline half. Recorded because a reader
+arriving at R7 by its title would otherwise read the CI wiring as having shipped
+here — it did not, and for a while nothing ran the suite on a pull request.
+
 The fixture run reproduces `fixtures/expected/pilot_labor_dataset.csv` byte for byte, and — the cross-check the plan's risk section called for — that expected file is itself **byte-identical to the output of a real run against the full 80MB cache**, verified with `cmp`. So the slice is faithful, not merely self-consistent. Offline is proven rather than assumed: `getaddrinfo` is patched to raise for the duration, and the run logs 24 cache hits and 0 fetches. All four anchors hold — WLD 48.2, USA 79.6, EU27 72.9, IND 32.6 — asserted via the `failures` list `run()` now returns (a #42 addition), so no stdout scraping.
 
 Mutation check run: changing `white_collar_pct`'s rounding from 4 to 2 decimals fails with `line 2 differs`. The self-comparison failure mode is now structurally impossible — output goes to a `TemporaryDirectory` and the master lives under `fixtures/expected/`, a path nothing writes to — and `test_pipeline_data_directory_is_untouched` guards it with a content digest, verified sensitive to a one-line rewrite.

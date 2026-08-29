@@ -14,6 +14,14 @@ echo "==> build"
 npm run --silent build || fail "build"
 
 echo ""
+# Spec 0004's regression suite. Unconditional, unlike the pilot below: the
+# gzipped fixture and the CSVs it reads are all in-tree, so it runs in a fresh
+# clone with no network and no cache. This is the step that guards the numbers,
+# and it is why `verify` and CI are the same gate rather than merely similar.
+echo "==> pipeline tests"
+npm run --silent test:pipeline || fail "pipeline tests"
+
+echo ""
 if [ -d pipeline/raw ] && [ -n "$(ls -A pipeline/raw 2>/dev/null)" ]; then
   # Write the pilot's output to a temp dir, never pipeline/data/. Verifying the
   # pipeline must not republish its artifacts: otherwise "verify passed" and

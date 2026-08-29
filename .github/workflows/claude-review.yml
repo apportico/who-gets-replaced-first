@@ -2,9 +2,9 @@
 #
 # INERT UNTIL THE CLAUDE GITHUB APP IS INSTALLED. As of 2026-08-29 this repo has
 # no App installation and no ANTHROPIC_API_KEY secret, so this workflow is
-# written and valid but does nothing. Installing it is R9 — run
+# written and valid but does nothing. Installing it is #44 — run
 # /install-github-app and add the key. Do not read a green tick here as evidence
-# that a review ran.
+# that a review ran: this job passes when it skips.
 name: Claude review
 
 on:
@@ -44,7 +44,7 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No ANTHROPIC_API_KEY set — skipping automated review. See spec 0003 R9."
+            echo "::warning title=Automated review skipped::No ANTHROPIC_API_KEY set, so no review ran. This job passing is not evidence of a review. See #44."
           fi
 
       - name: Review against REVIEW.md

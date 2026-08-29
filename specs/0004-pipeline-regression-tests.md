@@ -219,7 +219,9 @@ the first EU member.
 raw slice is 18.32MB (ILOSTAT 15.70, World Bank 2.51, Eurostat 0.11) — too
 large to commit — but **0.78MB gzipped**, because the ILOSTAT SDMX-CSV is
 extremely repetitive. Commit the gzipped slice and have the test decompress it
-into a `tempfile.TemporaryDirectory()` at setUp. This keeps every row of the
+into a `tempfile.TemporaryDirectory()` in **`setUpClass`**, not `setUp` — the
+expansion is 18.32MB, so a per-method `setUp` would pay it again for every test
+in the class. This keeps every row of the
 32-area slice rather than pre-filtering rows the pipeline would discard, so the
 fixture exercises the real `AGE` / `OCU` filters in `load_youth_occupation`
 instead of quietly encoding today's filter criteria into the test data.

@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "pipeline": "python3 pipeline/run.py",
     "pipeline:pilot": "python3 pipeline/run.py --pilot",
-    "report": "python3 pipeline/report.py"
+    "report": "python3 pipeline/report.py",
+    "verify": "bash scripts/verify.sh",
+    "verify:data": "npm run pipeline:pilot"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",

@@ -52,12 +52,23 @@ Otherwise review manually. Either way, your own analysis is required — CodeRab
 
 ## Step 5 — What to look for
 
-- **Correctness** — does it do what the requirement says?
-- **The data non-negotiables** — a number without a tier; an imputed country where a null belongs; a simple average of country percentages where a weighted aggregate belongs; a manual override with no citation/year/retrieval date; a row presented as one vintage when its fields differ. These are the highest-severity findings in this repo.
-- **Unprobed sources** — code reading an API that has no row in the spec's verification table.
-- **Stdlib only** — the pipeline takes no pip installs.
-- **Consistency** — does it follow the neighbouring code's patterns?
-- **Validation** — does a regression or cross-check cover the new behaviour?
+**Read `REVIEW.md` at the repo root and apply its passes.** It is the review
+contract — the same one the PR workflow passes to the automated reviewer — so a
+human review and an automated one reach the same verdict. Do not restate or
+improvise the rules here; if a pass needs changing, change `REVIEW.md`.
+
+It defines eight passes and their severities. The two that outrank everything
+else in this repo:
+
+- **Pass 1, the data non-negotiables** — an untiered number, an imputed country,
+  an unweighted aggregate, an uncited override, a row presented as one vintage.
+  Each is a Blocker on its own.
+- **Pass 2, unprobed sources** — code reading a source with no row in its spec's
+  verification table.
+
+`REVIEW.md` also lists what is explicitly **out of scope** for review. Respect
+it: findings spent on formatting or on re-litigating a decision the spec records
+are noise.
 
 ## Step 6 — Requirements
 

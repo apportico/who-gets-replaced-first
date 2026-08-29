@@ -63,7 +63,9 @@ Apply the project's non-negotiables as you write:
 
 ## Step 5 — Write the file
 
-Copy `specs/TEMPLATE.md` to `specs/NNNN-short-name.md` and fill in: title, `**Status:** draft`, `**Depends on:**`, Objective, the Source verification table from Step 3, the requirements from Step 4, and Non-goals.
+Copy `specs/TEMPLATE.md` to `specs/NNNN-short-name.md` and fill in: title, `**Status:** draft`, `**Depends on:**`, `**Issue:**`, Objective, the Source verification table from Step 3, the requirements from Step 4, and Non-goals.
+
+**`**Issue:**` is not optional.** GitHub Issues are this project's source of truth for intent — they carry the problem, the scope, the sources to probe and the definition of done, and duplicating that into the spec would guarantee drift. The spec links to the issue; the issue links back to the spec. Find the matching issue with `gh issue list --search "<name>" --json number,title,url` and record it as `**Issue:** [#N](<url>)`. If there genuinely is no issue, write `none` and say why in the Objective.
 
 Show the user the file path and a summary (number, title, requirement count, sources probed) before moving on.
 
@@ -86,7 +88,24 @@ git push -u origin feat/NNNN-short-name
 gh pr view --json url 2>/dev/null   # skip creation if a PR already exists
 ```
 
-Create the draft PR with the body:
+Create the draft PR **with the `spec-review` label**:
+
+```bash
+gh pr create --draft --label spec-review \
+  --title "feat: NNNN — <short name>" --base main --body-file <path>
+```
+
+**The label is not optional.** The automated review workflow
+(`.github/workflows/claude-review.yml`) reviews a draft PR *only* when it carries
+`spec-review` — draft is the spec-review step in this project, not a
+work-in-progress signal, so the gate keys on intent rather than on the draft
+flag. Without the label the spec review is silently skipped, which is the one
+review this project most wants automated. If `gh` rejects the label because it
+does not exist, create it with
+`gh label create spec-review --description "Draft PR opened for spec review"`
+and retry rather than dropping the flag.
+
+Use this body:
 
 ```markdown
 > **Spec review** — draft PR for reviewing the spec. No implementation code yet.

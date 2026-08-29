@@ -2,6 +2,7 @@
 
 **Status:** draft
 **Depends on:** <earlier spec numbers, or none>
+**Issue:** <link to the GitHub issue this implements, or "none">
 
 ## Objective
 

@@ -156,16 +156,44 @@ def run(scope=None, label="full"):
         print(f"      ... and {len(outliers) - 8} more")
 
     idx = {r["iso3"]: r for r in out}
+    failures = []
     print("\n[regression checks against known published figures]")
     for iso3, field, expect, tol, desc in REGRESSION_CHECKS:
         got = idx.get(iso3, {}).get(field)
         if got is None:
             print(f"      ?  {desc}: no value produced")
+            failures.append(f"{desc}: no value produced for {iso3}.{field}")
         else:
             ok = abs(got - expect) <= tol
             print(f"      {'PASS' if ok else 'FAIL'}  {desc}: got {got:.1f} "
                   f"(expected ~{expect}, tol +/-{tol})")
-    return out, problems, outliers, ref
+            if not ok:
+                failures.append(f"{desc}: got {got:.1f}, expected "
+                                f"~{expect} +/-{tol}")
+    return out, problems, outliers, ref, failures
+
+
+def report_status(problems, failures, label):
+    """Print a verdict and return a process exit code.
+
+    A moved regression anchor or a range/consistency problem fails the run.
+    Outliers deliberately do NOT fail it — they are a standing review queue
+    (4 on a healthy run), not a regression signal.
+    """
+    if failures:
+        print(f"\n[FAIL] {len(failures)} regression anchor(s) moved:")
+        for f in failures:
+            print(f"      x {f}")
+    if problems:
+        print(f"\n[FAIL] {len(problems)} range/consistency problem(s) — "
+              f"see the [validate] block above")
+    if failures or problems:
+        print(f"\n{label} FAILED. Published figures would change; "
+              f"do not treat this run as good.")
+        return 1
+    print(f"\n{label} checks passed: "
+          f"{len(REGRESSION_CHECKS)} anchors on target, 0 validation problems.")
+    return 0
 
 
 # ------------------------------------------------------------------ exports
@@ -268,19 +296,24 @@ def main():
     ap.add_argument("--pilot", action="store_true",
                     help="run the 6-area validation batch only")
     ap.add_argument("--no-app-json", action="store_true")
+    ap.add_argument("--out-dir", default=None,
+                    help="write pilot output here instead of pipeline/data/. "
+                         "Verification uses this so checking the pipeline does "
+                         "not rewrite a tracked artifact.")
     args = ap.parse_args()
 
     if args.pilot:
         scope = set(C.PILOT) | set(C.EU27)
-        rows, _, _, _ = run(scope, "pilot")
+        rows, problems, _, _, failures = run(scope, "pilot")
         rows = [r for r in rows if r["iso3"] in set(C.PILOT) | {"EU27", "WLD"}]
-        export_csv(rows, os.path.join(DATA, "pilot_labor_dataset.csv"))
+        out_dir = args.out_dir or DATA
+        out_path = os.path.join(out_dir, "pilot_labor_dataset.csv")
+        export_csv(rows, out_path)
         console_summary(rows)
-        print("\nPilot done. Inspect pipeline/data/pilot_labor_dataset.csv, "
-              "then run without --pilot.")
-        return
+        print(f"\nPilot done. Inspect {out_path}, then run without --pilot.")
+        return report_status(problems, failures, "Pilot")
 
-    rows, problems, outliers, ref = run(None, "full")
+    rows, problems, outliers, ref, failures = run(None, "full")
     print("\n[export]")
     export_csv(rows, os.path.join(DATA, "global_labor_dataset.csv"))
     export_sqlite(rows, os.path.join(DATA, "global_labor_dataset.sqlite"))
@@ -314,7 +347,8 @@ def main():
     report.write(report.load(), os.path.join(HERE, "summary_report.md"),
                  sensitivity=sens)
     console_summary(rows)
+    return report_status(problems, failures, "Full run")
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

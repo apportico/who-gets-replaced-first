@@ -83,9 +83,46 @@ improvising the steps:
 and `/update-spec` will not let a spec reach `done` while a requirement is still
 `[ ]`. That is the point. See `.claude/skills/README.md`.
 
+### Intent lives in GitHub Issues
+
+Issues are the source of truth for **why** a change exists — they carry the
+problem, the scope, the sources to probe and the definition of done. Specs carry
+**what must be true** and link back with an `**Issue:**` field. Duplicating
+intent into the spec would guarantee drift, so we do not; a spec without an
+issue link is missing a field, not carrying extra context.
+
+### Review contract
+
+`REVIEW.md` at the repo root defines the passes every change gets and what each
+finding is worth. Both `/review-pr` and the automated PR workflow read it, so a
+human review and an automated one reach the same verdict. Change the contract
+there, never inside a skill.
+
+Its Pass 1 (the data non-negotiables) and Pass 2 (unprobed sources) are Blockers
+and outrank every other finding. It also lists what is **out of scope** for
+review — formatting, style preference, and re-litigating a decision the spec
+already records.
+
+### Practices deliberately declined
+
+Recorded so they are not re-proposed. From the AI-native SDLC playbook, spec
+0003 declined:
+
+- **On-call / incident response** — a static GitHub Pages site with no runtime
+  has no incidents to respond to.
+- **OpenTelemetry export, DORA metrics, approval-gate timings** — org-scale
+  instrumentation; noise at this size.
+- **Scheduled security scans** — the current surface is a static site plus a
+  read-only pipeline. **Revisit if M5 lands**: payments and stored personal data
+  change that answer completely.
+- **Migrating specs to the playbook's `spec.md` shape** — the numbered specs
+  with requirement IDs and the `[x]` / `[!]` / `[~]` marks are stricter than the
+  playbook's baseline. Adopting its format would be a downgrade.
+
 ## Commands
 
 ```bash
+npm run verify           # lint + build + pipeline:pilot — run this before saying anything is done
 npm run dev              # app at localhost:5173
 npm run build            # production build (base path /who-gets-replaced-first/)
 npm run pipeline:pilot   # 6-area validation batch, prints regression checks
@@ -98,11 +135,21 @@ offline and free. Delete a cached file to force a refresh of that source.
 
 ## Verify before claiming
 
+**`npm run verify` is the single command that must pass before work is handed to
+a human.** It runs lint, the build, and the pilot batch with its regression
+anchors, and exits non-zero if any of them fail — so iterate until it is green
+rather than letting a reviewer find the failure.
+
 The pipeline has regression checks against independently published figures
 (World services ≈50%, US ≈79%, EU-27 ≈72%, India ≈31.5%) and an Eurostat
-cross-check of all 27 EU members. **Run them and read the output** before saying
-a data change worked. `[validate]`, `[crosscheck]` and `[outliers]` blocks print
-on every full run.
+cross-check of all 27 EU members. A moved anchor now **fails the run**, rather
+than printing `FAIL` and exiting 0 as it did before spec 0003. `[validate]`,
+`[crosscheck]` and `[outliers]` blocks print on every full run; outliers are a
+standing review queue and deliberately do not fail the build.
+
+`verify` skips the pilot when `pipeline/raw/` is absent (a fresh clone or a
+worktree), saying so loudly — populate the cache with one `npm run pipeline:pilot`
+to include the anchors.
 
 For UI changes, `npm run build` passing is not evidence the page renders — a
 runtime error still builds clean. Load the page.

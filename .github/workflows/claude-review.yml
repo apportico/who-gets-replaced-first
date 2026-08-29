@@ -1,0 +1,71 @@
+# Automated PR review (spec 0003, R6).
+#
+# INERT UNTIL THE CLAUDE GITHUB APP IS INSTALLED. As of 2026-08-29 this repo has
+# no App installation and no ANTHROPIC_API_KEY secret, so this workflow is
+# written and valid but does nothing. Installing it is R9 — run
+# /install-github-app and add the key. Do not read a green tick here as evidence
+# that a review ran.
+name: Claude review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Draft is not a work-in-progress signal in this repo — CLAUDE.md describes
+    # /spec as "probe the sources, write requirements, open a draft PR", so the
+    # spec review IS a draft review, and it is the one most worth automating.
+    # Gate on what the PR is for, not on its draft flag: /spec labels the PRs it
+    # opens `spec-review`, which lets those through while still keeping drafts
+    # that carry half-written implementation code out.
+    if: >-
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'spec-review')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for API key
+        id: key
+        run: |
+          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No ANTHROPIC_API_KEY set — skipping automated review. See spec 0003 R9."
+          fi
+
+      - name: Review against REVIEW.md
+        if: steps.key.outputs.present == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request against the review contract in REVIEW.md at
+            the repo root. Read that file first and apply its eight passes with
+            the severities it defines.
+
+            Then find the spec this PR implements — the PR body or branch name
+            names a specs/NNNN-*.md file — and check every requirement ID it
+            claims to satisfy. A requirement marked [x] whose acceptance check
+            was not actually run is a Missing finding. [!] and [~] with a
+            recorded reason are correct outcomes, not failures.
+
+            Pass 1 (the data non-negotiables) and Pass 2 (unprobed sources) are
+            Blockers and outrank everything else. Respect the "Out of scope for
+            review" section — do not spend findings on formatting, or on
+            re-litigating a decision the spec records.
+
+            A human approval is still required. You review; you do not approve.

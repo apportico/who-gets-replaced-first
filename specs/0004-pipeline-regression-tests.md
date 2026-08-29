@@ -3,7 +3,10 @@
 **Status:** done
 **Depends on:** none
 **Issue:** #2
-**Completed:** 2026-08-30 — 9 done. 107 tests, offline, 0.29s.
+**Completed:** 2026-08-30 — 8 done · 1 revised. 107 tests, offline, 0.29s.
+**Amended:** 2026-08-30 after @syymza's re-review of `ab27337` — R2's acceptance
+clause named an assertion that cannot fail, R7 shrank once #42 landed, and R8's
+"inherit from #42" branch was factually wrong and inverted the requirement.
 **Approved:** 2026-08-29 — @syymza, PR #43, re-review at `b4eed82`. Moved draft -> in-review -> approved; all four review findings resolved before approval, and the `setUpClass` refinement landed in `fcaf633`.
 
 ## Objective
@@ -90,7 +93,12 @@ Also cover `build.quality_flag()`: `complete` when nothing is missing;
 
 **Acceptance:** a fixture row with `data_year_occupation=None` and some ISCO
 group values present yields `white_collar_pct is None`, and
-`assertIsNot(row["white_collar_pct"], 0.0)` passes. A row with no population,
+`assertNotEqual(row["white_collar_pct"], 0.0)` passes. (An earlier revision of
+this clause named `assertIsNot`, which **cannot fail** here — the pipeline's
+zero comes out of `round(sum(...), 4)`, a freshly allocated float that is never
+the same object as the literal, so the assertion passes even when the value is
+`0.0`. Corrected 2026-08-30 after review; equality is the check that does the
+work.) A row with no population,
 no labour force and no ISCO yields a flag beginning `sparse — `. Deleting the
 `if have_isco else None` guard makes the suite fail rather than emit `0.0`.
 
@@ -211,7 +219,7 @@ future uncited entry.
 
 **Done (2026-08-30):** `test_overrides.py` — 12 tests, all fixtures written to a `tempfile.TemporaryDirectory()`. Dropping any one of the six required keys leaves the field at its pre-override value and `data_source_override` at `None` — parameterised over all six via `subTest`. A complete entry sets the value and tags `white_collar_pct=42.5 (2024, Test Statistical Office)`. An unknown ISO3 is skipped without raising. Tests over the committed `manual_overrides.json` pass with `overrides == {}` and assert ARM, NZL and SAU stay documented in `_unfilled_gaps` rather than filled.
 
-### R7. [x] A golden-master pilot run, offline, in CI
+### R7. [~] A golden-master pilot run, offline, in CI
 
 Commit a slice of the response cache as `pipeline/tests/fixtures/raw/`, and a
 test that runs the real pilot pipeline against it with no network and diffs the
@@ -257,10 +265,13 @@ tree. That is the exact failure this spec exists to prevent. So:
 - The expected output lives at `pipeline/tests/fixtures/expected/pilot_labor_dataset.csv`,
   a path nothing in the pipeline writes to.
 - The test points `fetch.RAW` at the decompressed fixture directory and writes
-  the run's output to a second temp directory. Patching the two module
-  constants for the duration of the test is enough; if that proves awkward,
-  thread an explicit directory through instead, but do not let the run touch
-  `pipeline/data/`.
+  the run's output to a second temp directory. **Only `fetch.RAW` needs
+  patching.** #42 (merged 2026-08-29T20:06Z, after this requirement was
+  written) added `--out-dir` to `main()` and made `run()` return a fifth value,
+  `failures`, already evaluated against the `REGRESSION_CHECKS` tolerances. So
+  the output side is a supported argument rather than a patched constant, and
+  the anchors are read from `failures` rather than scraped from stdout. Do not
+  let the run touch `pipeline/data/` by either route.
 - The pilot scope and output filter currently live inline in `main()`. Extract
   them into a small named helper that both `main()` and the test call, so the
   test cannot drift from what `--pilot` actually does.
@@ -279,6 +290,8 @@ comparing its contents before and after, so a future refactor that redirects
 output back into it fails the suite. All four `REGRESSION_CHECKS` pass within
 tolerance. Changing a rounding call in `build.py` fails this test. The
 committed fixture directory is under 1MB.
+
+**Revised (2026-08-30):** the requirement got *smaller* than written. It specified patching both `fetch.RAW` and `run.DATA`; #42 merged after it was written and supplied the output side properly — `--out-dir` on `main()`, and `run()` returning `failures` already evaluated against the tolerances. So the built version patches `fetch.RAW` only, passes an explicit path to `export_csv`, and asserts `failures == []` instead of scraping stdout. Original intent unchanged: the run must not write where the master is compared from. Requirement text above rewritten to match.
 
 **Done (2026-08-30):** `test_golden_master.py` — 15 tests, plus `make_fixture.py` committed so the slice is reproducible rather than an opaque blob. Fixture is **0.68MB gzipped** (18.32MB raw), inside the 1MB bound, sliced by area only and covering all 32 areas `--pilot` fetches. The whole suite is 107 tests in 0.29s.
 
@@ -311,19 +324,21 @@ a published artifact in the repo, it is stale, and the header check is the
 guard that stops it going stale again. R7's expected output lives under
 `pipeline/tests/fixtures/expected/`.
 
-**Check whether PR #42 got there first.** #42 (`feat/0003-ai-native-sdlc`)
-regenerates this same file as a side effect of `npm run verify` running the
-pilot. If it merges before this spec is implemented, the column delta is
-already applied, and R8's record must say the regeneration was inherited rather
-than describe one it did not perform. The header test is still required either
-way — that is the part #42 does not add.
+**#42 does not regenerate this file — R8 must.** An earlier revision of this
+requirement said #42 might get there first. That was wrong, and it inverted the
+requirement. #42 does the opposite: it added `--out-dir` and pointed
+`scripts/verify.sh` at a `mktemp -d` *precisely so* verify never rewrites a
+tracked artifact. Confirmed at merged `main` on 2026-08-30 — the committed
+`pilot_labor_dataset.csv` is still 87 columns with both pre-R11 fields. Left
+uncorrected, an implementer could run verify, see green, and conclude the file
+was already fixed. There is no inherit branch: regenerate it here. The header
+test is required regardless — that is the part #42 does not add.
 
 **Acceptance:** the header of `pilot_labor_dataset.csv` equals `run.COLUMNS` in
 both content and order, as does `global_labor_dataset.csv`. A test asserts this
 for both files, and fails if either drifts. The pilot row for USA carries a
 non-null `prime_white_collar_pct`. The implementation notes record the column
-delta above and state whether this spec performed the regeneration or inherited
-it from #42, so the change is auditable rather than silent.
+delta above, so the change is auditable rather than silent.
 
 **Done (2026-08-30):** regeneration **performed by this spec, not inherited**. #42 merged 2026-08-29T20:06Z but left the file stale — `origin/main`'s copy is still 87 columns and still carries both retired columns, so the `npm run verify` side effect the review anticipated did not materialise. Regenerated here via `npm run pipeline:pilot`: 7 rows x 89 cols, header equal to `run.COLUMNS` in content and order, as is `global_labor_dataset.csv`. USA now carries `prime_white_collar_pct = 64.1707` and `late_career_white_collar_pct = 63.4621`; `early_career_white_collar_pct` and `data_year_early_career` are gone. `test_columns.py` — 7 tests, asserting both headers, naming the two retired columns so their return is a failure rather than an archaeology exercise, and pinning the 7 pilot rows including EU27. Drift check run: renaming one header column back to `early_career_white_collar_pct` fails 3 tests and errors a fourth. All four regression anchors passed on the regenerating run — WLD 48.2, USA 79.6, EU27 72.9, IND 32.6 — with 0 range/consistency problems.
 
@@ -358,7 +373,10 @@ both were checked rather than assumed:
   `run(scope, "pilot")`. The 0.11MB Eurostat cache is therefore dead weight in
   the fixture and is excluded.
 
-Net fixture ≈ **0.68MB gzipped**, inside R7's 1MB bound.
+Net fixture ≈ **0.68MB gzipped**, inside R7's 1MB bound. Reconciling that
+against the 0.78MB in the source-verification table: 0.78 − 0.11 (Eurostat,
+dropped) + 0.01 (`countries.json`, added whole) = 0.68. `make_fixture.py`
+prints the measured total on every run.
 
 ### Files to create
 
@@ -388,7 +406,7 @@ Net fixture ≈ **0.68MB gzipped**, inside R7's 1MB bound.
 | `pipeline/run.py` | Export `field_tiers` filtered to `keep` in `export_app_json`; extract the pilot scope and output filter out of `main()` into a helper the test can call | R3, R7 |
 | `pipeline/report.py:363` | `DERIVED composite` -> `MODELED` for the squeeze index | R3 |
 | `pipeline/build.py:353` | `squeeze_index` docstring "DERIVED not measured" -> MODELED | R3 |
-| `pipeline/data/pilot_labor_dataset.csv` | Regenerate to 89 columns (or inherit from #42) | R8 |
+| `pipeline/data/pilot_labor_dataset.csv` | Regenerate to 89 columns | R8 |
 | `pipeline/README.md` | Document `FIELD_TIERS`, how to run the suite, and that `make_fixture.py` needs a populated `raw/` | R3, R7 |
 
 ### Sequence
@@ -415,7 +433,7 @@ Net fixture ≈ **0.68MB gzipped**, inside R7's 1MB bound.
 | R5 | Mixed-vintage row; two-member aggregate | `test_vintages.py` | 2025/2017 both survive; range `"2017-2023"`; `latest(...) == (7.0, 2021)` |
 | R6 | Temp-file override JSON, complete and incomplete entries | `test_overrides.py` | Missing `retrieved` leaves the field unchanged; complete entry tags `data_source_override`; real file's `overrides == {}` passes |
 | R7 | Gzipped 32-area fixture into a tempdir; `fetch.RAW` and output both redirected | `test_golden_master.py`, `make_fixture.py`, `run.py` | Byte-identical against `expected/`; `pipeline/data/` unchanged afterwards; four anchors pass; DNS patched to raise |
-| R8 | Regenerate (or inherit from #42) plus the header test | `pilot_labor_dataset.csv`, `test_columns.py` | Both CSV headers equal `COLUMNS` in content and order; USA carries a non-null `prime_white_collar_pct` |
+| R8 | Regenerate plus the header test | `pilot_labor_dataset.csv`, `test_columns.py` | Both CSV headers equal `COLUMNS` in content and order; USA carries a non-null `prime_white_collar_pct` |
 | R9 | Deliberately broken fixtures | `test_validate.py` | 60+60 yields "white+blue collar = 120.00"; `lfp_rate_total=150.0` yields a range problem; clean yields `[]` |
 
 ### Tier and vintage handling
@@ -443,9 +461,12 @@ stay uncovered by this suite; that is a stated gap, not an omission.
   any float repr, R7 fails on a difference that is not a regression. Mitigation:
   generate `expected/` from the fixture run itself, then verify it matches the
   committed full-run CSV across the seven shared rows.
-- **PR #42 collision.** It regenerates `pilot_labor_dataset.csv` as a side
-  effect of `npm run verify`. If it merges mid-implementation, R8 becomes
-  "inherited" and this branch may conflict on that file.
+- **PR #42 collision.** ~~It regenerates `pilot_labor_dataset.csv` as a side
+  effect of `npm run verify`.~~ **Wrong — corrected 2026-08-30.** #42 points
+  `scripts/verify.sh` at a `mktemp -d` so verify never rewrites a tracked
+  artifact; merged `main` still carries the stale 87-column file. The real
+  collision was `specs/README.md`'s index table and `pipeline/run.py`, both
+  resolved by merging `main` in `fca877a`.
 - **`make_fixture.py` needs a populated `pipeline/raw/`**, which is gitignored
   and absent from a fresh clone. The script is committed so the slice is
   reproducible, but only by someone who has run the full pipeline once. Stated

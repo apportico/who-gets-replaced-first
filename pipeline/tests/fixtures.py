@@ -4,8 +4,11 @@ Rows are plain dicts everywhere in the pipeline, so a fixture is just a dict
 with the fields a given test cares about. These helpers exist so nine test
 modules do not each hand-roll one, and so the *shape* of a row is stated once.
 
-Nothing here reads a real data file. Tests that need real data use the golden
-master fixture instead (R7).
+Nothing here builds a row from a real data file. The one exception is
+`weights()`, which reads the committed `ai_exposure_isco.json` -- `derive`
+indexes `weights[f]` for every ISCO group and raises KeyError on a partial
+stub, so the real weights are the only workable input. Tests that need real
+*data* use the golden master fixture instead (R7).
 """
 import contextlib
 import io

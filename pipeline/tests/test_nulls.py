@@ -42,12 +42,19 @@ class NullPropagation(unittest.TestCase):
 
         `assertIsNone` above would also pass if the field were absent; this
         pins the failure mode the `or 0.0` coercion would produce.
+
+        Equality, not identity. `assertIsNot(value, 0.0)` cannot fail here: the
+        pipeline's zero comes out of `round(sum(...), 4)`, a freshly allocated
+        float, so it is never the same object as the literal and the assertion
+        passes even when the value is 0.0. An earlier revision of this test
+        carried that line and credited it with the work this one does.
         """
         row = fixtures.with_isco("XXX", year=None, g1=10.0, g2=12.0)
         build.derive({"XXX": row}, fixtures.weights())
 
-        self.assertIsNot(row["white_collar_pct"], 0.0)
         self.assertNotEqual(row["white_collar_pct"], 0.0)
+        self.assertNotEqual(row["professional_core_pct"], 0.0)
+        self.assertNotEqual(row["blue_collar_service_pct"], 0.0)
 
     def test_country_with_no_isco_data_at_all_yields_none(self):
         """The real production shape: no vintage AND no groups.

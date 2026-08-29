@@ -95,7 +95,7 @@ no labour force and no ISCO yields a flag beginning `sparse — `. Deleting the
 
 **Done (2026-08-30):** `test_nulls.py` — 11 tests. A row with `data_year_occupation=None` and ISCO groups present yields `white_collar_pct is None`; the all-null-groups row — the real production shape — also yields `None`. Mutation check run: removing the `if have_isco else None` guard fails with `AssertionError: 0.0 is not None` and `30.0 is not None`, i.e. it fabricates exactly the number the requirement names. `quality_flag` covered for complete / partial / sparse, stale vintage and ISCO-88 fallback.
 
-### R3. [ ] Every emitted field carries a tier, in a registry the tests can read
+### R3. [x] Every emitted field carries a tier, in a registry the tests can read
 
 **Probed and found absent** — the tier vocabulary exists today only as prose in
 `report.py` and a 5-entry `sources` dict in `run.py:232`. `pipeline/README.md`
@@ -145,6 +145,8 @@ fields are dropped — so the assertion is `set(payload["field_tiers"]) ==
 set(keep)`, and `field_tiers` is exported filtered to `keep` rather than whole.
 Every value is in the closed set or `NOT_A_MEASUREMENT`. A test asserts the
 five anchors above by name, including `entry_level_squeeze_index == "MODELED"`.
+
+**Done (2026-08-30):** `config.FIELD_TIERS` — 89 entries, exactly matching `run.COLUMNS`: 24 OFFICIAL, 27 DERIVED, 4 PROXY, 3 MODELED, 31 NOT_A_MEASUREMENT. `test_tiers.py` — 21 tests. Both assertions hold: `set(FIELD_TIERS) == set(run.COLUMNS)` (89) and `set(payload["field_tiers"]) == set(keep)` (84). Mutation check run: appending an untiered column to `COLUMNS` fails the registry test *and* makes `export_app_json` raise, so an untiered column cannot ship. That surfaced as a bare `KeyError` from a dict comprehension, so a guard was added naming the offending columns and pointing at `NOT_A_MEASUREMENT`. One finding while assigning tiers: the ISCO percentage shares are `DERIVED`, not `OFFICIAL` — ILOSTAT publishes headcounts in thousands and `_apply_occupation` computes `100 * group / base`, so the shares are ours; only `isco_armed_forces_thousands` passes through unchanged. Prose aligned at `report.py:363` and `build.py:353`, and asserted by `ProseAgreesWithRegistry`. Documented in `pipeline/README.md` under *Field tiers*, where the misleading "6-area batch" description of `--pilot` was also corrected.
 
 ### R4. [x] Aggregates are weighted, and their coverage is published
 
@@ -277,7 +279,7 @@ output back into it fails the suite. All four `REGRESSION_CHECKS` pass within
 tolerance. Changing a rounding call in `build.py` fails this test. The
 committed fixture directory is under 1MB.
 
-### R8. [ ] Regenerate the stale pilot expected output, and record why
+### R8. [x] Regenerate the stale pilot expected output, and record why
 
 `pipeline/data/pilot_labor_dataset.csv` cannot serve as R7's expected output as
 committed: it has 87 columns against `run.COLUMNS`'s 89, still carrying
@@ -313,6 +315,8 @@ for both files, and fails if either drifts. The pilot row for USA carries a
 non-null `prime_white_collar_pct`. The implementation notes record the column
 delta above and state whether this spec performed the regeneration or inherited
 it from #42, so the change is auditable rather than silent.
+
+**Done (2026-08-30):** regeneration **performed by this spec, not inherited**. #42 merged 2026-08-29T20:06Z but left the file stale — `origin/main`'s copy is still 87 columns and still carries both retired columns, so the `npm run verify` side effect the review anticipated did not materialise. Regenerated here via `npm run pipeline:pilot`: 7 rows x 89 cols, header equal to `run.COLUMNS` in content and order, as is `global_labor_dataset.csv`. USA now carries `prime_white_collar_pct = 64.1707` and `late_career_white_collar_pct = 63.4621`; `early_career_white_collar_pct` and `data_year_early_career` are gone. `test_columns.py` — 7 tests, asserting both headers, naming the two retired columns so their return is a failure rather than an archaeology exercise, and pinning the 7 pilot rows including EU27. Drift check run: renaming one header column back to `early_career_white_collar_pct` fails 3 tests and errors a fourth. All four regression anchors passed on the regenerating run — WLD 48.2, USA 79.6, EU27 72.9, IND 32.6 — with 0 range/consistency problems.
 
 ### R9. [x] The published invariants stay assertable
 

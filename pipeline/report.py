@@ -360,7 +360,7 @@ def write(rows, out_path, sensitivity=None):
     A("| E. Entry-level share | **PROXY — not a measurement** | No global source tracks junior vs. senior seniority within an occupation. Age 15–24 is a stand-in: it misses graduate-entry roles at 25–29 and counts long-tenure young workers as entry-level. |")
     A("| ISCO-88 fallback countries | **Official statistic, older revision** | 10 areas publish ISCO-88 only. Major groups align 1:1 with ISCO-08, so the 1–4 cut carries over; the revision moved some ICT occupations between groups 2 and 3, making `professional_core_pct` slightly less comparable than `white_collar_pct`. |")
     A("| Career-stage shares (25–54, 55–64) | **Official statistic** | Same survey source as the headline occupation split. |")
-    A("| Entry-level squeeze index | **DERIVED composite** | Four percentile ranks combined with chosen weights. Not measured; all components separately available. |")
+    A("| Entry-level squeeze index | **MODELED composite** | Four percentile ranks combined with weights we assigned (0.25 / 0.30 / 0.25 / 0.20). Not measured; all components separately available. |")
     A("| Exposed wage bill | **MODELED** | A modeled index multiplied by two official statistics. An order of magnitude, never an amount at risk. |")
     A("| Time-series country trends | **Official statistic** | Same source, more years. |")
     A("| Time-series AGGREGATE trends | **Unreliable** | The reporting country set changes year to year, so aggregate movement is partly composition change. Per-year coverage is published so this can be seen. |")

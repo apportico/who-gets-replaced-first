@@ -351,7 +351,11 @@ SQUEEZE_COMPONENTS = {
 
 def squeeze_index(rows_by_iso):
     """Entry-level squeeze: big youth cohort + concentrated in exposed occupations
-    + already struggling to be absorbed. Composite, 0-100, DERIVED not measured."""
+    + already struggling to be absorbed. Composite, 0-100.
+
+    MODELED, not measured: the SQUEEZE_COMPONENTS weights above are assigned by
+    this project, the same as the ISCO exposure weights. See spec 0004 R3.
+    """
     countries = [r for r in rows_by_iso.values() if r.get("row_type") == "country"]
     for r in countries:
         pop, y = r.get("population_total"), r.get("population_15_24")

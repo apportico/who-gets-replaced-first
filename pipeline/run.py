@@ -250,8 +250,19 @@ def export_panel_sqlite(panel, path):
 def export_app_json(rows, path):
     """Trimmed payload for the React map page."""
     keep = [c for c in COLUMNS if not c.endswith("_range")]
+    untiered = [c for c in keep if c not in C.FIELD_TIERS]
+    if untiered:
+        raise KeyError(
+            f"columns with no tier in config.FIELD_TIERS: {untiered}. "
+            "Every emitted number carries a tier (CLAUDE.md); add these to the "
+            "registry, using NOT_A_MEASUREMENT for identity/provenance fields.")
     payload = {
         "generated_from": "pipeline/run.py",
+        # 0004 R3. Per-field tier, so the app can label every number it renders
+        # rather than relying on prose the reader has to go and find. Filtered
+        # to `keep`, not the whole registry: the payload must not claim coverage
+        # of the five *_range columns it drops.
+        "field_tiers": {c: C.FIELD_TIERS[c] for c in keep},
         "sources": {
             "population_labor_sector": "World Bank Open Data API v2",
             "occupation": "ILOSTAT SDMX DF_EMP_TEMP_SEX_OCU_NB",

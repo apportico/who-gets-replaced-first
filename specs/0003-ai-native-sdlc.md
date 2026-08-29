@@ -1,6 +1,6 @@
 # 0003 — AI-native SDLC
 
-**Status:** draft
+**Status:** approved
 **Depends on:** none (spec-level). Consumes output of issues #2, #3 and #4.
 **Issue:** [#33](https://github.com/apportico/who-gets-replaced-first/issues/33)
 
@@ -109,30 +109,26 @@ invoking the source-prober on a known API returns a filled verification row;
 the data-diff reviewer run against two committed vintages of
 `global_labor_dataset.csv` reports the changed countries.
 
-### R6. [ ] Automated review on every pull request
+### R6. [ ] Automated review workflow is written and valid
 
-Add `claude-code-action` so every PR receives the same passes from `REVIEW.md`,
-with `@claude` able to address comments. Human approval stays required — the
-agent writes, a human approves.
+Add `.github/workflows/claude-review.yml` so every PR receives the same passes
+from `REVIEW.md`, with `@claude` able to address comments. Human approval stays
+required — the agent writes, a human approves.
 
-**This requirement is blocked on an action only the account holder can take:**
-the probe found no Claude GitHub App installed and no repo secret. The workflow
-file can be written now; the requirement cannot be marked `[x]` until
-`/install-github-app` has been run and the key added.
+This requirement covers **writing the workflow**, which is entirely in our
+control and checkable. Whether the review actually *runs* depends on the Claude
+GitHub App being installed and a key added — an action only the account holder
+can take, split out as R9 so this requirement can close on its own merits.
 
-**Acceptance:** `.github/workflows/claude-review.yml` exists and passes
-`REVIEW.md`; opening a test PR produces an automated review comment. Until the
-App is installed, this stays `[ ]` with the blocker recorded — not `[x]`.
+**Acceptance:** `.github/workflows/claude-review.yml` exists, parses as valid
+YAML, references `REVIEW.md` as the review contract, and triggers on
+`pull_request`.
 
-### R7. [ ] CI gates merges to `main`
-
-Branch protection currently requires 1 approving review but sets **no required
-status checks**, so a PR with red CI can still merge. Once the PR workflow from
-#3 exists, add it as a required status check.
-
-**Acceptance:** `gh api repos/.../branches/main/protection` returns a
-`required_status_checks` block naming the CI job. A PR with a failing check
-cannot be merged through the UI.
+> **R7 was moved out of this spec.** It required branch protection to name a CI
+> job as a required status check — but that job is built by issue #3, which has
+> not landed. Gating a check that does not yet exist is not implementable here,
+> so the requirement moved to #3, where it belongs. The number is left unused
+> rather than renumbered, so requirement IDs stay stable across the PR history.
 
 ### R8. [ ] `CLAUDE.md` records the SDLC
 
@@ -144,12 +140,31 @@ next person does not re-propose them.
 **Acceptance:** `CLAUDE.md` names `npm run verify`, `REVIEW.md` and the
 issues-as-intent decision, and carries the declined-practices list.
 
+### R9. [ ] Automated review actually runs — BLOCKED on the account holder
+
+The probe found no Claude GitHub App installed on this repo and no Actions
+secret set (`gh secret list` returned empty; branch protection confirms no
+status checks). Until `/install-github-app` has been run and the API key added,
+the workflow from R6 sits inert.
+
+**This cannot be worked on from inside the repo.** It is recorded as its own
+requirement so the gap stays visible rather than being assumed away or quietly
+folded into R6.
+
+**Acceptance:** opening a test PR produces an automated review comment applying
+`REVIEW.md`. Stays `[ ]` with the blocker recorded until the App is installed —
+never `[x]` on the strength of the workflow file alone.
+
 ## Non-goals
 
 - **Continuous evals for skills and hooks** — substantial on its own, tracked as
   issue #34 and its own spec.
 - **The hook scripts themselves** — issue #4. R4 only creates the settings file
   they plug into.
+- **Making CI a required status check on `main`** — moved to issue #3. Branch
+  protection today requires 1 approving review and sets no status checks, so a
+  PR with red CI can still merge. But the check to require is the one #3 builds,
+  so the gating belongs in that spec rather than this one.
 - **Claude on-call / Claude Tag** — a static GitHub Pages site with no runtime
   has no incidents to respond to.
 - **OpenTelemetry export, DORA metrics, approval-gate wait times** — org-scale

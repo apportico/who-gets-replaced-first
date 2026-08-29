@@ -48,7 +48,7 @@ If the change affects the full run rather than the pilot set, say so and ask bef
 
 Then check the data discipline directly on the output — these are the project's non-negotiables and they are checkable:
 
-- No country that was null before is now non-null without a source. Diff the row count of nulls per field.
+- No country that was null before is now non-null without a source. Compare the per-`(country, field)` null **mask** before and after, not the null count — a count is invariant to a swap, so one country gaining an imputed value while another loses one passes a count check while breaking "never impute a missing country". Every cell flipping null → populated needs an attributable source; every cell flipping populated → null is a finding too.
 - Every new field carries a tier (`OFFICIAL` / `DERIVED` / `PROXY` / `MODELED`) and a per-field year.
 - Any new entry in `manual_overrides.json` has a citation, a year and a retrieval date.
 - Aggregates are weighted and publish their coverage.

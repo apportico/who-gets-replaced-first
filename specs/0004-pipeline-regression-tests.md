@@ -476,6 +476,18 @@ stay uncovered by this suite; that is a stated gap, not an omission.
   and absent from a fresh clone. The script is committed so the slice is
   reproducible, but only by someone who has run the full pipeline once. Stated
   in `pipeline/README.md`.
+- **The golden master is byte-sensitive to the pilot's cohort, not just to
+  regressions.** `entry_level_squeeze_index` is a percentile rank over the
+  countries *in the current run* (`build.py:373`,
+  `sum(1 for x in vals if x < v) / len(vals)`), so it is relative to the
+  cohort rather than absolute. Adding an area to `C.PILOT` shifts the column
+  for all seven rows and fails the diff with `line 2 differs` — correctly, but
+  for a composition change rather than a regression. Regenerate
+  `fixtures/expected/` deliberately when the cohort changes, and read a failure
+  confined to that one column as a cohort signal before treating it as a bug.
+  `report.py:367` already describes the same hazard one axis over: "the
+  reporting country set changes year to year, so aggregate movement is partly
+  composition change".
 - **Registry drift is the point, and it will bite.** `set(FIELD_TIERS) ==
   set(COLUMNS)` means any future spec adding a column fails the suite until a
   tier is assigned. Intended, and worth saying in the PR so it does not read as

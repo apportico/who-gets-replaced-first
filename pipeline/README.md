@@ -28,8 +28,21 @@ Standard library only — no pip installs. Every API response is cached under
 a refresh of that one source. Live calls are spaced 0.5s apart and retry with
 exponential backoff.
 
-The test suite is stdlib `unittest`, runs offline, and takes about 10ms. Run it
-before claiming a pipeline change worked.
+The test suite is stdlib `unittest`, runs offline, and takes under a second.
+Run it before claiming a pipeline change worked.
+
+**Run it exactly as written above.** A reasonable-looking variant fails in a way
+that looks like a broken suite but is not:
+
+```bash
+python3 -m unittest discover pipeline/tests          # 107 tests, OK
+python3 -m unittest discover -s pipeline/tests -t .  # 9 errors: No module named 'context'
+```
+
+With an explicit top-level directory, `pipeline/tests` is treated as a package
+and its own directory never reaches `sys.path`, so the `import context` at the
+head of every test module fails. Not a defect — the pipeline modules import each
+other flat (`import config as C`), which is what `context.py` exists to support.
 
 ## Outputs
 
@@ -105,6 +118,16 @@ Two things about it are deliberate:
   publishes headcounts in thousands; `_apply_occupation` computes
   `100 * group / base`. The counts are official, the shares are ours. Only
   `isco_armed_forces_thousands` passes through unchanged and stays `OFFICIAL`.
+
+`entry_level_squeeze_index` is **relative to the run's cohort, not absolute**.
+`squeeze_index` (`build.py:373`) percentile-ranks each component across the
+countries *in the current run*, so the same country scores differently in a
+pilot (31 areas) than in a full run (218) — USA is 49.19 in
+`pilot_labor_dataset.csv` and 43.08 in `global_labor_dataset.csv`, and both are
+correct. Compare it only within one run's output, never across the two files.
+The same hazard applies to aggregate movement over time, which `report.py:367`
+describes: "the reporting country set changes year to year, so aggregate
+movement is partly composition change".
 
 `entry_level_squeeze_index` is `MODELED`. It percentile-ranks four components
 and combines them with `SQUEEZE_COMPONENTS`' 0.25 / 0.30 / 0.25 / 0.20 —

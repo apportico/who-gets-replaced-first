@@ -1,7 +1,12 @@
 node_modules
 dist
 .idea
-.claude
+
+# Claude Code: share skills, keep local settings and worktrees out
+.claude/*
+!.claude/skills/
+!.claude/hooks/
+.claude/settings.local.json
 *.local
 .env*
 .DS_Store

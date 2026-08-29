@@ -383,6 +383,6 @@ Summarize what was done:
 
 ## Skipped (<count>)
 - <count> bot comments
-
-All actionable and answered threads have been replied to and resolved on GitHub. Suggestion, disagreed and outdated threads have been replied to but left open, because each still needs an action from you.
 ```
+
+Omit any section with a zero count. The section headers and the `[x]` / `[ ]` marks already say which threads were resolved and which are still waiting on you, so do not add a closing sentence restating it — that summary line existed for three revisions and drifted from the actual behaviour every time.

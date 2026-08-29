@@ -1,6 +1,6 @@
 # 0005 — CI on pull requests
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** 0003 (provides `npm run verify`); 0004 for the test step only
 **Issue:** [#3](https://github.com/apportico/who-gets-replaced-first/issues/3)
 
@@ -66,24 +66,31 @@ silently correcting: a passing job is not evidence unless you know *which* job
 passed, and `claude-review.yml` is precisely the workflow that goes green
 without doing anything.
 
-### R2. [~] The offline pipeline test suite runs in CI — moved to #43
+### R2. [x] The offline pipeline test suite runs in CI
 
-> **R2 was moved out of this spec, to #43.** It required
-> `python3 -m unittest discover pipeline/tests` in the CI job — but that suite
-> arrives with spec 0004, and the step is one unconditional line in the workflow
-> this spec already created.
->
-> The first attempt kept it here behind an `if [ -d pipeline/tests ]` guard that
-> warned instead of running. Review caught that the guard had **no removal
-> trigger**: once 0004 landed nothing would delete it, and a later rename of
-> `pipeline/tests/` would turn the one status check gating `main` green again,
-> with a `::warning::` visible only inside the run page and never on the PR
-> checks list. That is the same green-when-absent failure this project keeps
-> finding, deferred rather than avoided.
->
-> So the scaffold is gone and the step belongs to 0004, where the suite it runs
-> is being written. `setup-python` stays here, pinned, so the step lands in a
-> pinned interpreter. The number is left unused rather than renumbered.
+`python3 -m unittest discover pipeline/tests` runs unconditionally as the last
+step of the `verify` job — the step that actually guards the numbers. Spec 0004's
+suite runs the real pilot against a committed gzipped fixture with the network
+patched out, so a moved anchor, a changed number format or a reordered column
+fails in under a second, offline.
+
+**History, because the handoff is the interesting part.** This was first written
+here behind an `if [ -d pipeline/tests ]` guard, which review correctly rejected:
+the guard had no removal trigger, and a `::warning::` renders inside the run page
+but never on the PR checks list, so it would have become a permanent
+green-when-absent hole inside the one check gating `main`. The requirement was
+then moved to #43, where the suite was being written.
+
+**#43 merged without it.** Spec 0004 closed `done` with `pipeline/tests/` on
+`main` and 107 passing tests — and no CI step, so nothing ran them on a pull
+request. Its R7 is titled "A golden-master pilot run, offline, **in CI**"; the
+offline half was delivered thoroughly, the CI half was not, and closing 0005 as
+`done` on the strength of a move that did not land would have made the mark a
+formality. Completed here instead.
+
+**Acceptance (met 2026-08-30):** `python3 -m unittest discover pipeline/tests`
+runs unconditionally in `ci.yml` and passes — **107 tests, 0.29s, OK** locally
+against `main`'s suite, and green on this PR's own CI run.
 
 ### R3. [x] CI is a required status check on `main`
 

@@ -1,0 +1,225 @@
+import { METRICS, TIERS, rampStops, fmtMetric, NO_DATA_COLOR } from '../utils/laborMetrics';
+import ScenarioPanel from './ScenarioPanel';
+
+export default function LaborSidebar({
+  metric, onMetricChange,
+  regions, activeRegions, onToggleRegion,
+  incomeGroups, activeIncome, onToggleIncome,
+  search, onSearch,
+  requireIsco, onToggleRequireIsco,
+  aggregates, onSelectRow,
+  counts, onReset,
+  showCorridor, onToggleCorridor, corridorCount,
+  scenario,
+}) {
+  const tier = TIERS[metric.tier];
+  const stops = rampStops(metric);
+
+  return (
+    <div className="panel-scroll w-72 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0">
+      {/* Metric picker */}
+      <div className="p-3 border-b border-gray-200">
+        <h3 className="text-[11px] font-bold tracking-wider text-gray-500 uppercase mb-2">
+          Metric
+        </h3>
+        <div className="space-y-0.5">
+          {METRICS.map((m) => {
+            const active = m.key === metric.key;
+            const t = TIERS[m.tier];
+            return (
+              <button
+                key={m.key}
+                onClick={() => onMetricChange(m)}
+                className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 cursor-pointer transition-colors ${
+                  active ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <span className="flex-1 truncate">{m.label}</span>
+                <span
+                  className="text-[8px] font-bold px-1 py-px rounded flex-shrink-0"
+                  style={{
+                    backgroundColor: active ? 'rgba(255,255,255,0.18)' : `${t.color}1a`,
+                    color: active ? '#fff' : t.color,
+                  }}
+                >
+                  {t.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected metric explainer + legend */}
+      <div className="p-3 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span
+            className="text-[9px] font-bold px-1.5 py-px rounded"
+            style={{ backgroundColor: `${tier.color}1a`, color: tier.color }}
+          >
+            {tier.label}
+          </span>
+          <span className="text-[10px] text-gray-500">{tier.blurb}</span>
+        </div>
+        <p className="text-[11px] text-gray-700 leading-snug mb-2">{metric.blurb}</p>
+        {metric.caveat && (
+          <p
+            className="text-[10px] leading-snug rounded p-1.5 mb-2 border"
+            style={{
+              color: tier.color,
+              backgroundColor: `${tier.color}0f`,
+              borderColor: `${tier.color}33`,
+            }}
+          >
+            {metric.caveat}
+          </p>
+        )}
+        <div className="flex h-3 rounded overflow-hidden">
+          {stops.map((s) => (
+            <div key={s.color} className="flex-1" style={{ backgroundColor: s.color }} />
+          ))}
+        </div>
+        <div className="flex justify-between text-[9px] text-gray-500 mt-0.5 font-mono">
+          <span>{fmtMetric(metric, metric.domain[0])}</span>
+          <span>
+            {fmtMetric(metric, metric.domain[1])}+
+            {metric.scale === 'log' && <span className="text-gray-400"> (log)</span>}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 mt-1.5">
+          <i
+            className="w-3 h-3 rounded-full border border-gray-300"
+            style={{ backgroundColor: NO_DATA_COLOR }}
+          />
+          <span className="text-[10px] text-gray-500">no data — kept, never imputed</span>
+        </div>
+        <p className="text-[10px] text-gray-400 mt-1.5 leading-snug">
+          Circle size = number of employed people.
+        </p>
+      </div>
+
+      {/* Aggregates */}
+      <div className="p-3 border-b border-gray-200">
+        <h3 className="text-[11px] font-bold tracking-wider text-gray-500 uppercase mb-2">
+          Aggregates
+        </h3>
+        <p className="text-[10px] text-gray-400 mb-2 leading-snug">
+          Employment-weighted, not simple averages. Coverage = share of the group&apos;s
+          employment in countries reporting occupation data.
+        </p>
+        <div className="space-y-0.5">
+          {aggregates.map((a) => (
+            <button
+              key={a.iso3}
+              onClick={() => onSelectRow(a)}
+              className="w-full text-left px-2 py-1 rounded hover:bg-gray-100 cursor-pointer flex items-center gap-2"
+            >
+              <span className="text-[11px] text-gray-700 flex-1 truncate">{a.country_name}</span>
+              <span className="text-[11px] font-mono tabular-nums font-semibold text-gray-900">
+                {fmtMetric(metric, a[metric.key])}
+              </span>
+              {a.isco_coverage_pct_of_employment != null && (
+                <span className="text-[9px] font-mono text-gray-400 w-8 text-right">
+                  {a.isco_coverage_pct_of_employment.toFixed(0)}%
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {scenario && (
+        <ScenarioPanel
+          rate={scenario.rate}
+          onRate={scenario.onRate}
+          basis={scenario.basis}
+          onBasis={scenario.onBasis}
+          rows={scenario.rows}
+          world={scenario.world}
+        />
+      )}
+
+      {/* Filters */}
+      <div className="p-3 border-b border-gray-200">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-[11px] font-bold tracking-wider text-gray-500 uppercase">Filters</h3>
+          <button
+            onClick={onReset}
+            className="text-[10px] text-gray-400 hover:text-gray-700 cursor-pointer"
+          >
+            reset
+          </button>
+        </div>
+        <input
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          placeholder="Search country or ISO3…"
+          className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded mb-2 focus:outline-none focus:border-gray-400"
+        />
+        <label className="flex items-center gap-2 mb-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showCorridor}
+            onChange={onToggleCorridor}
+            className="cursor-pointer"
+          />
+          <span className="text-[11px] text-gray-700">
+            Ring the {corridorCount} corridor-board states
+          </span>
+        </label>
+        <label className="flex items-center gap-2 mb-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={requireIsco}
+            onChange={onToggleRequireIsco}
+            className="cursor-pointer"
+          />
+          <span className="text-[11px] text-gray-700">Only countries with occupation data</span>
+        </label>
+
+        <h4 className="text-[10px] font-semibold text-gray-500 uppercase mb-1">Region</h4>
+        <div className="space-y-0.5 mb-3">
+          {regions.map((r) => (
+            <button
+              key={r}
+              onClick={() => onToggleRegion(r)}
+              className={`w-full text-left px-2 py-1 rounded text-[11px] cursor-pointer transition-colors ${
+                activeRegions.has(r) ? 'bg-blue-100 text-blue-900 font-medium' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+
+        <h4 className="text-[10px] font-semibold text-gray-500 uppercase mb-1">Income group</h4>
+        <div className="space-y-0.5">
+          {incomeGroups.map((g) => (
+            <button
+              key={g}
+              onClick={() => onToggleIncome(g)}
+              className={`w-full text-left px-2 py-1 rounded text-[11px] cursor-pointer transition-colors ${
+                activeIncome.has(g) ? 'bg-blue-100 text-blue-900 font-medium' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-3 text-[10px] text-gray-500 leading-snug">
+        <p className="mb-1">
+          <strong className="text-gray-700">{counts.shown}</strong> of {counts.total} countries
+          shown · <strong className="text-gray-700">{counts.withIsco}</strong> with occupation data
+        </p>
+        <p className="text-gray-400">
+          Sources: World Bank Open Data (population, labor, sector) and ILOSTAT SDMX
+          (occupation, youth × occupation, LFP by age). AI exposure weights are ours,
+          not official statistics. Full field documentation in{' '}
+          <code className="text-gray-500">pipeline/README.md</code>.
+        </p>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,49 @@
+# Specs
+
+This project is spec-driven: **no code without a requirement ID.**
+
+## How it works
+
+1. A spec is a numbered file here — `NNNN-short-name.md`.
+2. Every requirement gets an ID (`R1`, `R2`, …), a statement of what it must do,
+   and **acceptance criteria** that can be checked, not just asserted.
+3. **Sources are probed before they are specified.** If a spec says "pull X from
+   API Y", someone has already confirmed Y returns X. A spec is not a wishlist.
+4. Every requirement ends in one of three states, marked in the file itself:
+
+   | Mark | Meaning |
+   |---|---|
+   | `[x]` | Done, acceptance criteria met |
+   | `[!]` | Investigated and **not feasible** — with the reason recorded |
+   | `[~]` | **Revised** during implementation — with what changed and why |
+
+5. `[!]` and `[~]` are first-class outcomes, not failures. A spec that ends up
+   all `[x]` usually means the requirements were written to be easy.
+
+## Why the marks matter
+
+Two real examples from `0002`:
+
+- **R2** was specced as "recover New Zealand and Saudi Arabia from OECD.Stat."
+  Probing OECD's SDMX catalog showed it carries **no ISCO occupation dataflow
+  at all**. Marked `[!]` with the reason. The gap is now documented in the
+  README instead of being quietly filled with a modelled guess.
+- **R11** was specced as "add a 15–34 early-career band." A first probe showed
+  10-year age bands existed; a closer one showed those bands carry *skill level
+  only, not ISCO*. Marked `[~]` and replaced with the career-stage profile
+  (25–54, 55–64), which is available and more informative.
+
+Both would have become silent bugs or invented numbers under a
+build-first-document-later approach.
+
+## Index
+
+| Spec | Scope | Status |
+|---|---|---|
+| [0001](0001-labor-dataset.md) | Core dataset + map page | complete (written retrospectively) |
+| [0002](0002-gaps-timeseries-and-app.md) | Coverage gaps, time series, derived measures, app features | 15 done · 1 revised · 1 not feasible |
+
+## Starting a new spec
+
+Copy `TEMPLATE.md`, take the next number, write the requirements **before**
+writing code, and probe every source you intend to name.

@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+/* Leaflet required height */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+}
+
+/* Light popup styling */
+.leaflet-popup-content-wrapper {
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+  border: 1px solid #e5e7eb !important;
+}
+.leaflet-popup-tip {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-top: none !important;
+  border-left: none !important;
+}
+.leaflet-popup-close-button {
+  color: #9ca3af !important;
+}
+.leaflet-popup-close-button:hover {
+  color: #374151 !important;
+}
+.leaflet-popup-content {
+  margin: 10px 14px !important;
+}
+
+/* Light tooltip styling */
+.leaflet-tooltip {
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+}
+.leaflet-tooltip-top::before {
+  border-top-color: #e5e7eb !important;
+}
+.leaflet-tooltip-bottom::before {
+  border-bottom-color: #e5e7eb !important;
+}
+
+/* Chokepoint pulse animation */
+@keyframes pulse-ring {
+  0% { transform: scale(0.85); opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.choke-pulse {
+  animation: pulse-ring 2s ease-out infinite;
+  transform-origin: center;
+}
+
+/* Custom scrollbar for panels */
+.panel-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.panel-scroll::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+.panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Leaflet zoom control */
+.leaflet-control-zoom {
+  border: 1px solid #e5e7eb !important;
+  border-radius: 6px !important;
+  overflow: hidden;
+}
+.leaflet-control-zoom a {
+  background: #ffffff !important;
+  color: #6b7280 !important;
+  border-color: #e5e7eb !important;
+}
+.leaflet-control-zoom a:hover {
+  background: #f3f4f6 !important;
+  color: #1f2937 !important;
+}
+
+/* Leaflet attribution */
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.8) !important;
+  color: #9ca3af !important;
+  font-size: 9px !important;
+}
+.leaflet-control-attribution a {
+  color: #2563eb !important;
+}

@@ -1,0 +1,5 @@
+iso3,country_name,field,value,median,robust_z,reason,data_year_occupation,data_quality_flag
+JPN,Japan,isco4_clerical_pct,21.1892,5.2616,3.63,robust z-score beyond +/-3.5,2023,partial — only 8/9 ISCO groups reported by source
+MAC,"Macao SAR, China",isco4_clerical_pct,28.074,5.2616,5.2,robust z-score beyond +/-3.5,2020,partial — ISCO-88 fallback (no ISCO-08 series published); no youth x ISCO cross-tab
+STP,Sao Tome and Principe,lfp_rate_total,23.342,61.502,-4.4,robust z-score beyond +/-3.5,2017,partial — ISCO data 2017 (>5yr old)
+SYC,Seychelles,employed_share_of_population_pct,160.2632,43.6232,11.86,robust z-score beyond +/-3.5,2025,partial — no labor force data

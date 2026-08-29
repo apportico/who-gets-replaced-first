@@ -1,0 +1,349 @@
+[
+  {
+    "alignment": "india",
+    "location": "India — Gujarat",
+    "name": "MUNDRA PORT",
+    "details": {
+      "OWNER": "Adani Ports & SEZ (India, private) — 70%+ stake",
+      "OPERATOR": "Adani Ports and SEZ Ltd",
+      "STATUS": "India's largest commercial port. Primary IMEC eastern departure point. India committed $10B to port modernization nationally."
+    },
+    "tag": "🇮🇳 CORRIDOR — BUILDER TEAM",
+    "alert": "",
+    "lat": 22.84,
+    "lon": 69.71,
+    "country": "India"
+  },
+  {
+    "alignment": "state",
+    "location": "India — Navi Mumbai",
+    "name": "JAWAHARLAL NEHRU PORT (JNPT)",
+    "details": {
+      "OWNER": "Government of India (state-owned)",
+      "OPERATOR": "Jawaharlal Nehru Port Authority. APM Terminals (Maersk, Denmark) operates one terminal.",
+      "STATUS": "India's largest container port. Secondary IMEC departure node. Vadhavan deep-water port (under construction nearby) will become primary gateway."
+    },
+    "tag": "🇮🇳 CORRIDOR — BUILDER TEAM",
+    "alert": "",
+    "lat": 18.95,
+    "lon": 72.95,
+    "country": "India"
+  },
+  {
+    "alignment": "uae",
+    "location": "UAE — Dubai",
+    "name": "JEBEL ALI PORT",
+    "details": {
+      "OWNER": "DP World (Dubai Ports World) — Dubai Government entity",
+      "OPERATOR": "DP World. Largest port in the Middle East. World's 9th busiest container port.",
+      "STATUS": "Primary IMEC Gulf hub. Inside the Strait of Hormuz — vulnerable to Iranian closure. 2026 Hormuz crisis directly impacted operations."
+    },
+    "tag": "🇦🇪 CORRIDOR — BUT HORMUZ-EXPOSED",
+    "alert": "⚠ Inside Strait of Hormuz. Iran's Feb 2026 closure directly threatened this node.",
+    "lat": 24.99,
+    "lon": 55.06,
+    "country": "UAE"
+  },
+  {
+    "alignment": "uae",
+    "location": "UAE — Abu Dhabi",
+    "name": "KHALIFA PORT",
+    "details": {
+      "OWNER": "AD Ports Group (Abu Dhabi Government) — majority. CMA CGM (France) operates one terminal.",
+      "OPERATOR": "AD Ports Group + CMA CGM Terminal (France, $800M investment 2025)",
+      "STATUS": "Official IMEC MOU designated Gulf hub. Also inside Hormuz. French CMA CGM presence = EU embedded in this node."
+    },
+    "tag": "🇦🇪 PRIMARY IMEC MOU NODE",
+    "alert": "⚠ Inside Strait of Hormuz. Hormuz bypass via Fujairah/Oman increasingly critical.",
+    "lat": 24.8,
+    "lon": 54.65,
+    "country": "UAE"
+  },
+  {
+    "alignment": "uae",
+    "location": "UAE — Fujairah Emirate",
+    "name": "PORT OF FUJAIRAH",
+    "details": {
+      "OWNER": "Fujairah Government (UAE). DP World operates terminals.",
+      "OPERATOR": "DP World (Dubai). Only UAE emirate port outside the Strait of Hormuz.",
+      "STATUS": "Emerging as IMEC's Hormuz-bypass alternative. Sits on Gulf of Oman, Indian Ocean side. Critical if Hormuz stays closed."
+    },
+    "tag": "🇦🇪 HORMUZ BYPASS — RISING IN IMPORTANCE",
+    "alert": "",
+    "lat": 25.11,
+    "lon": 56.34,
+    "country": "UAE"
+  },
+  {
+    "alignment": "state",
+    "location": "Saudi Arabia — Eastern Province",
+    "name": "KING ABDULAZIZ PORT (DAMMAM)",
+    "details": {
+      "OWNER": "Saudi Ports Authority (Mawani) — Saudi state",
+      "OPERATOR": "Saudi Ports Authority. APM Terminals (Maersk/Denmark) operates container terminal.",
+      "STATUS": "Key IMEC Gulf relay point. Rail connection to Haifa planned via Saudi rail network. Also Persian Gulf side — Hormuz-exposed."
+    },
+    "tag": "🇸🇦 CORRIDOR NODE — SAUDI STATE",
+    "alert": "",
+    "lat": 26.43,
+    "lon": 50.1,
+    "country": "Saudi Arabia"
+  },
+  {
+    "alignment": "mixed",
+    "location": "Israel — Mediterranean",
+    "name": "PORT OF HAIFA(SPLIT — TWO OPERATORS)",
+    "details": {
+      "OLD PORT": "Adani Ports (India) 70% + Gadot (Israel) 30%. Acquired Jan 2023 for $1.15B. US lobbied hard for India to win.",
+      "NEW BAY PORT": "SIPG — Shanghai International Port Group (China, state-owned). 25-year concession until 2040. Built for $930M.",
+      "GAP": "1.8 km separates the Indian-owned old port from China's new terminal. China's port sits adjacent to Israel's main naval base."
+    },
+    "tag": "⚠ MOST CONTESTED NODE ON THE BOARD",
+    "alert": "🔴 China operates a terminal 1.8km from Israel's navy. SIPG concession runs to 2040. US pushing Israel to invoke \"public interest\" clause. During Feb 2026 Iran strikes on Haifa, SIPG terminal was operational — collecting intelligence through the crisis.",
+    "lat": 32.82,
+    "lon": 34.99,
+    "country": "Israel"
+  },
+  {
+    "alignment": "china",
+    "location": "Greece — Mediterranean / European Gateway",
+    "name": "PORT OF PIRAEUS",
+    "details": {
+      "OWNER": "COSCO Shipping (China, state-owned, PLA-linked) — 67% majority stake. Greek state retains 33%.",
+      "OPERATOR": "Piraeus Port Authority (PPA) — COSCO controlled. Acquired 2016 for ~€368M.",
+      "STATUS": "Designated IMEC European gateway in original MOU — but operated by China. Revenue doubled since COSCO acquisition. EU now treating this as a strategic blunder. COSCO was Pentagon-blacklisted Jan 2025 for PLA links."
+    },
+    "tag": "🔴 CHINA CONTROLS IMEC'S EUROPE ENTRY",
+    "alert": "🔴 CRITICAL: IMEC's original European endpoint is operated by a Pentagon-blacklisted Chinese state company. Italy (Trieste) and France (Marseille) are being pushed as alternatives precisely because of this. \"Piraeus was a wake-up call\" — former US Ambassador to Greece.",
+    "lat": 37.95,
+    "lon": 23.63,
+    "country": "Greece"
+  },
+  {
+    "alignment": "western",
+    "location": "Oman — Indian Ocean (south of Hormuz)",
+    "name": "PORT OF SALALAH",
+    "details": {
+      "OWNER": "Oman government majority + APM Terminals (Maersk, Denmark) — significant stake",
+      "OPERATOR": "Salalah Port Services (APM Terminals partnership). World's 2nd most efficient container facility (2025 ranking).",
+      "STATUS": "Key Hormuz bypass. Outside the strait on the Arabian Sea. Vital during 2026 closure. Part of proposed IMEC Oman extension."
+    },
+    "tag": "✅ HORMUZ-FREE — WESTERN OPERATOR",
+    "alert": "",
+    "lat": 16.94,
+    "lon": 54,
+    "country": "Oman"
+  },
+  {
+    "alignment": "strategic",
+    "location": "Oman — Arabian Sea (deep water)",
+    "name": "PORT OF DUQM",
+    "details": {
+      "OWNER": "Oman government. China has China-Oman Industrial Park in SEZ. US, UK, India have defense access agreements.",
+      "OPERATOR": "ASYAD Group (Oman state). Adani Group in talks for SEZ development. Hutchison Ports (HK) at Khasab (nearby Musandam).",
+      "STATUS": "Most contested port on this list. US aircraft carriers have access. China industrial park operates inside. India Adani negotiating SEZ. Multiple superpowers simultaneously embedded here."
+    },
+    "tag": "⚡ US + CHINA + INDIA — ALL INSIDE ONE PORT",
+    "alert": "🟡 The most geopolitically complex port in the world: US carriers, Chinese industry, Indian investment, all operating simultaneously in one Omani port. Oman's neutrality is the only thing keeping this from exploding.",
+    "lat": 19.65,
+    "lon": 57.7,
+    "country": "Oman"
+  },
+  {
+    "alignment": "uae",
+    "location": "Somaliland — Gulf of Aden / Bab al-Mandab",
+    "name": "PORT OF BERBERA",
+    "details": {
+      "OWNER": "Somaliland government. DP World (UAE) — majority concession operator. Ethiopia has equity stake.",
+      "OPERATOR": "DP World (UAE, Dubai Government). 30-year concession. Israel recognized Somaliland Dec 2025 — potential Israeli military/intelligence presence emerging.",
+      "STATUS": "300km from Houthi-controlled Yemen. Flanks the Bab al-Mandab southern chokepoint. UAE + Israel = implicit control of the Red Sea's southern entry. Saudi Arabia condemns Israel's Somaliland recognition."
+    },
+    "tag": "🇦🇪 UAE + ISRAEL FLANKING BAB AL-MANDAB",
+    "alert": "",
+    "lat": 10.43,
+    "lon": 45.01,
+    "country": "Somaliland"
+  },
+  {
+    "alignment": "western",
+    "location": "Italy — Northern Adriatic (EU alternative to Piraeus)",
+    "name": "PORT OF TRIESTE",
+    "details": {
+      "OWNER": "Port Network Authority of the Eastern Adriatic Sea (Italian state). Germany's Deutsche Bahn has rail freight partnerships.",
+      "OPERATOR": "Port Network Authority. Italy appointed IMEC Special Envoy (Apr 2025) specifically to push Trieste as EU gateway. Connected by rail directly to Austria, Germany, and Central Europe.",
+      "STATUS": "Italy's main candidate to replace Piraeus as IMEC European endpoint. No Chinese presence. Rail links to EU economic core."
+    },
+    "tag": "✅ CHINA-FREE — PREFERRED IMEC EUROPEAN NODE",
+    "alert": "",
+    "lat": 45.65,
+    "lon": 13.77,
+    "country": "Italy"
+  },
+  {
+    "alignment": "china",
+    "location": "Pakistan — Arabian Sea (CPEC anchor)",
+    "name": "GWADAR PORT",
+    "details": {
+      "OWNER": "China Overseas Ports Holding (COPH) — 40-year lease",
+      "OPERATOR": "China Overseas Ports Holding. Pakistan's strategic access to Arabian Sea via $62B CPEC corridor.",
+      "STATUS": "China's Arabian Sea anchor. Flanks India's IMEC western flank. Pakistani military protection. Part of why India-Pakistan tensions map to the corridor — Gwadar is China's counter-IMEC foothold."
+    },
+    "tag": "🔴 CHINA'S COUNTER-IMEC ARABIAN SEA BASE",
+    "alert": "",
+    "lat": 25.12,
+    "lon": 62.32,
+    "country": "Pakistan"
+  },
+  {
+    "alignment": "china",
+    "location": "Sri Lanka — Indian Ocean (debt-trap model)",
+    "name": "HAMBANTOTA PORT",
+    "details": {
+      "OWNER": "China Merchants Port Holdings — 70% stake, 99-year lease (2017–2116)",
+      "OPERATOR": "China Merchants Port Holdings. Sri Lanka defaulted on Chinese loans, surrendered the port.",
+      "STATUS": "The original \"debt-trap\" port. Sits on India's sea lanes. China has a 99-year lease. Template for the BRI port acquisition strategy."
+    },
+    "tag": "🔴 99-YEAR CHINA LEASE — INDIA'S BACKYARD",
+    "alert": "",
+    "lat": 6.12,
+    "lon": 81.12,
+    "country": "Sri Lanka"
+  },
+  {
+    "alignment": "china",
+    "location": "Djibouti — Red Sea / Bab al-Mandab",
+    "name": "DORALEH MULTIPURPOSE PORT + CHINA NAVAL BASE",
+    "details": {
+      "OWNER": "China Merchants Holdings — 23.5% stake in port. China has separate military base (opened 2017) adjacent to port.",
+      "OPERATOR": "Djibouti Ports & Free Zones Authority. China Merchants port operations. Chinese PLA at military base.",
+      "STATUS": "China's only overseas military base. Sits at the Bab al-Mandab strait — the Red Sea chokepoint. US also has Camp Lemonnier (largest US military base in Africa) nearby. The two superpowers share a 10km radius."
+    },
+    "tag": "🔴 CHINA MILITARY BASE AT BAB AL-MANDAB",
+    "alert": "🔴 China's military base and the US's Camp Lemonnier are both at Djibouti — 10km apart — both watching the same chokepoint the Houthis have been attacking since 2023.",
+    "lat": 11.6,
+    "lon": 43.15,
+    "country": "Djibouti"
+  },
+  {
+    "alignment": "strategic",
+    "location": "Panama — Panama Canal (Atlantic + Pacific ends)",
+    "name": "BALBOA PORT + CRISTÓBAL PORT",
+    "details": {
+      "WAS": "CK Hutchison (Hong Kong) — operated since 1997 under 25-year concession. Panama also granted a no-bid 25-year extension that triggered the constitutional crisis.",
+      "DEAL": "Mar 2025: BlackRock + GIP + TIL (MSC subsidiary) agreed to buy 43 Hutchison ports globally for $22.8B, including 90% of Panama Ports Company (Balboa + Cristóbal).",
+      "CHINA BLOCKS": "China's SAMR launched antitrust review Mar 2025, effectively halting the sale. Beijing called it \"kowtowing\" to US pressure. COSCO then demanded a majority stake in the deal — BlackRock and MSC considered walking away.",
+      "COURT": "Panama Supreme Court ruled Hutchison concessions unconstitutional. Feb 24, 2026: Panama officially voided/annulled Hutchison contracts.",
+      "NOW": "Maersk + MSC took interim operational control (Feb 2026). CK Hutchison initiated international arbitration against Panama. BlackRock deal future uncertain. Trump declared victory; China called it fabricated pretext."
+    },
+    "tag": "⚡ MOST CONTESTED PORT DEAL IN HISTORY",
+    "alert": "🔴 STATUS APR 2026: Legally unresolved. Maersk/MSC running interim ops. BlackRock deal may be dead (COSCO demanded majority; exclusivity expired Jul 2025). Panama Supreme Court voided Hutchison — but Hutchison is suing. If Panama relaunches auction, BlackRock, COSCO, and DP World are all possible bidders. Trump declared this a Donroe Doctrine win regardless.",
+    "lat": 8.94,
+    "lon": -79.56,
+    "country": "Panama"
+  },
+  {
+    "alignment": "strategic",
+    "location": "Venezuela — Caribbean (largest proven oil reserves on Earth)",
+    "name": "VENEZUELA — JOSÉ TERMINAL + MARACAIBO OIL INFRASTRUCTURE",
+    "details": {
+      "WAS": "PDVSA (Venezuela state) with Chinese \"oil-for-debt\" agreements giving China first claim on oil exports. China lent $60B+, repaid in oil. Venezuela was China's largest Western Hemisphere energy source.",
+      "NOW": "Jan 3, 2026: Operation Absolute Resolve. Maduro captured. US DEA + military. Trump: \"This is OUR Hemisphere.\" US claims it will \"run Venezuela.\" Venezuelan government technically still in place. US access to oil reserves asserted.",
+      "EFFECT": "Severs China's biggest Western Hemisphere energy lifeline. Cuts Russia's last Caribbean proxy. Cuba and Nicaragua signaled as next targets."
+    },
+    "tag": "🇺🇸 DONROE DOCTRINE — FIRST EXECUTION",
+    "alert": "🟡 China loses $60B+ in oil-for-debt agreements overnight. China is now the #2 user of the Panama Canal — after the US — and Venezuela was its hemispheric energy base. Both severed within 3 months in early 2026.",
+    "lat": 10.20,
+    "lon": -64.63,
+    "country": "Venezuela"
+  },
+  {
+    "alignment": "strategic",
+    "location": "Arctic — Greenland (Danish territory, strategic Arctic anchor)",
+    "name": "GREENLAND — NUUK PORT + ARCTIC ROUTES",
+    "details": {
+      "OWNER": "Kingdom of Denmark. Greenland Self-Government (Naalakkersuisut) has autonomy. No US ownership — yet.",
+      "WHY IT MATTERS": "Controls the GIUK Gap (Greenland-Iceland-UK) — NATO's critical North Atlantic chokepoint. Arctic melting opens \"Polar Silk Road\" — China declared itself a \"near-Arctic state.\" Greenland has rare earth minerals China currently monopolizes globally. US needs it to block both China's Arctic route and Russia's submarine access to the Atlantic.",
+      "STATUS": "Trump demanded purchase/acquisition repeatedly. JD Vance visited Mar 2025. Denmark PM: \"if US attacks a NATO member, everything stops.\" Trump ruled out military force for Canada — not explicitly for Greenland. Katie Miller: \"soon.\" Greenland independence vote gaining momentum — possible pathway for US deal."
+    },
+    "tag": "⚡ ARCTIC CORRIDOR — CHINA'S POLAR SILK ROAD COUNTER",
+    "alert": "",
+    "lat": 64.18,
+    "lon": -51.74,
+    "country": "Greenland"
+  },
+  {
+    "alignment": "china",
+    "location": "Peru — Pacific (South America, China's new gateway)",
+    "name": "PORT OF CHANCAY",
+    "details": {
+      "OWNER": "COSCO Shipping (China state, Pentagon-blacklisted) — 60% stake, 30-year exclusivity",
+      "STATUS": "Xi Jinping inaugurated Nov 2024 at APEC Lima. Bypasses Panama Canal entirely — direct China–South America route. COSCO demanded control of all port services (tugs, pilots, fuel, waste) — Peru resisted, then acquiesced. Under Donroe Doctrine, this is Target #2 in South America after Venezuela.",
+      "DONROE": "US 2025 NSS explicitly targets non-hemispheric powers owning \"strategically vital assets.\" Chancay is the clearest example in South America. No US action taken yet — Venezuela was first."
+    },
+    "tag": "🔴 CHINA'S PANAMA BYPASS — DONROE TARGET",
+    "alert": "",
+    "lat": -11.57,
+    "lon": -77.27,
+    "country": "Peru"
+  },
+  {
+    "alignment": "india",
+    "location": "Iran — Gulf of Oman",
+    "name": "CHABAHAR PORT",
+    "details": {
+      "OWNER": "Iran Ports and Maritime Organization (state). India Ports Global Ltd (IPGL) operates Shahid Beheshti terminal.",
+      "OPERATOR": "India Ports Global Ltd — $85M investment (Phase 1). 10-year operational lease signed May 2016. India committed additional $120M for expansion.",
+      "STATUS": "India's counter to China's Gwadar Port (72km away). Southern anchor of INSTC corridor. Only Iranian port outside Strait of Hormuz. Connects to Afghanistan via Zaranj-Delaram highway."
+    },
+    "tag": "🇮🇳 INDIA'S GWADAR COUNTER — INSTC ANCHOR",
+    "alert": "⚠ US sanctions on Iran complicate Indian operations. India received sanctions waiver for Chabahar but future uncertain. China's Gwadar is 72km away.",
+    "lat": 25.29,
+    "lon": 60.64,
+    "country": "Iran"
+  },
+  {
+    "alignment": "china",
+    "location": "Sudan — Red Sea",
+    "name": "PORT SUDAN",
+    "details": {
+      "OWNER": "Sudan Ports Authority (state). China Harbour Engineering Company (CHEC) built container terminal expansion.",
+      "OPERATOR": "Sudan Sea Ports Corporation. Filippo International (Philippines) operates container terminal. Russia negotiated naval logistics base agreement (2020, status uncertain due to civil war).",
+      "STATUS": "Sudan's sole major seaport and de facto capital during civil war (2023–present). Key Red Sea node. Russia's planned naval base would give Moscow Red Sea access. Chinese-built infrastructure."
+    },
+    "tag": "🔴 RED SEA NODE — CHINA-BUILT, RUSSIA-COVETED",
+    "alert": "⚠ Active civil war zone. Russian naval base agreement signed but implementation stalled. Port operating under wartime conditions.",
+    "lat": 19.62,
+    "lon": 37.22,
+    "country": "Sudan"
+  },
+  {
+    "alignment": "mixed",
+    "location": "Sri Lanka — Western Coast",
+    "name": "COLOMBO PORT (WEST CONTAINER TERMINAL)",
+    "details": {
+      "OWNER": "Sri Lanka Ports Authority (51%). Adani Ports (India, 51% of operating company). John Keells Holdings (Sri Lanka, 14%).",
+      "OPERATOR": "Adani Group won the West International Container Terminal in 2021 after China was blocked from taking it. East Container Terminal remains state-operated.",
+      "STATUS": "India-China competition node. Adani won WCT after Colombo blocked Chinese firm. China Merchants already holds 85% of Colombo International Container Terminal (CICT). India and China operate competing terminals in same port."
+    },
+    "tag": "⚡ INDIA vs CHINA — COMPETING TERMINALS IN SAME PORT",
+    "alert": "🟡 China Merchants operates CICT (85% stake). Adani operates WCT. India and China literally compete across the same harbor.",
+    "lat": 6.94,
+    "lon": 79.84,
+    "country": "Sri Lanka"
+  },
+  {
+    "alignment": "state",
+    "location": "Egypt — Mediterranean / Suez Canal",
+    "name": "PORT SAID / EAST PORT SAID",
+    "details": {
+      "OWNER": "Suez Canal Authority (SCA) — Egyptian state. East Port Said developed as SEZ.",
+      "OPERATOR": "Suez Canal Container Terminal (APM Terminals/Maersk, 55%). TIL Group (MSC subsidiary) operates second terminal.",
+      "STATUS": "Northern gateway to Suez Canal. Transshipment hub for Asia-Europe traffic. IMEC's Egypt transit node. East Port Said SEZ attracting Chinese and Gulf investment simultaneously."
+    },
+    "tag": "🇪🇬 SUEZ GATEWAY — IMEC TRANSIT NODE",
+    "alert": "",
+    "lat": 31.26,
+    "lon": 32.30,
+    "country": "Egypt"
+  }
+]

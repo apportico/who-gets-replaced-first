@@ -1,0 +1,25 @@
+{
+  "_schema": {
+    "purpose": "R3. Fallback for figures no free API carries. Values here are merged AFTER all API sources and tagged so they are never mistaken for API-sourced data.",
+    "required_per_entry": ["value", "year", "source_name", "source_url", "retrieved", "note"],
+    "rule": "Never add a number you have not read directly from the cited source. An unfilled entry is correct; an invented one is not.",
+    "example": {
+      "ARM": {
+        "white_collar_pct": {
+          "value": 0.0,
+          "year": 2024,
+          "source_name": "Statistical Committee of the Republic of Armenia",
+          "source_url": "https://armstat.am/en/?nid=82",
+          "retrieved": "YYYY-MM-DD",
+          "note": "EXAMPLE ONLY - not applied. Remove the leading underscore from the key to activate."
+        }
+      }
+    }
+  },
+  "_unfilled_gaps": {
+    "ARM": "ILOSTAT occupation series ends 2017. armstat.am publishes labour force survey results but not as a machine-readable ISCO-08 feed; filling this needs a human to read the published LFS table and enter it here with a citation.",
+    "NZL": "Absent from all ILOSTAT occupation dataflows; OECD SDMX carries no ISCO series. Stats NZ publishes ANZSCO-coded data that would need a manual ANZSCO->ISCO crosswalk.",
+    "SAU": "Absent from all ILOSTAT occupation dataflows; GASTAT publishes nationally only."
+  },
+  "overrides": {}
+}

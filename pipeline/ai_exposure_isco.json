@@ -1,0 +1,62 @@
+{
+  "_meta": {
+    "label": "MODELED ESTIMATE \u2014 NOT OFFICIAL STATISTICS",
+    "what_this_is": "Analyst-assigned generative-AI task-exposure weights (0-1) for each ISCO-08 major group. These are OUR calibration, not numbers lifted from any single publication.",
+    "informed_by": [
+      "Gmyrek, Berg & Bescond (ILO Working Paper 96, 2023), 'Generative AI and Jobs' \u2014 maps GPT-4 task-level exposure onto ISCO-08; finds clerical support work (ISCO 4) by far the most exposed group, with managerial/professional/technician work moderately exposed and manual/agricultural work least exposed.",
+      "Felten, Raj & Seamans, 'Occupational Heterogeneity in Exposure to Generative AI' (2023) \u2014 AIOE index, O*NET-based.",
+      "Webb, 'The Impact of Artificial Intelligence on the Labor Market' (2020) \u2014 patent-text exposure measure.",
+      "Anthropic Economic Index \u2014 observed distribution of real Claude usage across O*NET task families, which skews heavily toward computer/mathematical, office/administrative and business/financial tasks."
+    ],
+    "ordinal_claim": "We are confident only in the RANK ORDER (clerical > professional/technician > managerial > service/sales > operators/craft > elementary > agricultural). The cardinal values are illustrative and should not be read as probabilities of job loss.",
+    "scale": "0 = essentially no current generative-AI task overlap; 1 = nearly all constituent tasks have substantial generative-AI overlap.",
+    "how_to_swap": "Replace the weights below with any published ISCO-major-group exposure index and re-run; ai_exposure_weighted_score is a linear function of these.",
+    "profiles_note": "R12. Three plausible weightings are scored so the sensitivity of the country ORDER to our choice can be measured. 'balanced' is the headline profile used for ai_exposure_weighted_score."
+  },
+  "weights": {
+    "isco1_managers_pct": 0.55,
+    "isco2_professionals_pct": 0.7,
+    "isco3_technicians_pct": 0.62,
+    "isco4_clerical_pct": 0.85,
+    "isco5_service_sales_pct": 0.35,
+    "isco6_agricultural_pct": 0.08,
+    "isco7_craft_pct": 0.15,
+    "isco8_operators_pct": 0.18,
+    "isco9_elementary_pct": 0.12
+  },
+  "profiles": {
+    "balanced": {
+      "isco1_managers_pct": 0.55,
+      "isco2_professionals_pct": 0.7,
+      "isco3_technicians_pct": 0.62,
+      "isco4_clerical_pct": 0.85,
+      "isco5_service_sales_pct": 0.35,
+      "isco6_agricultural_pct": 0.08,
+      "isco7_craft_pct": 0.15,
+      "isco8_operators_pct": 0.18,
+      "isco9_elementary_pct": 0.12
+    },
+    "clerical_heavy": {
+      "isco1_managers_pct": 0.4,
+      "isco2_professionals_pct": 0.55,
+      "isco3_technicians_pct": 0.5,
+      "isco4_clerical_pct": 0.95,
+      "isco5_service_sales_pct": 0.25,
+      "isco6_agricultural_pct": 0.05,
+      "isco7_craft_pct": 0.1,
+      "isco8_operators_pct": 0.12,
+      "isco9_elementary_pct": 0.08
+    },
+    "cognitive_uniform": {
+      "isco1_managers_pct": 0.7,
+      "isco2_professionals_pct": 0.7,
+      "isco3_technicians_pct": 0.7,
+      "isco4_clerical_pct": 0.7,
+      "isco5_service_sales_pct": 0.3,
+      "isco6_agricultural_pct": 0.1,
+      "isco7_craft_pct": 0.15,
+      "isco8_operators_pct": 0.15,
+      "isco9_elementary_pct": 0.15
+    }
+  }
+}

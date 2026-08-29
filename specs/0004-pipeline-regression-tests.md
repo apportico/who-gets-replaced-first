@@ -1,6 +1,6 @@
 # 0004 — Pipeline regression test suite
 
-**Status:** approved
+**Status:** in-progress
 **Depends on:** none
 **Issue:** #2
 **Approved:** 2026-08-29 — @syymza, PR #43, re-review at `b4eed82`. Moved draft -> in-review -> approved; all four review findings resolved before approval, and the `setUpClass` refinement landed in `fcaf633`.
@@ -316,6 +316,118 @@ into returning an empty list.
 `blue_collar_service_pct=60.0` produces a problem string naming the row and the
 sum. A fixture with `lfp_rate_total=150.0` produces an out-of-range problem. A
 clean fixture produces `[]`.
+
+## Implementation Plan
+
+**Planned:** 2026-08-30
+
+Two findings from reading the pilot path close over the fixture's shape, and
+both were checked rather than assumed:
+
+- **`countries.json` ships whole, not sliced.** `build_reference` (`build.py:41`)
+  iterates all 295 areas from `fetch.wb_country_metadata()` and filters by scope
+  afterwards, and it keys on `id`, not the `countryiso3code` the indicator slice
+  filters on. 0.11MB raw / **0.01MB gzipped**, so shipping it intact is free.
+- **The pilot never touches Eurostat.** `crosscheck.eurostat_check` and
+  `crosscheck.sensitivity` are called only in `main()`'s full branch, never from
+  `run(scope, "pilot")`. The 0.11MB Eurostat cache is therefore dead weight in
+  the fixture and is excluded.
+
+Net fixture ≈ **0.68MB gzipped**, inside R7's 1MB bound.
+
+### Files to create
+
+| Path | Purpose | Req |
+|---|---|---|
+| `pipeline/tests/__init__.py` | Package marker for `unittest discover` | — |
+| `pipeline/tests/context.py` | Puts `pipeline/` on `sys.path` once — the modules import flat (`import config as C`) | — |
+| `pipeline/tests/fixtures.py` | Shared synthetic row builders, so nine modules do not each hand-roll a row | — |
+| `pipeline/tests/test_derive.py` | Arithmetic, `num()`, `latest()` | R1 |
+| `pipeline/tests/test_nulls.py` | Null propagation, the `have_isco` gate, `quality_flag` | R2 |
+| `pipeline/tests/test_tiers.py` | `FIELD_TIERS` completeness, closed set, anchors, payload subset | R3 |
+| `pipeline/tests/test_aggregates.py` | `_wavg`, `make_aggregate`, coverage | R4 |
+| `pipeline/tests/test_vintages.py` | Per-field years, `*_range` spans | R5 |
+| `pipeline/tests/test_overrides.py` | Six-key contract, temp-file fixtures | R6 |
+| `pipeline/tests/test_golden_master.py` | Offline pilot run, byte diff, four anchors | R7 |
+| `pipeline/tests/test_columns.py` | Committed CSV headers vs `COLUMNS` | R8 |
+| `pipeline/tests/test_validate.py` | `validate()` catches each violation | R9 |
+| `pipeline/tests/make_fixture.py` | Regenerates the fixture from a full `pipeline/raw/` — committed so the slice is reproducible rather than a mystery blob | R7 |
+| `pipeline/tests/fixtures/raw/**.gz` | 32-area gzipped slice, ~0.68MB | R7 |
+| `pipeline/tests/fixtures/expected/pilot_labor_dataset.csv` | Golden master, on a path nothing in the pipeline writes to | R7 |
+
+### Files to modify
+
+| Path | Change | Req |
+|---|---|---|
+| `pipeline/config.py` | Add `FIELD_TIERS` (89 entries) and the `NOT_A_MEASUREMENT` sentinel | R3 |
+| `pipeline/run.py` | Export `field_tiers` filtered to `keep` in `export_app_json`; extract the pilot scope and output filter out of `main()` into a helper the test can call | R3, R7 |
+| `pipeline/report.py:363` | `DERIVED composite` -> `MODELED` for the squeeze index | R3 |
+| `pipeline/build.py:353` | `squeeze_index` docstring "DERIVED not measured" -> MODELED | R3 |
+| `pipeline/data/pilot_labor_dataset.csv` | Regenerate to 89 columns (or inherit from #42) | R8 |
+| `pipeline/README.md` | Document `FIELD_TIERS`, how to run the suite, and that `make_fixture.py` needs a populated `raw/` | R3, R7 |
+
+### Sequence
+
+1. **Scaffold** — `tests/`, `context.py`, `fixtures.py`. Enabler for everything below.
+2. **R1, R2, R4, R5, R9** — pure-function tests over synthetic rows. Zero
+   production changes, so they land and prove themselves before anything is
+   touched. R2 first within the group; it is the one that matters most.
+3. **R6** — override contract, temp-file fixtures only.
+4. **R3** — registry, app-JSON export, prose alignment. The first production change.
+5. **R8** — check whether #42 landed the regeneration; regenerate if not; add the header test.
+6. **R7** — `make_fixture.py`, commit the slice, golden master. Last, because it
+   locks in output that steps 4 and 5 change.
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | `derive()` over synthetic rows with hand-computed values | `test_derive.py` | `employed_total == 900`, `share == 18.0`; flipping `1 -` to `1 +` fails |
+| R2 | Row with `data_year_occupation=None` and ISCO groups present | `test_nulls.py` | `white_collar_pct is None`, not `0.0`; flag prefix `sparse — `; deleting the `have_isco` guard fails |
+| R3 | `FIELD_TIERS` in config, two distinct assertions | `config.py`, `run.py`, `test_tiers.py` | `set(FIELD_TIERS)==set(COLUMNS)` (89); `set(payload["field_tiers"])==set(keep)` (84); five anchors incl. squeeze == MODELED |
+| R4 | 900@20.0 + 100@80.0 fixture, then a null member | `test_aggregates.py` | `26.0` not `50.0`; coverage `90.91`; all-null yields `None` |
+| R5 | Mixed-vintage row; two-member aggregate | `test_vintages.py` | 2025/2017 both survive; range `"2017-2023"`; `latest(...) == (7.0, 2021)` |
+| R6 | Temp-file override JSON, complete and incomplete entries | `test_overrides.py` | Missing `retrieved` leaves the field unchanged; complete entry tags `data_source_override`; real file's `overrides == {}` passes |
+| R7 | Gzipped 32-area fixture into a tempdir; `fetch.RAW` and output both redirected | `test_golden_master.py`, `make_fixture.py`, `run.py` | Byte-identical against `expected/`; `pipeline/data/` unchanged afterwards; four anchors pass; DNS patched to raise |
+| R8 | Regenerate (or inherit from #42) plus the header test | `pilot_labor_dataset.csv`, `test_columns.py` | Both CSV headers equal `COLUMNS` in content and order; USA carries a non-null `prime_white_collar_pct` |
+| R9 | Deliberately broken fixtures | `test_validate.py` | 60+60 yields "white+blue collar = 120.00"; `lfp_rate_total=150.0` yields a range problem; clean yields `[]` |
+
+### Tier and vintage handling
+
+No new *numbers* are produced — this spec adds tests plus a registry over
+fields that already exist. The one tier change is `entry_level_squeeze_index`:
+`DERIVED` -> **`MODELED`**, recorded in `FIELD_TIERS` (`config.py`), in the app
+JSON payload, and in the prose at `report.py:363` and `build.py:353`.
+Provenance columns (`iso3`, the `data_year_*` family, `data_quality_flag`) take
+the explicit `NOT_A_MEASUREMENT` sentinel, so an absent entry always means
+someone forgot rather than that the field is exempt. No vintage changes — R5
+asserts only what is already recorded.
+
+### Validation
+
+R7 runs the real pilot and asserts all four `REGRESSION_CHECKS` — WLD ~50%,
+USA ~79%, EU27 ~72%, IND ~31.5% — reading the values from the rows `run()`
+returns rather than scraping stdout, so `run()` itself needs no change.
+`[crosscheck]` and `[sensitivity]` are not reachable from a pilot run, so they
+stay uncovered by this suite; that is a stated gap, not an omission.
+
+### Risks
+
+- **Byte-identical is strict.** If `pipeline/data/` and the fixture disagree on
+  any float repr, R7 fails on a difference that is not a regression. Mitigation:
+  generate `expected/` from the fixture run itself, then verify it matches the
+  committed full-run CSV across the seven shared rows.
+- **PR #42 collision.** It regenerates `pilot_labor_dataset.csv` as a side
+  effect of `npm run verify`. If it merges mid-implementation, R8 becomes
+  "inherited" and this branch may conflict on that file.
+- **`make_fixture.py` needs a populated `pipeline/raw/`**, which is gitignored
+  and absent from a fresh clone. The script is committed so the slice is
+  reproducible, but only by someone who has run the full pipeline once. Stated
+  in `pipeline/README.md`.
+- **Registry drift is the point, and it will bite.** `set(FIELD_TIERS) ==
+  set(COLUMNS)` means any future spec adding a column fails the suite until a
+  tier is assigned. Intended, and worth saying in the PR so it does not read as
+  a broken test.
 
 ## Non-goals
 

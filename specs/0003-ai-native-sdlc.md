@@ -1,6 +1,6 @@
 # 0003 — AI-native SDLC
 
-**Status:** approved
+**Status:** in-progress
 **Depends on:** none (spec-level). Consumes output of issues #2, #3 and #4.
 **Issue:** [#33](https://github.com/apportico/who-gets-replaced-first/issues/33)
 
@@ -154,6 +154,104 @@ folded into R6.
 **Acceptance:** opening a test PR produces an automated review comment applying
 `REVIEW.md`. Stays `[ ]` with the blocker recorded until the App is installed —
 never `[x]` on the strength of the workflow file alone.
+
+## Implementation Plan
+
+**Planned:** 2026-08-29
+
+### Findings that shaped this plan
+
+Two things came out of reading the code, and both change what R2 has to do:
+
+1. **`pipeline/run.py` has no exit-code logic at all** (`grep -c 'sys.exit'` returns 0).
+   It prints `PASS` / `FAIL` per regression anchor and `[validate] N problems`, then
+   exits 0 regardless. `npm run pipeline:pilot` therefore *cannot fail a build today*.
+   A verify command wrapping it would be green while the anchors were red — the exact
+   failure this spec exists to prevent. Fixing the exit code is a prerequisite, not a
+   nicety.
+2. **`pipeline/raw/` is gitignored**, so a clean checkout has no cache and the pilot
+   would hit the network. This shapes what `verify` runs and when.
+
+### Files to create
+
+| Path | Purpose | Req |
+|---|---|---|
+| `REVIEW.md` | Review contract read by both humans and the PR action | R3 |
+| `.claude/settings.json` | Permissions; `hooks` omitted until #4 lands | R4 |
+| `.claude/agents/source-prober.md` | Read/fetch-only prober for the `/spec` verification step | R5 |
+| `.claude/agents/data-diff-reviewer.md` | Reports what moved between two CSV vintages | R5 |
+| `.github/workflows/claude-review.yml` | PR review workflow citing `REVIEW.md` | R6 |
+
+### Files to modify
+
+| Path | Change | Req |
+|---|---|---|
+| `pipeline/run.py` | Exit non-zero on a failed regression anchor or validate problem | R2 |
+| `package.json` | Add `verify` = lint + build + pipeline:pilot | R2 |
+| `specs/TEMPLATE.md` | Add an `**Issue:**` field | R1 |
+| `.claude/skills/spec/SKILL.md` | Instruct filling `**Issue:**` at the write step | R1 |
+| `.claude/skills/review-pr/SKILL.md` | Reference `REVIEW.md` rather than restating the rules | R3 |
+| `CLAUDE.md` | Issues-as-intent, `npm run verify`, `REVIEW.md`, declined practices | R1, R2, R3, R8 |
+
+### Sequence
+
+1. **R2a** — `pipeline/run.py` exit codes. Everything else that claims to gate depends on this.
+2. **R2b** — `npm run verify`.
+3. **R3** — `REVIEW.md`, and point the review-pr skill at it.
+4. **R1** — `**Issue:**` in the template and the `/spec` skill.
+5. **R4** — `.claude/settings.json`.
+6. **R5** — the two agent definitions.
+7. **R6** — `claude-review.yml`, which cites the `REVIEW.md` from step 3.
+8. **R8** — `CLAUDE.md`, last, because it documents everything above.
+9. **R9** — blocked on the account holder; stays `[ ]`.
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | `**Issue:**` field added and the skill instructed to fill it | `specs/TEMPLATE.md`, `.claude/skills/spec/SKILL.md`, `CLAUDE.md` | `grep -c '^\*\*Issue:\*\*' specs/0003-ai-native-sdlc.md` returns 1 |
+| R2 | Exit codes in the pipeline, then a single `verify` script | `pipeline/run.py`, `package.json` | `npm run verify` exits 0; breaking lint exits non-zero; a broken anchor exits non-zero |
+| R3 | Review passes extracted into a shared contract | `REVIEW.md`, `.claude/skills/review-pr/SKILL.md` | `REVIEW.md` lists each pass with a severity; the skill references it rather than restating |
+| R4 | Settings file in the verified shape | `.claude/settings.json` | `python3 -m json.tool` parses it; no `hooks` path points at a missing file |
+| R5 | Two scoped subagent definitions | `.claude/agents/` | Valid frontmatter and `tools:`; the prober returns a filled verification row |
+| R6 | Workflow file written and valid | `.github/workflows/claude-review.yml` | Parses as YAML, references `REVIEW.md`, triggers on `pull_request` |
+| R8 | SDLC recorded for the next person | `CLAUDE.md` | Names `npm run verify`, `REVIEW.md`, the intent decision, and the declined list |
+| R9 | — | — | **Blocked.** Opening a test PR produces an automated review. Stays `[ ]` until `/install-github-app` is run and a key added. |
+
+### Tier and vintage handling
+
+Not applicable. This spec produces no published figures, so the
+`OFFICIAL` / `DERIVED` / `PROXY` / `MODELED` rules bind none of its requirements.
+Recorded so a reviewer can see it was considered rather than skipped.
+
+### Validation
+
+`npm run verify` is itself the validation this spec adds, and it becomes the
+check every later spec runs. The existing `[validate]`, `[crosscheck]` and
+`[outliers]` blocks keep printing; the change is that a failed regression anchor
+now returns a non-zero exit code instead of scrolling past.
+
+No new data check is needed — this spec touches no data.
+
+### Risks
+
+- **R2 changes pipeline behaviour.** Making `run.py` exit non-zero is a real
+  behaviour change: anything that shells out to it and ignored the exit code
+  will now see a failure. Nothing in the repo currently does, but CI (#3) will.
+- **R2's stated acceptance is too narrow.** It tests only that breaking lint
+  fails. The valuable case is a failed regression anchor failing the build.
+  Implementing that widens the requirement, so **R2 is expected to close `[~]`
+  (revised) rather than `[x]`**, with the widened acceptance recorded.
+- **The pilot needs the network without a cache.** `verify` will run lint and
+  build unconditionally, run the pilot when `pipeline/raw/` is present, and skip
+  it with a loud notice when it is not — fast and deterministic locally, with CI
+  choosing its own fetch policy in #3.
+- **R6 cannot be tested end to end** until the App is installed. That is exactly
+  why R9 exists; do not let a valid YAML file be mistaken for a working review.
+- **R5's acceptance requires actually invoking the agents**, which means a live
+  API call for the prober. If that proves impractical in this environment, R5
+  closes `[~]` with the check reduced to frontmatter validity, and the reason
+  recorded.
 
 ## Non-goals
 

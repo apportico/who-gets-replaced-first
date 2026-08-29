@@ -10,15 +10,39 @@ to AI automation.**
 ## Run it
 
 ```bash
-python3 pipeline/run.py --pilot     # 6-area validation batch, prints regression checks
+python3 pipeline/run.py --pilot     # validation batch, prints regression checks
 python3 pipeline/run.py             # full run: all countries + 11 aggregates
 python3 pipeline/report.py          # regenerate summary_report.md from the CSV
+python3 -m unittest discover pipeline/tests    # regression suite (spec 0004)
 ```
+
+**What `--pilot` actually does.** It *fetches* 32 areas — `set(C.PILOT) |
+set(C.EU27)` — and *writes* 7 rows: WLD, EU27, and the six in `C.PILOT`. The
+EU27 row is a weighted aggregate over all 27 members, so it cannot be produced
+from a smaller slice. Earlier wording here called it a "6-area batch", which
+described the output rows and misled at least one reader into sizing a test
+fixture against the wrong scope.
 
 Standard library only — no pip installs. Every API response is cached under
 `pipeline/raw/`, so re-runs are offline and free. Delete a cached file to force
 a refresh of that one source. Live calls are spaced 0.5s apart and retry with
 exponential backoff.
+
+The test suite is stdlib `unittest`, runs offline, and takes under a second.
+Run it before claiming a pipeline change worked.
+
+**Run it exactly as written above.** A reasonable-looking variant fails in a way
+that looks like a broken suite but is not:
+
+```bash
+python3 -m unittest discover pipeline/tests          # 107 tests, OK
+python3 -m unittest discover -s pipeline/tests -t .  # 9 errors: No module named 'context'
+```
+
+With an explicit top-level directory, `pipeline/tests` is treated as a package
+and its own directory never reaches `sys.path`, so the `import context` at the
+head of every test module fails. Not a defect — the pipeline modules import each
+other flat (`import config as C`), which is what `context.py` exists to support.
 
 ## Outputs
 
@@ -69,6 +93,52 @@ Only `SEX_T` (both sexes) is pulled.
   industry and ICSE status only. It cannot fill the New Zealand gap.
 - **National statistical offices** — supported through
   `manual_overrides.json` (R3) rather than scraped. See "Known gaps" below.
+
+## Field tiers
+
+Every emitted column carries a tier in `config.FIELD_TIERS`, one entry per
+column in `run.COLUMNS`. This is the machine-readable form of the rule that
+`CLAUDE.md` states in prose: never blur measured and constructed.
+
+| Tier | Meaning | Count |
+|---|---|---|
+| `OFFICIAL` | Published national statistic, as published | 24 |
+| `DERIVED` | Arithmetic on official statistics | 27 |
+| `PROXY` | A stand-in for something no source measures globally | 4 |
+| `MODELED` | Analyst-assigned model output | 3 |
+| `NOT_A_MEASUREMENT` | Identity and provenance — not a claim about the world | 31 |
+
+Two things about it are deliberate:
+
+- **`NOT_A_MEASUREMENT` is spelled out**, not left absent. A missing entry
+  therefore always means someone forgot, never "this field is exempt". The
+  suite asserts `set(FIELD_TIERS) == set(run.COLUMNS)`, and `export_app_json`
+  refuses to write a payload containing an untiered column.
+- **The ISCO percentage shares are `DERIVED`, not `OFFICIAL`.** ILOSTAT
+  publishes headcounts in thousands; `_apply_occupation` computes
+  `100 * group / base`. The counts are official, the shares are ours. Only
+  `isco_armed_forces_thousands` passes through unchanged and stays `OFFICIAL`.
+
+`entry_level_squeeze_index` is **relative to the run's cohort, not absolute**.
+`squeeze_index` (`build.py:373`) percentile-ranks each component across the
+countries *in the current run*, so the same country scores differently in a
+pilot (31 areas) than in a full run (218) — USA is 49.19 in
+`pilot_labor_dataset.csv` and 43.08 in `global_labor_dataset.csv`, and both are
+correct. Compare it only within one run's output, never across the two files.
+The same hazard applies to aggregate movement over time, which `report.py:367`
+describes: "the reporting country set changes year to year, so aggregate
+movement is partly composition change".
+
+`entry_level_squeeze_index` is `MODELED`. It percentile-ranks four components
+and combines them with `SQUEEZE_COMPONENTS`' 0.25 / 0.30 / 0.25 / 0.20 —
+weights this project assigned, exactly as it assigned the ISCO exposure
+weights. It was previously labelled a "DERIVED composite" in `report.py` with
+the caveat carried in the prose beside it; a one-word enum cannot carry a
+caveat, so the tier changed rather than the meaning. See spec 0004 R3.
+
+The tiers ship to the app in `global_labor.json` under `field_tiers`, filtered
+to the 84 columns the payload actually carries — the five `*_range` columns are
+dropped from the payload, so it does not claim coverage it does not have.
 
 ## Field reference
 

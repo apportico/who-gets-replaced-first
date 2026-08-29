@@ -176,3 +176,150 @@ NO_OCCUPATION_SOURCE = {
            "Stats NZ uses ANZSCO and does not map to ISCO in any free feed.",
     "SAU": "Not in ILOSTAT occupation dataflows; GASTAT publishes nationally only.",
 }
+
+
+# ------------------------------------------------- 0004 R3. field -> tier
+# CLAUDE.md's first non-negotiable: never blur measured and constructed. Every
+# emitted number carries a tier, and until spec 0004 that rule lived only as
+# prose in report.py's methodology tables -- which is to say it was enforced by
+# whoever last read them. This registry makes it mechanical: the suite asserts
+# set(FIELD_TIERS) == set(run.COLUMNS), so a new column without a tier fails the
+# build rather than shipping untiered.
+#
+#   OFFICIAL           published national statistic, as published
+#   DERIVED            arithmetic on official statistics
+#   PROXY              a stand-in for something no source measures globally
+#   MODELED            analyst-assigned model output
+#   NOT_A_MEASUREMENT  identity and provenance -- not a claim about the world
+#
+# NOT_A_MEASUREMENT is spelled out rather than left absent so that a missing
+# entry always means someone forgot, never "this field is exempt".
+TIERS = ("OFFICIAL", "DERIVED", "PROXY", "MODELED")
+NOT_A_MEASUREMENT = "NOT_A_MEASUREMENT"
+
+FIELD_TIERS = {
+    # -- identity: labels, not measurements
+    "iso3": NOT_A_MEASUREMENT,
+    "country_name": NOT_A_MEASUREMENT,
+    "region": NOT_A_MEASUREMENT,
+    "income_group": NOT_A_MEASUREMENT,
+    "row_type": NOT_A_MEASUREMENT,
+    "capital": NOT_A_MEASUREMENT,
+    "lat": NOT_A_MEASUREMENT,
+    "lon": NOT_A_MEASUREMENT,
+    "member_count": NOT_A_MEASUREMENT,
+
+    # -- A. population structure: World Bank, as published
+    "population_total": "OFFICIAL",
+    "pop_0_14_pct": "OFFICIAL",
+    "pop_15_64_pct": "OFFICIAL",
+    "pop_65plus_pct": "OFFICIAL",
+    "age_dependency_ratio": "OFFICIAL",
+
+    # -- B. labour force: World Bank, plus three ILOSTAT age bands
+    "lfp_rate_total": "OFFICIAL",
+    "lfp_rate_15_24": "OFFICIAL",
+    "lfp_rate_15_24_ilo": "OFFICIAL",
+    "lfp_rate_25_54": "OFFICIAL",
+    "lfp_rate_55_64": "OFFICIAL",
+    "emp_to_pop_ratio_15plus": "OFFICIAL",
+    "youth_employment_rate_15_24": "OFFICIAL",
+    "unemployment_rate_total": "OFFICIAL",
+    "unemployment_rate_15_24": "OFFICIAL",
+    "labor_force_total": "OFFICIAL",
+    # labour force x (1 - unemployment), or the ILOSTAT survey total
+    "employed_total": "DERIVED",
+    "employed_total_source": NOT_A_MEASUREMENT,
+    "employed_share_of_population_pct": "DERIVED",
+
+    # -- C. broad sector: World Bank, as published
+    "emp_agriculture_pct": "OFFICIAL",
+    "emp_industry_pct": "OFFICIAL",
+    "emp_services_pct": "OFFICIAL",
+
+    # -- D. ISCO occupation.
+    # ILOSTAT publishes HEADCOUNTS in thousands; every *_pct here is
+    # 100 * group / base, computed in _apply_occupation. The shares are ours,
+    # so they are DERIVED even though the counts behind them are official.
+    "isco1_managers_pct": "DERIVED",
+    "isco2_professionals_pct": "DERIVED",
+    "isco3_technicians_pct": "DERIVED",
+    "isco4_clerical_pct": "DERIVED",
+    "isco5_service_sales_pct": "DERIVED",
+    "isco6_agricultural_pct": "DERIVED",
+    "isco7_craft_pct": "DERIVED",
+    "isco8_operators_pct": "DERIVED",
+    "isco9_elementary_pct": "DERIVED",
+    "isco_unclassified_pct": "DERIVED",
+    # group 0 count, straight from the source
+    "isco_armed_forces_thousands": "OFFICIAL",
+    "isco_groups_reported": NOT_A_MEASUREMENT,
+    "isco_classified_share_pct": "DERIVED",
+    "isco_classification": NOT_A_MEASUREMENT,
+    # sum of the published group counts, not a published total
+    "isco_source_employed_thousands": "DERIVED",
+    "white_collar_pct": "DERIVED",
+    "professional_core_pct": "DERIVED",
+    "blue_collar_service_pct": "DERIVED",
+    "white_collar_employed": "DERIVED",
+    "professional_core_employed": "DERIVED",
+    "clerical_employed": "DERIVED",
+    "professionals_employed": "DERIVED",
+
+    # -- E. entry level.
+    # No global source measures seniority. Age 15-24 is a stand-in: it misses
+    # graduate entry at 25-29 and counts long-tenure young workers as entry
+    # level. The career-stage bands are the same construct at other ages.
+    # report.py:101 and :360 already say PROXY; this agrees with them.
+    "young_white_collar_pct": "PROXY",
+    "prime_white_collar_pct": "PROXY",
+    "late_career_white_collar_pct": "PROXY",
+    "youth_age_band_used": NOT_A_MEASUREMENT,
+    "entry_level_data_quality": NOT_A_MEASUREMENT,
+    "young_employed_total": "DERIVED",
+    "young_white_collar_employed": "PROXY",
+    "youth_cohort_share": "DERIVED",
+    "youth_wc_gap": "DERIVED",
+    # MODELED, not DERIVED: squeeze_index percentile-ranks four components and
+    # combines them with SQUEEZE_COMPONENTS' 0.25/0.30/0.25/0.20 -- weights this
+    # project assigned, exactly as it assigned the ISCO exposure weights.
+    # CLAUDE.md calls DERIVED "arithmetic on official statistics" and MODELED
+    # "analyst-assigned model output"; a chosen-weight composite is the second.
+    # report.py's "DERIVED composite" hedged this in prose, which a one-word
+    # enum cannot carry. See spec 0004 R3.
+    "entry_level_squeeze_index": "MODELED",
+    "squeeze_components_present": NOT_A_MEASUREMENT,
+
+    # -- C2. context joins: World Bank, as published
+    "gdp_per_capita_ppp": "OFFICIAL",
+    "population_15_24": "OFFICIAL",
+    "labor_force_advanced_edu_pct": "OFFICIAL",
+    "service_exports_usd": "OFFICIAL",
+    "ict_service_exports_pct": "OFFICIAL",
+    # pct x total, so ours
+    "ict_service_exports_usd": "DERIVED",
+
+    # -- F. modeled overlay
+    "ai_exposure_weighted_score": "MODELED",
+    "exposed_wage_bill_ppp": "MODELED",
+
+    # -- provenance: vintages, spans, coverage and flags
+    "data_year_population": NOT_A_MEASUREMENT,
+    "data_year_labor": NOT_A_MEASUREMENT,
+    "data_year_sector": NOT_A_MEASUREMENT,
+    "data_year_occupation": NOT_A_MEASUREMENT,
+    "data_year_youth_occupation": NOT_A_MEASUREMENT,
+    "data_year_lfp_age": NOT_A_MEASUREMENT,
+    "data_year_context": NOT_A_MEASUREMENT,
+    "prime_white_collar_year": NOT_A_MEASUREMENT,
+    "late_career_white_collar_year": NOT_A_MEASUREMENT,
+    "data_source_override": NOT_A_MEASUREMENT,
+    "data_year_population_range": NOT_A_MEASUREMENT,
+    "data_year_labor_range": NOT_A_MEASUREMENT,
+    "data_year_sector_range": NOT_A_MEASUREMENT,
+    "data_year_occupation_range": NOT_A_MEASUREMENT,
+    "data_year_youth_occupation_range": NOT_A_MEASUREMENT,
+    "isco_coverage_pct_of_employment": "DERIVED",
+    "youth_isco_coverage_pct_of_employment": "DERIVED",
+    "data_quality_flag": NOT_A_MEASUREMENT,
+}

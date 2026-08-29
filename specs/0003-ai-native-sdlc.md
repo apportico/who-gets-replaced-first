@@ -42,7 +42,7 @@ here. Recorded so a reviewer can see it was considered rather than skipped.
 
 ## Requirements
 
-### R1. [ ] GitHub Issues are the source of truth for intent
+### R1. [x] GitHub Issues are the source of truth for intent
 
 The playbook's Plan stage wants an intent artifact. This repo has 33 GitHub
 issues that already carry problem, scope, sources to probe and definition of
@@ -90,7 +90,7 @@ because the cache condition needs a real conditional.
 The last check is the one this requirement exists for, and it returned exit 0
 before this change.
 
-### R3. [ ] `REVIEW.md` defines the review contract
+### R3. [x] `REVIEW.md` defines the review contract
 
 Today the review rules live inside `.claude/skills/review-pr/SKILL.md`, so a
 human reviewer and an automated one would read different things. Extract them
@@ -102,7 +102,7 @@ thresholds, and what is out of scope for review.
 `.claude/skills/review-pr/SKILL.md` references it rather than restating the
 rules; the workflow in R6 passes it to Claude.
 
-### R4. [ ] `.claude/settings.json` exists and wires permissions
+### R4. [x] `.claude/settings.json` exists and wires permissions
 
 No settings file exists, so nothing configures permissions or guardrails. Create
 it using the shape verified in the probe: `permissions.allow` for the commands
@@ -113,7 +113,7 @@ this project routinely runs, `permissions.deny` for what it must not, and a
 parses it, and every path referenced in its `hooks` block exists on disk. If #4
 has not landed, the `hooks` block is absent rather than dangling.
 
-### R5. [ ] Subagent definitions for the jobs that recur
+### R5. [~] Subagent definitions for the jobs that recur — revised
 
 `--agent` and `--agents` are supported by the installed CLI. Define, in
 `.claude/agents/`, the two jobs currently done ad hoc in the main session:
@@ -123,12 +123,24 @@ has not landed, the `hooks` block is absent rather than dangling.
 - a **data-diff reviewer** for pipeline output changes — reads two CSV vintages
   and reports what moved, with the regression anchors called out
 
-**Acceptance:** both files exist with valid frontmatter and a `tools:` list;
-invoking the source-prober on a known API returns a filled verification row;
-the data-diff reviewer run against two committed vintages of
-`global_labor_dataset.csv` reports the changed countries.
+**Revised (2026-08-29).** Both definitions were written and their frontmatter,
+`tools:` scoping and instructions verified. The half of the acceptance that
+required **invoking** them was not run: spawning subagents was outside what this
+session was asked to do, and the plan recorded this fallback in advance rather
+than discovering it late.
 
-### R6. [ ] Automated review workflow is written and valid
+The prober is scoped read-only by its tool list (no Edit or Write), which is the
+property that matters most — it cannot write while probing.
+
+**Acceptance (met):** `.claude/agents/source-prober.md` and
+`.claude/agents/data-diff-reviewer.md` exist with valid frontmatter and a
+`tools:` list; the prober's tools contain no write capability.
+
+**Acceptance (not run, deliberately):** invoking the prober against a live API
+and the data-diff reviewer against two committed CSV vintages. Worth running
+once before either is relied on — neither has been exercised end to end.
+
+### R6. [x] Automated review workflow is written and valid
 
 Add `.github/workflows/claude-review.yml` so every PR receives the same passes
 from `REVIEW.md`, with `@claude` able to address comments. Human approval stays
@@ -149,7 +161,7 @@ YAML, references `REVIEW.md` as the review contract, and triggers on
 > so the requirement moved to #3, where it belongs. The number is left unused
 > rather than renumbered, so requirement IDs stay stable across the PR history.
 
-### R8. [ ] `CLAUDE.md` records the SDLC
+### R8. [x] `CLAUDE.md` records the SDLC
 
 The workflow section added in #1 lists the skills. Extend it with what this spec
 adds: the verify command, the review contract, the intent decision from R1, and

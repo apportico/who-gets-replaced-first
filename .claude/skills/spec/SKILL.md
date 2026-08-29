@@ -63,7 +63,9 @@ Apply the project's non-negotiables as you write:
 
 ## Step 5 — Write the file
 
-Copy `specs/TEMPLATE.md` to `specs/NNNN-short-name.md` and fill in: title, `**Status:** draft`, `**Depends on:**`, Objective, the Source verification table from Step 3, the requirements from Step 4, and Non-goals.
+Copy `specs/TEMPLATE.md` to `specs/NNNN-short-name.md` and fill in: title, `**Status:** draft`, `**Depends on:**`, `**Issue:**`, Objective, the Source verification table from Step 3, the requirements from Step 4, and Non-goals.
+
+**`**Issue:**` is not optional.** GitHub Issues are this project's source of truth for intent — they carry the problem, the scope, the sources to probe and the definition of done, and duplicating that into the spec would guarantee drift. The spec links to the issue; the issue links back to the spec. Find the matching issue with `gh issue list --search "<name>" --json number,title,url` and record it as `**Issue:** [#N](<url>)`. If there genuinely is no issue, write `none` and say why in the Objective.
 
 Show the user the file path and a summary (number, title, requirement count, sources probed) before moving on.
 

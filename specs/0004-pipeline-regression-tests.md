@@ -1,8 +1,9 @@
 # 0004 — Pipeline regression test suite
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** none
 **Issue:** #2
+**Completed:** 2026-08-30 — 9 done. 107 tests, offline, 0.29s.
 **Approved:** 2026-08-29 — @syymza, PR #43, re-review at `b4eed82`. Moved draft -> in-review -> approved; all four review findings resolved before approval, and the `setUpClass` refinement landed in `fcaf633`.
 
 ## Objective

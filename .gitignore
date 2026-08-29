@@ -6,6 +6,8 @@ dist
 .claude/*
 !.claude/skills/
 !.claude/hooks/
+!.claude/agents/
+!.claude/settings.json
 .claude/settings.local.json
 *.local
 .env*

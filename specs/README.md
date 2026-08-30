@@ -46,7 +46,7 @@ build-first-document-later approach.
 | [0004](0004-pipeline-regression-tests.md) | Pipeline regression test suite — tiers, nulls, weighting, vintages, golden master | done — 8 done · 1 revised |
 | [0005](0005-ci-on-pull-requests.md) | CI on pull requests, merge gating, admin-bypass decision | done — 5 done |
 | [0006](0006-eslint-worktree-ignores.md) | ESLint ignores worktrees and nested build output | done — 3 done |
-| [0007](0007-pipeline-typescript-port.md) | Port the pipeline Python → TypeScript, verified byte-identical against the committed outputs | draft |
+| [0007](0007-pipeline-typescript-port.md) | Port the pipeline Python → TypeScript, verified byte-identical against the committed outputs | approved — 11 requirements, none implemented |
 
 ## Starting a new spec
 

@@ -1,9 +1,25 @@
 # 0007 — Port the data pipeline from Python to TypeScript
 
-**Status:** draft
+**Status:** approved
 **Depends on:** 0004 (the 107-test regression suite — the safety net this port
 requires); 0005 (CI runs `verify`, which must keep passing throughout)
 **Issue:** [#21](https://github.com/apportico/who-gets-replaced-first/issues/21)
+**Approved:** 2026-08-30 — @syymza, PR [#53](https://github.com/apportico/who-gets-replaced-first/pull/53), at `76dd949`.
+Moved draft -> in-review -> approved. Eight review rounds; every blocking finding
+was re-derived on this checkout before being accepted, and two were rejected in
+favour of a different fix once measurement contradicted the proposed one.
+
+**Where the risk sits.** R1 was re-specified in six consecutive rounds — fixture
+format, loader type, return type, missing mixed entry point, the transition add,
+and the elements after it — each fix exposing the next layer. The rest of the
+spec has been stable since round 4. Two things the reviewer and I both recommend
+before R1 is built: a second reviewer on R1 specifically, and implementing the
+summation helpers against the real committed columns **first**, so R1 is
+validated by execution rather than by review.
+
+**R6 is blocked** on [#54](https://github.com/apportico/who-gets-replaced-first/issues/54)
+— `summary_report.md` labels a `MODELED` composite `DERIVED`, a tier defect on
+`main` that R6's own acceptance criterion surfaced.
 
 ## Objective
 

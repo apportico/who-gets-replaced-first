@@ -1,9 +1,26 @@
 # 0009 — The app payloads cannot drift from the code that writes them
 
-**Status:** in-review
+**Status:** approved
 **Depends on:** 0004 (the regression suite this extends, and whose `ff507b0`
 introduced the drift); none blocking — the fix is additive and moves no figure.
 **Issue:** [#57](https://github.com/apportico/who-gets-replaced-first/issues/57)
+**Approved:** 2026-08-30 — @syymza, PR [#58](https://github.com/apportico/who-gets-replaced-first/pull/58),
+at `0ae3338`. Moved draft -> in-review -> approved. Three review rounds, ten
+findings, all re-run at HEAD by the reviewer rather than read. Every finding
+held except one assertion count, which was corrected back and conceded.
+
+**Where the risk sits.** Six of the ten findings were about a guard or a
+criterion that could not fail on the thing it named — the defect this spec
+exists to remove — and three of those were in text written while fixing the
+previous instance. R2 was re-specified in all three rounds: widened from
+`field_tiers` to the whole header, then changed from an ingredient list to
+driving `export_app_json([], tmp)` because two of the four keys are literals no
+constant can rebuild, then corrected because the widening carried its
+quantifiers along unchecked. **The author recommends** the R2 test be written
+against the committed artifact first, and each guard demonstrated failing by
+reintroducing its defect before the requirement is marked `[x]` — the bar
+`pipeline/tests/test_report.py` sets, and the one the six pre-existing
+`AppPayload` tests did not meet.
 
 ## Objective
 

@@ -76,7 +76,7 @@ PANEL_CSV = os.path.join(context.PIPELINE, "data", "global_labor_panel.csv")
 # CommittedTimeseriesMatchesThePanel drives panel.export, which writes a real
 # global_labor_panel.csv -- kept out of the tracked tree only by the `tmp`
 # argument it is handed. Watching src/data/ alone would leave that unobserved.
-_WATCHED = (APP_DATA, os.path.join(context.PIPELINE, "data"))
+_WATCHED = (APP_DATA, run.DATA)   # run.py:20 -- pipeline/data/
 
 # Captured before any test in this module runs. `unittest` calls setUpModule()
 # ahead of the module's first test, which is the only moment these trees are
@@ -158,8 +158,11 @@ class CommittedHeaderMatchesTheGenerator(unittest.TestCase):
     `AppPayload` tests in `test_tiers.py`, which regenerate one.
     """
 
-    def setUp(self):
-        self.committed = _load(APP_JSON)
+    @classmethod
+    def setUpClass(cls):
+        # Per class, not per method: nothing below mutates what it reads, and
+        # `setUp` here drove a generator call for every test in the class.
+        cls.committed = _load(APP_JSON)
         fd, path = tempfile.mkstemp(suffix=".json")
         os.close(fd)
         try:
@@ -168,7 +171,7 @@ class CommittedHeaderMatchesTheGenerator(unittest.TestCase):
                 # on them, so this needs no cache and no network. Same shape as
                 # test_tiers.py::AppPayload.setUp, for the same reason.
                 run.export_app_json([], path)
-            self.generated = _load(path)
+            cls.generated = _load(path)
         finally:
             os.unlink(path)
 
@@ -249,8 +252,9 @@ class CommittedTimeseriesMatchesThePanel(unittest.TestCase):
     together. The assembly itself is now checked against the code.
     """
 
-    def setUp(self):
-        self.committed = _load(APP_TIMESERIES)
+    @classmethod
+    def setUpClass(cls):
+        cls.committed = _load(APP_TIMESERIES)
         rows = _read_csv(PANEL_CSV)
         # `panel.export` takes both output paths, so both its writes land under
         # the temp dir -- the panel CSV included, never pipeline/data/.
@@ -260,7 +264,7 @@ class CommittedTimeseriesMatchesThePanel(unittest.TestCase):
             app_path = os.path.join(tmp, "timeseries.json")
             with fixtures.quiet():
                 P.export(rows, [], tmp, app_path)
-            self.rebuilt = _load(app_path)
+            cls.rebuilt = _load(app_path)
 
     def test_fields_match(self):
         self.assertEqual(self.committed["fields"], self.rebuilt["fields"])
@@ -302,18 +306,26 @@ class CommittedRowsMatchTheDataset(unittest.TestCase):
     what that does and does not close.
     """
 
-    def setUp(self):
-        self.payload = _load(APP_JSON)
-        self.rows = self.payload["rows"]
-        csv_rows = _read_csv(DATASET_CSV)
-        self.by_iso = {r["iso3"]: r for r in csv_rows}
-        # Keying by iso3 collapses a duplicate, and
-        # test_the_same_countries_are_present compares sets, which is invariant
-        # to that -- so a dropped row would leave the 229 x 84 comparison below
-        # without failing anything. Clean today (229 rows, 229 unique), so
-        # preventive. The panel CSV needs no equivalent: since setUp there
-        # drives panel.export, both sides collapse a duplicate identically.
-        self.assertEqual(len(csv_rows), len(self.by_iso),
+    @classmethod
+    def setUpClass(cls):
+        cls.payload = _load(APP_JSON)
+        cls.rows = cls.payload["rows"]
+        cls.csv_rows = _read_csv(DATASET_CSV)
+        cls.by_iso = {r["iso3"]: r for r in cls.csv_rows}
+
+    def test_the_dataset_csv_has_no_duplicate_iso3(self):
+        """Keying by `iso3` collapses a duplicate, and the set comparison in
+        `test_the_same_countries_are_present` is invariant to that -- so a
+        dropped row would leave the 229 x 84 comparison without failing
+        anything. Clean today (229 rows, 229 unique), so preventive.
+
+        Its own test rather than a `setUp` assertion: as the latter it failed
+        every test in the class with the same message, and this way the check
+        has a name worth reading in the output. `CommittedTimeseriesMatchesThePanel`
+        needs no equivalent -- it drives `panel.export`, so both sides collapse a
+        duplicate `(iso3, year)` identically and there is no gap between them.
+        """
+        self.assertEqual(len(self.csv_rows), len(self.by_iso),
                          "duplicate iso3 in global_labor_dataset.csv")
 
     def test_the_same_countries_are_present(self):

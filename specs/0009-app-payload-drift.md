@@ -235,6 +235,14 @@ shipping an unlabellable field to the app.
   byte-perfectly, which is a property of today's values rather than a guarantee;
   the float-repr divergences spec 0007 catalogued are the obvious way to lose
   it.
+- The three guard classes build their fixtures in `setUpClass`, not `setUp`.
+  Nothing in them mutates what it reads, and per-method setup meant a full
+  `panel.export` four times per class and eight per suite run — 0.598s for
+  eleven tests, making this module 58% of the suite for 9% of its tests and
+  pushing the total past the "offline, <1s" that `CLAUDE.md` and
+  `pipeline/README.md` both promise. Now 0.228s, suite 1.038s -> 0.682s. The
+  duplicate-`iso3` check became its own named test in the process: as a `setUp`
+  assertion it failed every test in the class with the same message.
 - `test_field_tiers_covers_every_key_a_row_ships` unions all 229 rows rather
   than reading `rows[0]`. One row suffices against the generator, which builds
   every row from the same `keep` list, but this class opens the artifact and the

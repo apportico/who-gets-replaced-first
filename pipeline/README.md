@@ -35,7 +35,7 @@ Run it before claiming a pipeline change worked.
 that looks like a broken suite but is not:
 
 ```bash
-python3 -m unittest discover pipeline/tests          # 125 tests, OK
+python3 -m unittest discover pipeline/tests          # 126 tests, OK
 python3 -m unittest discover -s pipeline/tests -t .  # 9 errors: No module named 'context'
 ```
 

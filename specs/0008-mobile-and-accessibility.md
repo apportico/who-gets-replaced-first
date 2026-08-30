@@ -1,6 +1,6 @@
 # 0008 — mobile and accessibility
 
-**Status:** approved
+**Status:** in-progress
 **Depends on:** none
 **Issue:** [#18](https://github.com/apportico/who-gets-replaced-first/issues/18)
 **Review:** [PR #55](https://github.com/apportico/who-gets-replaced-first/pull/55)
@@ -458,6 +458,116 @@ reader used and what it announced for one `OFFICIAL` and one `MODELED` figure;
 measured target sizes for the ranking strip and the "Latest" button; the
 rendered badge font size from R4; and a deuteranopia check of the no-data
 encoding from R5.
+
+## Implementation Plan
+
+**Planned:** 2026-08-30
+
+### Codebase findings
+
+- **No JS test infrastructure exists.** Node 24's `node --test` is built in, and
+  Vite's SSR transform already loads the app (proven by `scripts/render-probe.mjs`),
+  so the R9 suite adds only `jsdom` and `axe-core`.
+- **ESLint does not lint `.mjs`** — `eslint.config.js` has
+  `files: ['**/*.{js,jsx}']`, which is why `scripts/palette-probe.mjs` passes
+  lint without ever being read. A suite that `verify` runs but `lint` ignores is
+  a gap, so R9's step widens the glob.
+- `TIERS` (`laborMetrics.js:7`) and `ISCO_GROUPS` (`:246`) are each a single
+  exported table, so R4's and R10's recolour is one edit each.
+- CI's `pipeline tests` step is the pattern to mirror: a named step so the new
+  gate fails distinguishably from lint on the checks list.
+
+### Files to create
+
+| Path | Purpose | Req |
+|---|---|---|
+| `test/fixtures.mjs` | One fully-populated country row — all three age bands, all nine ISCO groups, `isco_groups_reported == 9`. One of the 170 qualifying rows, so neither bar's assertion can pass vacuously | R7, R9 |
+| `test/a11y.test.mjs` | Structural axe over the full app **and** over `LaborDetailPanel` rendered standalone with the fixture row | R8, R9 |
+| `test/palette.test.mjs` | Imports the functions and tables from `scripts/palette-probe.mjs` — badge AA, text palette, tier ΔE00, ramp L\* | R4, R7, R10 |
+| `test/pure.test.mjs` | Text-equivalent builder and marker-props function, no DOM | R3, R5 |
+| `src/utils/textPalette.js` | Exported text colours, each with declared background and large-text flag | R7 |
+| `src/utils/mapText.js` | Pure text-equivalent builder — rows + metric in, entries out | R3 |
+| `src/components/BottomSheet.jsx` | Peek / half / full sheet below `md` | R1 |
+
+### Files to modify
+
+`package.json` (two devDependencies, `test:a11y` script) · `scripts/verify.sh` ·
+`.github/workflows/ci.yml` · `eslint.config.js` (lint `.mjs`) ·
+`src/utils/laborMetrics.js` (TIERS recolour, no-data encoding, marker props) ·
+`LaborDetailPanel.jsx` (landmark on own root in both branches, delete in-bar
+labels, age-legend percentage, badge size) · `LaborMap.jsx` (no-data
+`dashArray`, `aria-describedby`) · `LaborPage.jsx` (responsive layout, ranking
+listbox, text-equivalent wiring) · `LaborSidebar.jsx` · `LaborTimeline.jsx` ·
+`ScenarioPanel.jsx` · `Header.jsx` · `App.jsx`
+
+### Sequence
+
+| # | Step | Depends on |
+|---|---|---|
+| **0** | **R11 pre-change baseline** — record the 1440×900 map-container width | Browser access |
+| 1 | R9 harness: devDependencies, `test/`, wire into `verify.sh` and CI, widen the ESLint glob | — |
+| 2 | R7 text-palette export; R4 + R10 `TIERS` recolour (solved together) | 1 |
+| 3 | R7 delete the two in-swatch labels and add the age-legend percentage; R5 no-data encoding | 1, 2 |
+| 4 | R8 landmarks and names; R3 text equivalent | 1 |
+| 5 | R1 responsive layout and bottom sheet | 0 |
+| 6 | R2 keyboard listbox; R6 touch targets | 5 |
+| 7 | R11 full browser verification | all |
+
+Step 0 is first for a reason that is easy to lose: R1's acceptance compares the
+desktop map width against a baseline that stops existing the moment step 5
+lands.
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | Bottom sheet over a full-bleed map below `md`; three-column arrangement above it | `BottomSheet.jsx`, `LaborPage.jsx` | Browser at 375×812: `.leaflet-container` ≥ 320px, `scrollWidth <= innerWidth`; at 1440×900 all three present, in order, map no narrower than the step-0 baseline |
+| R2 | Ranking strip becomes a listbox — arrow keys, `Enter`/`Space`, focus moved to the panel and restored on close | `LaborPage.jsx` | Keyboard-only walkthrough recorded in R11 |
+| R3 | Pure builder, wired to the map container via `aria-describedby` | `mapText.js`, `LaborMap.jsx` | `test/pure.test.mjs` asserts one entry per row with name, value or "no data", and tier word; screen reader in R11 |
+| R4 | Recolour `TIERS`, raise badge text to ≥ 11px, accessible text on every badge | `laborMetrics.js` + three components | `palette.test.mjs` (≥ 4.5:1), `a11y.test.mjs` (badge has accessible text), R11 (rendered px) |
+| R5 | `dashArray` or distinct class on no-data markers, decided by a pure function | `laborMetrics.js`, `LaborMap.jsx` | `pure.test.mjs` — encoding applied to exactly the rows whose active-metric value is null |
+| R6 | Every interactive target ≥ 24×24, spacing where the bar must stay thin | Timeline, Scenario, ranking strip | Measured in the browser in R11; axe's rule stays disabled |
+| R7 | Text-palette export consumed by the components; delete both in-swatch labels; age legend gains the percentage | `textPalette.js`, `LaborDetailPanel.jsx` | `grep` over `src/` finds no colour literals and exactly four `text-white`; `a11y.test.mjs` fixture render asserts every surviving band's percentage renders outside its swatch |
+| R8 | `main`, labelled sidebar region, panel landmark **on `LaborDetailPanel`'s own root in both branches**, `aria-pressed` on toggles | all components | `a11y.test.mjs` drives `region` 23 / `label` 2 / `heading-order` 1 to zero on both the full-app and the standalone-panel surface |
+| R9 | `node --test` suite wired into `verify.sh` and CI; `target-size` disabled with the reason in a comment | `test/`, `verify.sh`, `ci.yml` | Revert one tier colour to `#2f9e44` and watch `npm run verify` exit non-zero; passes in a fresh clone with no network; `npm ls --depth=0` shows exactly two new devDependencies |
+| R10 | Tier pairwise ΔE00 ≥ 15 under four visions; ramp L\* strictly monotonic, min gap ≥ 5 | `laborMetrics.js` | `palette.test.mjs`, using the algorithm pinned in `scripts/palette-probe.mjs` |
+| R11 | Browser verification at both viewports, console clean | — | Written record appended to this spec, covering every item its acceptance lists |
+
+### Tier and vintage handling
+
+**This plan creates no new figures.** Every value keeps the tier it already
+carries in `global_labor.json` and `TIERS`; no `data_quality_flag`, no per-field
+year, and no pipeline output changes. R4 changes tier *colours*, never tier
+*assignments*. The one place a rendered figure moves is R7's label deletion, and
+it moves *into* the legend — which is exactly why the age legend gains its
+percentage in the same step, before the label goes.
+
+### Validation
+
+No pipeline change, so `[validate]`, `[crosscheck]` and `[outliers]` are
+untouched — but `npm run verify` still runs them, so a regression would surface
+anyway. The new gate is the R9 suite, added to `verify` and to CI in the same
+change, per `CLAUDE.md`.
+
+### Risks
+
+1. **R11 is blocked.** The Claude-in-Chrome extension is not connected, and R1,
+   R2, R6 and R11 all need a real browser. Steps 1–4 are unaffected; step 0
+   needs the extension connected or the measurement taken by hand.
+2. **R4 and R10 may not both hold while keeping the tier hues.** They are
+   jointly satisfiable — a grid search found sets with worst pairwise ΔE00 18.7
+   and every badge clearing AA — but that solution was four dark blues and
+   greens. Constrained to the current green / blue / orange / purple families,
+   each family has candidates clearing badge AA (121 / 329 / 81 / 276), and
+   whether a hue-preserving *set* satisfies R10 is unresolved: the exhaustive
+   search over those pools did not terminate. Step 2 must run a bounded search
+   before assuming the semantics survive. If none exists, R10 is the requirement
+   that gets `[~]`, with the redundant non-colour channel recorded.
+3. **R1 is the largest single piece** and the only requirement whose acceptance
+   is entirely browser-side, with no test covering it.
+4. **R8's baseline is a floor, not the true count.** `region` 23 / `label` 2 /
+   `heading-order` 1 were measured with the detail panel in its placeholder
+   branch, so the populated panel may add violations once step 4 renders it.
 
 ## Non-goals
 

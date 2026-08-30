@@ -10,9 +10,17 @@ import assert from 'node:assert/strict';
 
 import { METRIC_BY_KEY, markerPropsFor, NO_DATA_DASH } from '../src/utils/laborMetrics.js';
 import { mapTextEntries, mapSummary } from '../src/utils/mapText.js';
+import laborData from '../src/data/global_labor.json' with { type: 'json' };
 
-const METRIC = METRIC_BY_KEY.white_collar_pct;          // OFFICIAL
-const MODELED = METRIC_BY_KEY.ai_exposure_weighted_score; // MODELED
+// Expectations come from the payload registry, never from a literal written
+// here. These two tests used to hardcode OFFICIAL for `white_collar_pct` — which
+// config.py says is DERIVED — so the tests carried the same mislabel the app
+// did, and agreed with it. A test that encodes the bug cannot find the bug.
+const TIER_OF = laborData.field_tiers;
+const METRIC = METRIC_BY_KEY.white_collar_pct;
+const MODELED = METRIC_BY_KEY.ai_exposure_weighted_score;
+const METRIC_TIER = TIER_OF[METRIC.key];
+const MODELED_TIER = TIER_OF[MODELED.key];
 
 const ROWS = [
   { iso3: 'PRT', country_name: 'Portugal', white_collar_pct: 50.7148, ai_exposure_weighted_score: 0.46 },
@@ -43,11 +51,11 @@ test('R3 — every figure is announced with its tier word', () => {
   // The misleading case this requirement exists for: a MODELED index read out
   // as a bare number sounds like a measurement.
   for (const e of mapTextEntries(ROWS, MODELED).filter((x) => x.hasData)) {
-    assert.equal(e.tier, 'MODELED');
-    assert.match(e.text, /— MODELED$/, `"${e.text}" does not carry its tier`);
+    assert.equal(e.tier, MODELED_TIER);
+    assert.match(e.text, new RegExp(`— ${MODELED_TIER}$`), `"${e.text}" does not carry its tier`);
   }
   for (const e of mapTextEntries(ROWS, METRIC).filter((x) => x.hasData)) {
-    assert.match(e.text, /— OFFICIAL$/);
+    assert.match(e.text, new RegExp(`— ${METRIC_TIER}$`));
   }
 });
 
@@ -58,7 +66,7 @@ test('R3 — the summary publishes coverage, not just a count', () => {
   assert.match(summary, /4 countries plotted/);
   assert.match(summary, /2 with data/);
   assert.match(summary, /2 without/);
-  assert.match(summary, /OFFICIAL/);
+  assert.match(summary, new RegExp(METRIC_TIER));
 });
 
 test('R5 — the no-data encoding is applied to exactly the null rows', () => {

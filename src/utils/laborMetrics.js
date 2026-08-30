@@ -1,5 +1,29 @@
 // Metric definitions for the Global Labor page.
 //
+// Spec 0008 R4. Each metric's `tier` is DERIVED FROM THE PAYLOAD, not declared
+// here. Six of the nineteen used to disagree with the registry and every one of
+// them overstated: "White collar share", "Professional core" and "Clerical
+// support workers" were labelled OFFICIAL where config.py says DERIVED, the
+// squeeze index DERIVED where it says MODELED, and the two career-stage metrics
+// OFFICIAL where they are PROXY.
+//
+// That mislabel reached further than the sidebar badge. `mapSummary` names the
+// active metric's tier in the map's accessible name, and `mapTextEntries` puts
+// it on all 354 entries of the text equivalent — so a screen reader was told
+// "OFFICIAL" 354 times for a DERIVED figure. Caught by looking at the rendered
+// page during /evaluate, not by any test: `test/field-tiers.test.mjs` walks the
+// detail panel and never reaches METRICS.
+import laborData from '../data/global_labor.json' with { type: 'json' };
+
+const FIELD_TIERS = laborData.field_tiers;
+const REGISTRY_TIERS = new Set(['OFFICIAL', 'DERIVED', 'PROXY', 'MODELED']);
+
+/** The registry's tier for a field, lowercased for TIERS, or null if it has none. */
+export function registryTier(field) {
+  const t = FIELD_TIERS[field];
+  return t && REGISTRY_TIERS.has(t) ? t.toLowerCase() : null;
+}
+//
 // `tier` is deliberately part of every metric: the dataset mixes official
 // statistics with constructed proxies and one modeled overlay, and the UI is
 // required to keep that distinction visible rather than blurring it.
@@ -261,6 +285,13 @@ export const METRICS = [
     tier: 'official',
   },
 ];
+
+// Applied here rather than edited into each literal above, so a metric added
+// later cannot reintroduce the drift by declaring its own tier.
+for (const m of METRICS) {
+  const fromRegistry = registryTier(m.key);
+  if (fromRegistry) m.tier = fromRegistry;
+}
 
 export const METRIC_BY_KEY = Object.fromEntries(METRICS.map((m) => [m.key, m]));
 

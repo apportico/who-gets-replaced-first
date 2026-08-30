@@ -311,7 +311,15 @@ export default function LaborPage() {
                 }
                 if (next === null) return;
                 e.preventDefault();
-                setActiveIso(options[next].iso3);
+                const iso = options[next].iso3;
+                setActiveIso(iso);
+                // The strip is `overflow-x-auto` over 200+ options, so arrowing
+                // past the visible edge moved aria-activedescendant to an option
+                // off screen: a screen-reader user hears the right country while
+                // a sighted keyboard user sees nothing move.
+                requestAnimationFrame(() => {
+                  document.getElementById(`rank-${iso}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                });
               }}
             >
               <div className="flex h-full items-end gap-px px-3 pb-2 pt-1">

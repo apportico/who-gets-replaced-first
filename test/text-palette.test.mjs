@@ -104,19 +104,32 @@ test('R7 — index.css declares no raw colour outside the token block', () => {
   // Widened from `color:` to any hex literal. The narrow version passed over
   // `outline: 2px solid #1a4fa0` — a second copy of --text-info, in the very
   // commit that added this guard — because an outline shorthand contains no
-  // `color:` substring. Anything that is genuinely not a token (the white and
-  // grey chrome of the Leaflet popups) is listed explicitly below, so adding a
-  // new one is a deliberate act rather than an oversight.
+  // `color:` substring.
   // Comments are stripped first: several of them cite a hex to explain why a
   // token has the value it does, and a hex in prose is not a colour the browser
   // paints. Scanning them made the guard fail on its own rationale.
   const withoutComments = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
   const withoutRoot = withoutComments.replace(/:root\s*\{[^}]*\}/s, '');
-  const ALLOWED = new Set(['#ffffff', '#e5e7eb', '#d1d5db', '#9ca3af', '#374151', '#f3f4f6', '#f8fafc']);
-  const offenders = [...withoutRoot.matchAll(/#[0-9a-fA-F]{3,8}\b/g)]
-    .map((m) => m[0].toLowerCase())
-    .filter((hex) => !ALLOWED.has(hex));
-  assert.deepEqual([...new Set(offenders)], [], `index.css uses a raw colour that is not a token and not an allowed chrome colour:\n  ${[...new Set(offenders)].join('\n  ')}`);
+
+  // The allowlist is keyed by PROPERTY, not by hex. A bare set of hex strings
+  // handed back exactly what widening the scan had won: `#9ca3af` was on it —
+  // the 2.54:1 grey this guard was written to catch — so `color: #9ca3af`
+  // anywhere in the file would have passed silently again, and `#d1d5db`
+  // (1.47:1) with it. Non-text properties may carry raw chrome colours; any
+  // property that paints TEXT must use a token.
+  const TEXT_PROPS = /^(color|-webkit-text-fill-color)$/;
+  const offenders = [];
+  for (const m of withoutRoot.matchAll(/([a-z-]+)\s*:\s*([^;{}]*#[0-9a-fA-F]{3,8}[^;{}]*)/g)) {
+    const [, prop, value] = m;
+    if (TEXT_PROPS.test(prop)) {
+      offenders.push(`${prop}: ${value.trim()}`);
+      continue;
+    }
+    // Shorthands that can set a text colour, e.g. `outline`, still count.
+    if (/^(outline|border|box-shadow|background|fill|stroke|text-decoration)/.test(prop)) continue;
+    offenders.push(`${prop}: ${value.trim()}`);
+  }
+  assert.deepEqual(offenders, [], `index.css paints text with a raw colour instead of a token:\n  ${offenders.join('\n  ')}`);
 });
 
 test('R7 — text-white appears only on the dark chips it is excluded for', () => {

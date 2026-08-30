@@ -230,7 +230,9 @@ render inside jsdom. Confirmed visually under a deuteranopia simulation in R11.
 > **Mark reverted 2026-08-30 (round-11 review). **The census instrument could not see the map.** `scripts/r11-measure.mjs` collected `button, a, input, [role="option"], [tabindex="0"]`; the 218 country markers are Leaflet `CircleMarker`s rendered as `path.leaflet-interactive`, which matches none of those. Measured directly at 375×812: **218 markers, 0 matched by that selector, 155 of them under 24px, smallest 8px**. So the reported "2 of 236" was not R6's census — the real figure is roughly **157 of 454**, and the markers are the app's primary interaction.**
 
 **Done (2026-08-30, `952b079`).** At 375x812, measured in a browser:
-**186 of 234 targets under 24px becomes 2 of 236.**
+~~**186 of 234 targets under 24px becomes 2 of 236.**~~ **Both figures withdrawn**
+— they came from the census that could not see the markers. The corrected
+figures are recorded under R11.
 
 The two remaining are Leaflet's "Esri" and "Leaflet" attribution links at 18x12
 and 46x12. WCAG 2.5.8 exempts these explicitly — the *inline* exception, for a
@@ -647,7 +649,7 @@ below, via CDP, rather than transcribed by ear.
 | `.leaflet-container` | 768 x 544 | 375 x 456 |
 | Horizontal page scroll | none | none |
 | Landmarks / ARIA attributes | 4 / 220 | 4 / 220 |
-| Targets under 24px | 179 of 235 (9px bars, by design) | **2 of 236** |
+| Targets under 24px | *withdrawn — see the corrected census below* | *withdrawn — see the corrected census below* |
 | Tier badge rendered size | **11px** | **11px** |
 | Console | clean | clean |
 
@@ -663,6 +665,22 @@ below, via CDP, rather than transcribed by ear.
   stroke, not a colour, so it is invariant under any colour-vision simulation by
   construction. `test/pure.test.mjs` asserts it lands on exactly the null rows.
 - **Rendered badge size**: 11px, all 26 badges, at both viewports.
+- **Interactive target sizes — the earlier figures here are withdrawn.** They
+  read "186 of 234" and "2 of 236", and both came from a census whose selector
+  (`button, a, input, [role="option"], [tabindex="0"]`) matched none of the 218
+  Leaflet markers. Corrected census at 375×812, with exemptions reported
+  separately rather than folded into one number:
+
+  ```
+  targets            434 total, 158 under 24px
+    exempt: 155 markers (WCAG 2.5.8 equivalent control — the ranking listbox
+            reaches every country, including the no-data rows), 3 inline
+            attribution links, 1 sr-only skip link
+    MUST PASS under 24px: 0
+  ```
+
+  Desktop still reports 218 must-pass under 24px: the 9px ranking bars, which
+  R6's acceptance scopes to 375×812 deliberately.
 
 ### What assistive technology is actually handed
 

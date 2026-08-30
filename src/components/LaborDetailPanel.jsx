@@ -1,7 +1,7 @@
 import {
   ISCO_GROUPS, TIERS, fmt, fmtInt, fmtCompact, qualityTone,
 } from '../utils/laborMetrics';
-import { createContext, useContext, useEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import Sparkline from './Sparkline';
 import { seriesFor } from '../utils/laborPanel';
 import laborData from '../data/global_labor.json';
@@ -331,17 +331,41 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
   // Hooks before the early return: the placeholder branch below returns without
   // rendering a row, and React requires the same hook order on every render.
   const panelRef = useRef(null);
-  // matchMedia rather than a resize listener: it fires only on the transition
-  // that matters, and `md` here is Tailwind's 768px.
-  const isOverlay = typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && !window.matchMedia('(min-width: 768px)').matches;
+  const restoreFocusTo = useRef(null);
   const iso3 = row?.iso3 ?? null;
 
+  // `matchMedia().matches` is a snapshot. Read once, it decided `role` and
+  // `aria-modal` from whatever the viewport happened to be at the last render —
+  // rotate a phone or resize across 768px and the panel kept the old semantics
+  // while looking like the new ones. Subscribing is what makes it live.
+  const [isOverlay, setIsOverlay] = useState(() =>
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && !window.matchMedia('(min-width: 768px)').matches);
+
   useEffect(() => {
-    // Move focus into the panel when it opens as an overlay. Without this the
-    // keyboard user selects a country and focus stays behind the sheet.
-    if (isOverlay && iso3 && panelRef.current) panelRef.current.focus();
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mql = window.matchMedia('(min-width: 768px)');
+    const sync = () => setIsOverlay(!mql.matches);
+    sync();
+    mql.addEventListener('change', sync);
+    return () => mql.removeEventListener('change', sync);
+  }, []);
+
+  useEffect(() => {
+    // Move focus into the panel when it opens as an overlay, and remember where
+    // it came from. Without the first the keyboard user selects a country and
+    // focus stays behind the sheet; without the second, closing drops focus to
+    // <body> and the next Tab restarts at the top of the document — which
+    // `aria-modal="true"` makes worse, since assistive tech has been told the
+    // rest of the page is inert.
+    if (!isOverlay || !iso3) return undefined;
+    restoreFocusTo.current = document.activeElement;
+    panelRef.current?.focus();
+    return () => {
+      const target = restoreFocusTo.current;
+      if (target && target.isConnected && typeof target.focus === 'function') target.focus();
+    };
   }, [isOverlay, iso3]);
 
   if (!row) {
@@ -381,7 +405,22 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
       role={isOverlay ? 'dialog' : 'region'}
       aria-modal={isOverlay ? 'true' : undefined}
       aria-label={`Country detail: ${row.country_name}`}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') { onClose(); return; }
+        if (e.key !== 'Tab' || !isOverlay) return;
+        // A dialog claiming aria-modal must actually contain focus, or the user
+        // tabs into content their screen reader has been told is not there.
+        const focusables = panelRef.current?.querySelectorAll(
+          'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        if (!focusables || focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        else if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
+          e.preventDefault(); last.focus();
+        }
+      }}
     >
       <div className="sticky top-0 bg-gray-50 px-4 pt-4 pb-3 border-b border-gray-200 z-10">
         {/* Spec 0008 R8. axe's button-name rule PASSES on a bare &times; — the

@@ -26,7 +26,11 @@ import { chromium } from 'playwright-core';
 
 const CHROME = process.env.CHROME_PATH
   || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const URL_ = process.env.APP_URL || 'http://localhost:5174/';
+// 5173 is Vite's default. This matched r11-measure.mjs's old 5174, which was
+// where one machine landed when 5173 was taken; a silent connection to another
+// project here would produce a plausible-looking announcement transcript
+// rather than an obvious error, which is worse than a failed measurement.
+const URL_ = process.env.APP_URL || 'http://localhost:5173/';
 const EXPECTED_TITLE = 'WHO GETS REPLACED FIRST';
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });

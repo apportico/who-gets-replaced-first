@@ -286,13 +286,21 @@ the placeholder), **every band surviving its bar's null filter — `:47` for the
 age bar, `:121` for the ISCO bar — has its percentage rendered as text outside
 its swatch**, which requires the age legend to change rather than stay as it is.
 
-**The fixture row must carry all three age bands and all nine ISCO groups
-non-null**, or the ISCO half of that assertion passes vacuously:
-`OccupationBreakdown` returns early at `:113` when `row.white_collar_pct` is
-null, rendering the "no ISCO-08 breakdown published" paragraph and no bands at
-all — zero bands, zero assertions, green. That is the same bypass this
-acceptance has been tightened against twice, arriving through the fixture
-instead of through the pattern. Such rows are abundant, not rare: **170 of 218**
+**The fixture row must carry all three age bands non-null, `white_collar_pct`
+non-null, and all nine ISCO groups non-null**, or the ISCO half of that
+assertion passes vacuously: `OccupationBreakdown` returns early at `:113` when
+`row.white_collar_pct` is null, rendering the "no ISCO-08 breakdown published"
+paragraph and no bands at all — zero bands, zero assertions, green. That is the
+same bypass this acceptance has been tightened against twice, arriving through
+the fixture instead of through the pattern.
+
+`white_collar_pct` is named first among the conditions because it is the only
+one the guard actually reads, and it is the one a hand-authored fixture will
+omit: every payload row carrying all nine ISCO groups also carries it (181 of
+181), so a row *selected* from the data brings the guard along for free while a
+row *transcribed* from a field list does not. `isco_groups_reported` is read by
+the component, but at `:154` for the "reports only N of 9" caveat — not by the
+guard, so it does not protect this assertion. Such rows are abundant, not rare: **170 of 218**
 country rows in `global_labor.json` qualify, and **all 170** carry at least one
 ISCO group under 7% (minimum group share ranges from NER at 0.06% to LCA at
 5.7%), so any qualifying row also exercises the `:131` suppression described
@@ -471,7 +479,15 @@ encoding from R5.
 - **ESLint does not lint `.mjs`** — `eslint.config.js` has
   `files: ['**/*.{js,jsx}']`, which is why `scripts/palette-probe.mjs` passes
   lint without ever being read. A suite that `verify` runs but `lint` ignores is
-  a gap, so R9's step widens the glob.
+  a gap. R9's step closes it with a **second config block**, not by widening the
+  existing glob: that block extends `js.configs.recommended` with
+  `globals.browser`, so adding `.mjs` to it makes `no-undef` fire on
+  `process.exit(0)` at `scripts/render-probe.mjs:87` — verified, `'process' is
+  not defined`. Lint runs first in `scripts/verify.sh` under `set -euo
+  pipefail`, so that failure would halt step 1 before the new suite ever ran.
+  The added block scopes `scripts/**/*.mjs` and `test/**/*.mjs` to
+  `globals.node` and omits `reactRefresh.configs.vite`, which has no business
+  applying to Node scripts.
 - `TIERS` (`laborMetrics.js:7`) and `ISCO_GROUPS` (`:246`) are each a single
   exported table, so R4's and R10's recolour is one edit each.
 - CI's `pipeline tests` step is the pattern to mirror: a named step so the new
@@ -481,7 +497,7 @@ encoding from R5.
 
 | Path | Purpose | Req |
 |---|---|---|
-| `test/fixtures.mjs` | One fully-populated country row — all three age bands, all nine ISCO groups, `isco_groups_reported == 9`. One of the 170 qualifying rows, so neither bar's assertion can pass vacuously | R7, R9 |
+| `test/fixtures.mjs` | One fully-populated country row — all three age bands non-null, **`white_collar_pct` non-null** (the guard at `LaborDetailPanel.jsx:113`), all nine ISCO groups non-null, and `isco_groups_reported == 9`. One of the 170 qualifying rows, so neither bar's assertion can pass vacuously. `white_collar_pct` is the field that decides whether the ISCO half runs at all, and it is listed explicitly because this fixture is **hand-authored**: every payload row carrying all nine groups happens to carry it too (181 of 181), so transcribing only the other conditions produces a literal that renders the "no ISCO-08 breakdown published" paragraph and asserts over zero bands | R7, R9 |
 | `test/a11y.test.mjs` | Structural axe over the full app **and** over `LaborDetailPanel` rendered standalone with the fixture row | R8, R9 |
 | `test/palette.test.mjs` | Imports the functions and tables from `scripts/palette-probe.mjs` — badge AA, text palette, tier ΔE00, ramp L\* | R4, R7, R10 |
 | `test/pure.test.mjs` | Text-equivalent builder and marker-props function, no DOM | R3, R5 |
@@ -527,7 +543,7 @@ lands.
 | R4 | Recolour `TIERS`, raise badge text to ≥ 11px, accessible text on every badge | `laborMetrics.js` + three components | `palette.test.mjs` (≥ 4.5:1), `a11y.test.mjs` (badge has accessible text), R11 (rendered px) |
 | R5 | `dashArray` or distinct class on no-data markers, decided by a pure function | `laborMetrics.js`, `LaborMap.jsx` | `pure.test.mjs` — encoding applied to exactly the rows whose active-metric value is null |
 | R6 | Every interactive target ≥ 24×24, spacing where the bar must stay thin | Timeline, Scenario, ranking strip | Measured in the browser in R11; axe's rule stays disabled |
-| R7 | Text-palette export consumed by the components; delete both in-swatch labels; age legend gains the percentage | `textPalette.js`, `LaborDetailPanel.jsx` | `grep` over `src/` finds no colour literals and exactly four `text-white`; `a11y.test.mjs` fixture render asserts every surviving band's percentage renders outside its swatch |
+| R7 | Text-palette export consumed by the components; delete both in-swatch labels; age legend gains the percentage | `textPalette.js`, `LaborDetailPanel.jsx` | `grep` over `src/` finds no **text-colour** literals (`text-[a-z]+-[0-9]+`, `text-black`, `text-[#…]`) and exactly four `text-white`; `a11y.test.mjs` fixture render asserts every surviving band's percentage renders outside its swatch |
 | R8 | `main`, labelled sidebar region, panel landmark **on `LaborDetailPanel`'s own root in both branches**, `aria-pressed` on toggles | all components | `a11y.test.mjs` drives `region` 23 / `label` 2 / `heading-order` 1 to zero on both the full-app and the standalone-panel surface |
 | R9 | `node --test` suite wired into `verify.sh` and CI; `target-size` disabled with the reason in a comment | `test/`, `verify.sh`, `ci.yml` | Revert one tier colour to `#2f9e44` and watch `npm run verify` exit non-zero; passes in a fresh clone with no network; `npm ls --depth=0` shows exactly two new devDependencies |
 | R10 | Tier pairwise ΔE00 ≥ 15 under four visions; ramp L\* strictly monotonic, min gap ≥ 5 | `laborMetrics.js` | `palette.test.mjs`, using the algorithm pinned in `scripts/palette-probe.mjs` |

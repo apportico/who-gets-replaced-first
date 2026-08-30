@@ -414,7 +414,35 @@ observing the failure. It passes in a fresh clone with no network and no
 beyond today's. The suite documents in a comment which axe rules are disabled or
 INCOMPLETE under jsdom and where each is checked instead.
 
-### R10. [ ] The ramps survive colour-vision deficiency, or stop relying on colour alone
+### R10. [x] The ramps survive colour-vision deficiency, or stop relying on colour alone
+
+**Done (2026-08-30, `3aedd74`).** Both acceptance criteria are asserted in
+`test/palette.test.mjs` and pass:
+
+```
+✔ R10 — tier colours stay distinguishable under every simulated vision
+✔ R10 — every ramp reads as an ordered scale under every simulated vision
+```
+
+Criterion (1), tier pairwise ΔE00 ≥ 15 under all four visions: worst pair is now
+**15.5** (PROXY/MODELED under tritanopia), against **2.4** before — that was
+DERIVED vs MODELED under deuteranopia, the two tiers rendering as one colour.
+The recolour is `#306c54` / `#2460f0` / `#b4480c` / `#840c6c`, chosen by a
+constrained search holding the current hue families and minimising drift, not by
+eye.
+
+Criterion (2), ramp L\* strictly monotonic with min gap ≥ 5 under all four
+visions: passes unchanged at 6.3, as the probe predicted. No ramp colour moved.
+
+The gate was verified to bite before being trusted: reverting OFFICIAL to
+`#2f9e44` fails with `OFFICIAL (#2f9e44) is 3.08:1 on its badge background,
+needs >= 4.5:1` and `OFFICIAL vs PROXY is dE00 10.2 under deuteranopia, needs
+>= 15`.
+
+One finding worth keeping: DERIVED had to move furthest in saturation because
+blue and purple share a hue under deuteranopia. With that channel gone,
+lightness and chroma are the only ones left to separate DERIVED from MODELED, so
+a subtler recolour is not available rather than merely not preferred.
 
 Under the pinned algorithm, **DERIVED vs MODELED collapses to ΔE00 2.4 under
 deuteranopia** — the two tier colours are the same colour, and that is the

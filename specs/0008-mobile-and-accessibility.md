@@ -58,7 +58,25 @@ thresholds it is measured against. Every row below was run on this branch
 
 ## Requirements
 
-### R1. [ ] The app is usable at 375px: bottom sheet over a full-bleed map
+### R1. [x] The app is usable at 375px: bottom sheet over a full-bleed map
+
+**Done (2026-08-30, `952b079`).** Measured with `node scripts/r11-measure.mjs`:
+
+| | before | after |
+|---|---|---|
+| `.leaflet-container` at 375x812 | **0 x 448** | **375 x 456** |
+| `.leaflet-container` at 1440x900 | 768 x 544 | **768 x 544** |
+| horizontal page scroll | none | none |
+
+Both criteria hold: at 375 the map clears the 320px floor and `scrollWidth`
+equals `innerWidth`; at 1440 the sidebar, map and detail panel are all present
+in that order and the map is **no narrower than the recorded baseline** — it is
+identical to it.
+
+`BottomSheet.jsx` uses `md:contents` so the wrapper leaves the box tree on
+desktop and its children rejoin the parent flex row. That is what keeps the
+whole thing to one DOM tree and one Leaflet instance; rendering a separate
+mobile tree would have meant two maps.
 
 Below the `md` breakpoint, the sidebar and detail panel stop being fixed side
 columns. The map fills the viewport; the metric picker and year control collapse
@@ -79,7 +97,23 @@ each have a non-zero width; they appear in that left-to-right order; and the map
 container is **no narrower than the 1440×900 baseline recorded in R11 before any
 change lands**. Both viewports verified in a real browser per R11.
 
-### R2. [ ] Every country is reachable and selectable by keyboard
+### R2. [x] Every country is reachable and selectable by keyboard
+
+**Done (2026-08-30, `952b079`).** The ranking strip is a listbox: one tab stop
+for the strip, arrows to move, Home/End, Enter or Space to select, with
+`aria-activedescendant` tracking the selection and `aria-selected` on each
+option. This had to exist rather than being a preference — the Source
+verification table established that Leaflet's `CircleMarker` extends `Path`,
+which never receives a tabindex, so the map itself can never be driven by
+keyboard.
+
+The focus-indicator half is also met: an explicit `:focus-visible` ring at
+`#1a4fa0`, **6.76:1** against white and so past the 3:1 WCAG asks of an
+indicator, and the `focus:outline-none` that suppressed it on the search input —
+which this requirement called out by name — is gone.
+
+Every ranking option also carries a real `aria-label` rather than relying on
+`title`, which is not reliably announced.
 
 Probing proved `CircleMarker` cannot be focused, so the map alone can never
 satisfy this. Provide a focusable, list-based path to the same state the map
@@ -185,7 +219,23 @@ this off rendered output matters here specifically: the markers are Leaflet
 paths, and asserting over them would couple the check to how Leaflet happens to
 render inside jsdom. Confirmed visually under a deuteranopia simulation in R11.
 
-### R6. [ ] Interactive targets meet 24×24px
+### R6. [x] Interactive targets meet 24×24px
+
+**Done (2026-08-30, `952b079`).** At 375x812, measured in a browser:
+**186 of 234 targets under 24px becomes 2 of 236.**
+
+The two remaining are Leaflet's "Esri" and "Leaflet" attribution links at 18x12
+and 46x12. WCAG 2.5.8 exempts these explicitly — the *inline* exception, for a
+target "in a sentence or [whose] size is otherwise constrained by the
+line-height of non-target text". They are third-party markup inside a line of
+attribution text, and enlarging them would break the sentence they sit in.
+
+Ranking options are 24px wide below `md` and stay 9px above it, where the
+pointer is a mouse. The strip already scrolled horizontally, so the bars widen
+rather than the chart dropping entries.
+
+Note the desktop figure is still 179 under 24px, which is the 9px ranking bars
+by design. This requirement's acceptance is scoped to 375x812.
 
 The ranking-strip bars are `w-[9px]` (`LaborPage.jsx:231`) — their only label is
 a `title` attribute, and at 9px they fail WCAG 2.5.8. The "Latest" button
@@ -563,7 +613,46 @@ adjacent-step ΔE floor is asserted, for the reason above. Any pair that cannot
 meet (1) is recorded as `[~]` with the redundant non-colour channel that covers
 it instead.
 
-### R11. [ ] Verified in a real browser, not inferred from a clean build
+### R11. [~] Verified in a real browser, not inferred from a clean build
+
+**Revised (2026-08-30, `952b079`).** What changed: the requirement assumed a
+person doing all of this by hand. Most of it is now **automated and repeatable**
+via `scripts/r11-measure.mjs`, which drives the system Chrome through
+`playwright-core` — installed unsaved, and which never downloads a browser, so
+`package.json`, `verify.sh` and `ci.yml` are untouched and the Non-goals'
+offline property holds. That is strictly better than eyeballing: the numbers are
+reproducible and diffable.
+
+**One part is not done and cannot be done by me: the screen-reader listen.**
+The acceptance asks for "the screen reader used and what it announced for one
+OFFICIAL and one MODELED figure". That needs a human with VoiceOver or NVDA.
+Everything the requirement lists *except* that is recorded below.
+
+| | 1440x900 | 375x812 |
+|---|---|---|
+| `.leaflet-container` | 768 x 544 | 375 x 456 |
+| Horizontal page scroll | none | none |
+| Landmarks / ARIA attributes | 4 / 220 | 4 / 220 |
+| Targets under 24px | 179 of 235 (9px bars, by design) | **2 of 236** |
+| Tier badge rendered size | **11px** | **11px** |
+| Console | clean | clean |
+
+- **Pre-change baseline** (required before any change landed): map 768 x 544 at
+  1440x900, and 0 x 448 at 375x812. Captured at `5e8cf16`.
+- **Keyboard-only reach**: the ranking listbox reaches every country with data
+  (arrows, Home/End, Enter/Space); metric, region, income and scenario-basis
+  buttons are reachable and expose `aria-pressed`; both sliders are reachable
+  and carry `aria-valuetext`; the detail panel opens and closes. Verified by
+  reading the rendered tab order and the axe pass, **not** by driving a keyboard
+  in the browser — see the caveat above.
+- **Deuteranopia check of R5's no-data encoding**: the encoding is a dashed
+  stroke, not a colour, so it is invariant under any colour-vision simulation by
+  construction. `test/pure.test.mjs` asserts it lands on exactly the null rows.
+- **Rendered badge size**: 11px, all 26 badges, at both viewports.
+
+**Outstanding for a human:** listen to the detail panel and tier badges with a
+real screen reader and append what was announced. Until that is done this
+requirement is `[~]`, not `[x]`.
 
 Per `CLAUDE.md`: a clean build is not evidence the page renders. Load the app at
 **375×812** and **1440×900**, exercise keyboard-only navigation end to end,

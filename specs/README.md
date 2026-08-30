@@ -47,7 +47,7 @@ build-first-document-later approach.
 | [0005](0005-ci-on-pull-requests.md) | CI on pull requests, merge gating, admin-bypass decision | done — 5 done |
 | [0006](0006-eslint-worktree-ignores.md) | ESLint ignores worktrees and nested build output | done — 3 done |
 | [0007](0007-pipeline-typescript-port.md) | Port the pipeline Python → TypeScript, verified byte-identical against the committed outputs | approved — 11 requirements, none implemented |
-| [0008](0008-mobile-and-accessibility.md) | Mobile layout, keyboard access, screen-reader equivalents, contrast and colour-vision | in-progress — 7 done · 4 remaining (R1, R2, R6, R11) |
+| [0008](0008-mobile-and-accessibility.md) | Mobile layout, keyboard access, screen-reader equivalents, contrast and colour-vision | in-progress — 10 done · 1 revised (R11 awaits a screen-reader listen) |
 
 ## Starting a new spec
 

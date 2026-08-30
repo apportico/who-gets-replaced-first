@@ -42,7 +42,7 @@ thresholds it is measured against. Every row below was run on this branch
 | WCAG contrast of body text | `palette-probe.mjs` §2 | `gray-400 #9ca3af` = **2.54:1 FAIL** (used for most 10px secondary text), `gray-300 #d1d5db` = **1.47:1 FAIL** (disabled play button). `gray-500 #6b7280` = 4.83:1 pass. Independently reproduced. |
 | Colour-vision **method** | `scripts/palette-probe.mjs`, committed — every free parameter pinned in code | Linear-light sRGB input; D65/2°; **CIEDE2000**; **Machado, Oliveira & Fernandes (2009)** IEEE TVCG 15(6) Table 1, severity-1.0 matrices. The first draft said "CIELAB ΔE76 + Viénot" and pinned none of the input space, white point, or tritanopia matrix — the reviewer of PR #55 re-ran it and got different vision attributions, correctly. Machado is used here because all three deficiencies come from one derivation (Viénot 1999 is validated only for protanopia and deuteranopia; its tritanopia is an extrapolation), and its matrices are published constants. **The numbers in the three rows below are from this pinned method and supersede the first draft's.** |
 | Ramp vs no-data separation | `palette-probe.mjs` §4 | Lightest ramp step vs no-data `#dfe3e8`: **BLUE ΔE00 3.7**, **TEAL ΔE00 7.2** (falling to **3.7 under deuteranopia**), HEAT 11.2; WCAG contrast 1.14–1.17:1. Below any legibility threshold **for normal colour vision**, at marker sizes of 3.5–26px. This is the row R5 rests on, and it is starker than the first draft's ΔE76 figures suggested. |
-| Ramps under dichromacy | `palette-probe.mjs` §3 and §7 | Min adjacent-step ΔE00 falls under 10 for **all three** ramps, not just TEAL: BLUE 7.5, HEAT 7.7, **TEAL 4.3** (protanopia). The first draft reported BLUE and HEAT as comfortable; that was an artefact of ΔE76. **But** §7 shows every ramp stays **strictly monotonic in L\*** under all four visions, min step gap 6.3 — so the ramps still read as *ordered scales*, which is what a sequential ramp is for. R10 is written against that, not against adjacent-step ΔE. |
+| Ramps under dichromacy | `palette-probe.mjs` §3 and §7 | Min adjacent-step ΔE00, **worst case across the four visions** — the worst vision differs per ramp: BLUE **7.5** (protanopia), HEAT **7.7** (*deuteranopia*; its protanopia figure is 10.1), TEAL **4.3** (protanopia). So all three fall under 10 somewhere, not just TEAL — the first draft reported BLUE and HEAT as comfortable, an artefact of ΔE76. At normal vision the figures are BLUE 8.4, TEAL 8.8, HEAT 10.3, so HEAT alone clears a ≥ 10 floor there. **But** §7 shows every ramp stays **strictly monotonic in L\*** under all four visions, min step gap 6.3 — so the ramps still read as *ordered scales*, which is what a sequential ramp is for. R10 is written against that, not against adjacent-step ΔE. |
 | Tier colours under dichromacy | `palette-probe.mjs` §5 | **DERIVED vs MODELED = ΔE00 2.4 under deuteranopia** (9.4 protanopia) — effectively the same colour. The first draft attributed this collapse to protanopia; the reviewer was right that it lands under deuteranopia. **OFFICIAL vs PROXY = ΔE00 10.7** (deuteranopia) / 11.1 (protanopia) — measured vs constructed, the pair that matters most, far closer than the first draft's 17.8. OFFICIAL vs DERIVED = 13.1 under tritanopia. The badges' text labels currently carry these distinctions alone. |
 | axe-core over the **real app** under jsdom | `node scripts/render-probe.mjs`, committed — axe-core 4.13.0 + jsdom 30.0.1, full `App.jsx` tree | The whole tree mounts, map included: 146,996 chars, `.leaflet-container` present, 225 buttons, **0 aria attributes**. Two conditions make it work, both non-obvious: jsdom globals must exist **before** the first import (Leaflet dereferences `window` at module-evaluation time, `leaflet-src.js:230`), and the modules load through `vite.ssrLoadModule` (JSX + CSS + JSON). Results: `region` **23 violations**, `label` **2**, `heading-order` **1**; `button-name`, `link-name`, `image-alt` pass; `aria-allowed-attr` inapplicable (no ARIA exists yet). `color-contrast` → **INCOMPLETE** (no canvas). `target-size` → **reports `pass`, which is false** — jsdom has no layout, so there are no boxes to fail. A fixture returns INAPPLICABLE for that rule; the real tree returns a misleading green, which is worse. R9 disables it explicitly. |
 | Node test runner and R9's dependency budget | `node -v`; `node --test --help`; `render-probe.mjs` | Node **v24.19.0**, `node --test` built in. Vite is already a devDependency and its SSR transform loads the app, so R9 adds **only `axe-core` and `jsdom`** — no test runner, no bundler, no browser. The budget the Non-goals argument rests on survives the render finding. |
@@ -183,12 +183,33 @@ pass a green suite — the exact failure this requirement exists to prevent. So
 extract the text palette into one exported module the components consume, each
 entry naming its colour, its intended background, and whether it is large text.
 
+**The greys are not the whole problem.** Alongside them sit 17 non-grey text
+utilities across five components, several at 8–10px on tinted backgrounds —
+`text-amber-700` on `bg-amber-50` (`LaborDetailPanel.jsx:155,161`),
+`text-orange-700` on `bg-orange-50` (`:400`), `text-blue-700` and
+`text-purple-700` on their 100-weight backgrounds (`:279,284`),
+`text-amber-800` on `bg-amber-100` (`:289`), `text-purple-700` at 8px and
+`text-purple-800` on `bg-purple-100/60` at 9px (`ScenarioPanel.jsx:22,73`),
+`text-blue-900` on `bg-blue-100` (`LaborSidebar.jsx:187,202`), `text-red-700` on
+`bg-red-50` (`LaborTimeline.jsx:63`) — plus `text-gray-900` at `src/App.jsx:6`,
+outside `src/components/` entirely. These are the same 10px-secondary-text
+problem in a different colour family. They also make the extraction argument
+stronger rather than weaker: the repo is on `tailwindcss ^4.2.2` with **no
+`tailwind.config.*` and no `@theme` block**, so these resolve from Tailwind v4's
+OKLCH default theme and their contrast ratios are not derivable from the class
+name at all.
+
 **Acceptance:** a single exported text-palette module exists and the components
-take their text colours from it — asserted by `grep` finding no remaining
-`text-gray-[0-9]+` literals in `src/components/`. The R9 palette test asserts
-every entry in that export is ≥ 4.5:1 against its declared background, or ≥ 3:1
-where it is declared large. Disabled controls are exempt from the ratio but must
-not use colour as the only signal of their state.
+take their text colours from it — asserted by `grep` over **`src/`** (not just
+`src/components/`) finding no remaining `text-[a-z]+-[0-9]+`, `text-black`, or
+arbitrary `text-[#…]` literals. The R9 palette test asserts every entry in that
+export is ≥ 4.5:1 against its declared background, or ≥ 3:1 where it is declared
+large. Two exclusions, named here rather than left to a pattern to drop
+silently: `text-white` on the `bg-gray-800`/`bg-gray-900` active chips (six
+sites — white on a near-black chip is the highest-contrast pairing in the app,
+≈14.7:1 and ≈17.7:1 against the v3 reference hexes, and the v4 OKLCH values
+cannot move that far), and disabled controls, which are exempt from the ratio
+but must not use colour as the only signal of their state.
 
 ### R8. [ ] Landmarks and accessible names across the app
 
@@ -229,6 +250,11 @@ lines the probes actually drew:
    in the Source verification table and the numbers the gate enforces are
    produced by one implementation. It pins the algorithm (linear sRGB, D65,
    CIEDE2000, Machado 2009 severity 1.0) so R4, R5 and R10 have a defined unit.
+   The script **exports** its functions and palette tables and guards its report
+   behind `import.meta.main`, so the test imports them rather than re-deriving
+   them — without that the "one implementation" property is a claim the next
+   person has to re-establish, and re-derivation is exactly how the first
+   draft's numbers drifted from anyone else's.
 3. **Pure-function assertions** for R3's text equivalent and R5's marker
    encoding, needing no DOM at all.
 
@@ -251,11 +277,13 @@ the pair that matters most, sits at 10.7. Those must be fixed, and R4's recolour
 is where it happens.
 
 The ramps are a different case, and the first draft got the criterion wrong.
-Adjacent-step ΔE00 is under 10 for all three ramps, but that is what a
-*sequential* ramp looks like: it is read as an ordered scale against a legend,
-not by discriminating neighbouring buckets. Demanding ΔE ≥ 10 between adjacent
-steps would fail all three ramps at normal vision and force a palette nobody
-asked for. What must survive colour-vision deficiency is the **order**, and
+Adjacent-step ΔE00 falls under 10 for all three ramps somewhere across the four
+visions, but that is what a *sequential* ramp looks like: it is read as an
+ordered scale against a legend, not by discriminating neighbouring buckets.
+Demanding ΔE ≥ 10 between adjacent steps would fail **two of the three ramps at
+normal vision** — BLUE 8.4 and TEAL 8.8, with HEAT clearing it at 10.3 — and all
+three once dichromacy is included, forcing a palette nobody asked for. What must
+survive colour-vision deficiency is the **order**, and
 §7 of the probe shows it does — every ramp is strictly monotonic in L\* under
 all four visions, minimum step gap 6.3. So the ramp criterion guards that
 property rather than inventing a new one, and the readable-value path is R3's

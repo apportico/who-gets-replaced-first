@@ -2,7 +2,7 @@
 export default function Sparkline({ points, color = '#2f7ec1', width = 150, height = 34, unit = '%' }) {
   const clean = (points || []).filter((p) => p.value !== null && p.value !== undefined);
   if (clean.length < 2) {
-    return <span className="text-[10px] text-gray-400">not enough years of data</span>;
+    return <span className="text-[10px] text-[var(--text-faint)]">not enough years of data</span>;
   }
   const years = clean.map((p) => p.year);
   const values = clean.map((p) => p.value);
@@ -31,7 +31,7 @@ export default function Sparkline({ points, color = '#2f7ec1', width = 150, heig
         <circle cx={px(last.year)} cy={py(last.value)} r="2.5" fill={color} />
       </svg>
       <div className="text-[10px] leading-tight">
-        <div className="font-mono tabular-nums text-gray-700">
+        <div className="font-mono tabular-nums text-[var(--text-body)]">
           {first.value.toFixed(1)} → {last.value.toFixed(1)}
           {unit}
         </div>

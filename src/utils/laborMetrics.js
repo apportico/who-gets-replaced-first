@@ -342,10 +342,29 @@ export function radiusFor(employed) {
   return Math.max(3.5, Math.min(26, Math.sqrt(employed) / 1400));
 }
 
+// Spec 0008 R7. These render as a badge in the same `${color}1a`-over-white
+// pattern as TIERS, and all five were under AA — 2.99 to 4.39:1. They are
+// darkened to the lightest value that clears 4.5:1, which holds every hue to
+// within 2 degrees, so the badge still reads the same colour.
+//
+// They were missed by the first pass of R7 for the same reason the in-swatch
+// labels were: the colour arrives through an inline `style` rather than a
+// Tailwind utility, so no `text-*` grep reaches it. `test/text-palette.test.mjs`
+// now asserts over this function directly rather than over class names.
+// `data_quality_flag` is how the panel says how complete a country's data is —
+// an unreadable "sparse" badge is the project's own non-negotiable failing.
+export const QUALITY_TONES = {
+  unknown: '#676d74',
+  complete: '#257b35',
+  aggregate: '#186ebc',
+  sparse: '#ca2c2c',
+  partial: '#b74609',
+};
+
 export function qualityTone(flag) {
-  if (!flag) return { color: '#868e96', label: 'unknown' };
-  if (flag.startsWith('complete')) return { color: '#2f9e44', label: 'complete' };
-  if (flag.startsWith('aggregate')) return { color: '#1971c2', label: 'aggregate' };
-  if (flag.startsWith('sparse')) return { color: '#e03131', label: 'sparse' };
-  return { color: '#e8590c', label: 'partial' };
+  if (!flag) return { color: QUALITY_TONES.unknown, label: 'unknown' };
+  if (flag.startsWith('complete')) return { color: QUALITY_TONES.complete, label: 'complete' };
+  if (flag.startsWith('aggregate')) return { color: QUALITY_TONES.aggregate, label: 'aggregate' };
+  if (flag.startsWith('sparse')) return { color: QUALITY_TONES.sparse, label: 'sparse' };
+  return { color: QUALITY_TONES.partial, label: 'partial' };
 }

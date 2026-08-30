@@ -27,12 +27,12 @@ function HeadlineStat({ label, value, sub, tier }) {
   return (
     <div className="px-4 py-2 border-r border-gray-200 last:border-0">
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+        <span className="text-[10px] font-semibold tracking-wide text-[var(--text-muted)] uppercase">
           {label}
         </span>
         {t && (
           <span
-            className="text-[8px] font-bold px-1 py-px rounded"
+            className="text-[11px] font-bold px-1.5 py-0.5 rounded"
             style={{ backgroundColor: `${t.color}1a`, color: t.color }}
           >
             {t.label}
@@ -40,7 +40,7 @@ function HeadlineStat({ label, value, sub, tier }) {
         )}
       </div>
       <div className="text-lg font-bold leading-tight tabular-nums">{value}</div>
-      {sub && <div className="text-[10px] text-gray-400 leading-tight">{sub}</div>}
+      {sub && <div className="text-[10px] text-[var(--text-faint)] leading-tight">{sub}</div>}
     </div>
   );
 }
@@ -145,8 +145,8 @@ export default function LaborPage() {
           tier="modeled"
         />
         <div className="flex-1 min-w-[220px] px-4 py-2 flex items-center">
-          <p className="text-[10px] text-gray-500 leading-snug">
-            <strong className="text-gray-700">Read the badges.</strong> OFFICIAL are published
+          <p className="text-[10px] text-[var(--text-muted)] leading-snug">
+            <strong className="text-[var(--text-body)]">Read the badges.</strong> OFFICIAL are published
             statistics. PROXY and MODELED are constructed stand-ins — the entry-level and AI
             exposure figures are not measurements. World occupation figures cover{' '}
             {fmt(worldRow?.isco_coverage_pct_of_employment, 0)}% of global employment; China
@@ -211,10 +211,10 @@ export default function LaborPage() {
           {/* Ranking strip */}
           <div className="h-36 border-t border-gray-200 bg-white flex flex-col flex-shrink-0">
             <div className="px-3 py-1.5 border-b border-gray-100 flex items-center gap-2">
-              <h3 className="text-[11px] font-bold tracking-wider text-gray-500 uppercase">
+              <h3 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">
                 Ranked by {metric.short}
               </h3>
-              <span className="text-[10px] text-gray-400">
+              <span className="text-[10px] text-[var(--text-faint)]">
                 {ranked.length} countries with data · click to inspect
               </span>
             </div>
@@ -238,14 +238,14 @@ export default function LaborPage() {
                         }}
                         className="w-full rounded-t-sm transition-all group-hover:brightness-90"
                       />
-                      <span className="absolute -bottom-0 left-1/2 -translate-x-1/2 text-[7px] font-mono text-gray-400 rotate-0">
+                      <span className="absolute -bottom-0 left-1/2 -translate-x-1/2 text-[7px] font-mono text-[var(--text-faint)] rotate-0">
                         {isSel ? '▲' : ''}
                       </span>
                     </button>
                   );
                 })}
                 {!ranked.length && (
-                  <p className="text-xs text-gray-400 self-center">
+                  <p className="text-xs text-[var(--text-faint)] self-center">
                     No countries match the current filters with data for this metric.
                   </p>
                 )}

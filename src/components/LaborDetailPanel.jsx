@@ -9,10 +9,10 @@ function Section({ title, tier, children }) {
   return (
     <div className="mb-5">
       <div className="flex items-center gap-2 mb-2">
-        <h3 className="text-[11px] font-bold tracking-wider text-gray-500 uppercase">{title}</h3>
+        <h3 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">{title}</h3>
         {t && (
           <span
-            className="text-[9px] font-bold px-1.5 py-px rounded"
+            className="text-[11px] font-bold px-1.5 py-0.5 rounded"
             style={{ backgroundColor: `${t.color}1a`, color: t.color }}
           >
             {t.label}
@@ -27,11 +27,11 @@ function Section({ title, tier, children }) {
 function Row({ label, value, strong, hint }) {
   return (
     <div className="flex items-baseline justify-between py-1 border-b border-gray-100 last:border-0">
-      <span className={`text-xs ${strong ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
+      <span className={`text-xs ${strong ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
         {label}
-        {hint && <span className="block text-[10px] text-gray-400 leading-tight">{hint}</span>}
+        {hint && <span className="block text-[10px] text-[var(--text-faint)] leading-tight">{hint}</span>}
       </span>
-      <span className={`text-xs font-mono tabular-nums ml-3 ${strong ? 'font-bold text-gray-900' : 'text-gray-700'}`}>
+      <span className={`text-xs font-mono tabular-nums ml-3 ${strong ? 'font-bold text-[var(--text-primary)]' : 'text-[var(--text-body)]'}`}>
         {value}
       </span>
     </div>
@@ -45,28 +45,35 @@ function AgeBar({ row }) {
     { pct: row.pop_15_64_pct, color: '#2f7ec1', label: '15–64' },
     { pct: row.pop_65plus_pct, color: '#b5651d', label: '65+' },
   ].filter((p) => p.pct != null);
-  if (!parts.length) return <p className="text-xs text-gray-400">No age structure data.</p>;
+  if (!parts.length) return <p className="text-xs text-[var(--text-faint)]">No age structure data.</p>;
   return (
     <>
       <div className="flex h-6 rounded overflow-hidden mb-1.5">
         {parts.map((p) => (
+          // Spec 0008 R7. The in-bar percentage that used to sit here was 9px
+          // bold white on this swatch — 1.81:1 on the 0–14 teal, worse than the
+          // grey the spec already calls a failure. Per-swatch foreground
+          // selection cannot fix it: two of these three colours are mid-tones
+          // where neither white nor near-black clears 4.5:1. The figure moved to
+          // the legend below, which had to gain it first — deleting the label
+          // while the legend carried only the band name would have taken a
+          // country's 0–14 share off the page entirely, since nothing else
+          // renders it.
           <div
             key={p.label}
             style={{ width: `${p.pct}%`, backgroundColor: p.color }}
-            className="flex items-center justify-center"
             title={`${p.label}: ${p.pct.toFixed(1)}%`}
-          >
-            {p.pct > 9 && (
-              <span className="text-[9px] font-bold text-white">{p.pct.toFixed(0)}%</span>
-            )}
-          </div>
+          />
         ))}
       </div>
-      <div className="flex gap-3 text-[10px] text-gray-500">
+      <div className="flex gap-3 text-[10px] text-[var(--text-muted)]">
         {parts.map((p) => (
           <span key={p.label} className="flex items-center gap-1">
             <i className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: p.color }} />
             {p.label}
+            <span className="font-mono tabular-nums text-[var(--text-secondary)]">
+              {p.pct.toFixed(1)}%
+            </span>
           </span>
         ))}
       </div>
@@ -77,7 +84,7 @@ function AgeBar({ row }) {
 /** Population -> working age -> labor force -> employed -> white collar */
 function Funnel({ row }) {
   const pop = row.population_total;
-  if (!pop) return <p className="text-xs text-gray-400">No population data.</p>;
+  if (!pop) return <p className="text-xs text-[var(--text-faint)]">No population data.</p>;
   const workingAge = row.pop_15_64_pct != null ? (pop * row.pop_15_64_pct) / 100 : null;
   const steps = [
     { label: 'Total population', v: pop, color: '#cbd5e1' },
@@ -90,11 +97,11 @@ function Funnel({ row }) {
     <div className="space-y-1">
       {steps.map((s) => (
         <div key={s.label}>
-          <div className="flex justify-between text-[10px] text-gray-600 mb-0.5">
+          <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mb-0.5">
             <span>{s.label}</span>
             <span className="font-mono tabular-nums">
               {fmtCompact(s.v)}
-              {s.v != null && <span className="text-gray-400"> · {((s.v / pop) * 100).toFixed(1)}%</span>}
+              {s.v != null && <span className="text-[var(--text-faint)]"> · {((s.v / pop) * 100).toFixed(1)}%</span>}
             </span>
           </div>
           <div className="h-2 bg-gray-100 rounded-sm overflow-hidden">
@@ -112,7 +119,7 @@ function Funnel({ row }) {
 function OccupationBreakdown({ row }) {
   if (row.white_collar_pct == null) {
     return (
-      <p className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded p-2">
+      <p className="text-xs text-[var(--text-muted)] bg-[var(--surface-warn)] border border-amber-200 rounded p-2">
         No ISCO-08 occupation breakdown published for this country. The row is kept
         with nulls rather than estimated — nothing here is imputed.
       </p>
@@ -123,18 +130,20 @@ function OccupationBreakdown({ row }) {
     <>
       <div className="flex h-7 rounded overflow-hidden mb-1">
         {groups.map((g) => (
+          // Spec 0008 R7. The group digit that used to sit here was 9px bold
+          // white on this swatch: seven of the nine ISCO colours were below AA
+          // and five below even 3:1, the worst at 1.68:1 — and ISCO 4, clerical
+          // support, is the group this project is about. It was already
+          // redundant with the legend below, which carries number, name and
+          // percentage for every group, so it is deleted rather than recoloured.
           <div
             key={g.key}
             style={{ width: `${g.pct}%`, backgroundColor: g.color }}
             title={`${g.n}. ${g.label}: ${g.pct.toFixed(1)}%`}
-          >
-            {g.pct > 7 && (
-              <span className="text-[9px] font-bold text-white block text-center leading-7">{g.n}</span>
-            )}
-          </div>
+          />
         ))}
       </div>
-      <div className="flex justify-between text-[10px] text-gray-500 mb-2">
+      <div className="flex justify-between text-[10px] text-[var(--text-muted)] mb-2">
         <span>&larr; ISCO 1–4 white collar ({fmt(row.white_collar_pct)}%)</span>
         <span>ISCO 5–9 ({fmt(row.blue_collar_service_pct)}%) &rarr;</span>
       </div>
@@ -142,23 +151,23 @@ function OccupationBreakdown({ row }) {
         {groups.map((g) => (
           <div key={g.key} className="flex items-center gap-2">
             <i className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: g.color }} />
-            <span className="text-[11px] text-gray-600 flex-1 truncate" title={g.label}>
+            <span className="text-[11px] text-[var(--text-secondary)] flex-1 truncate" title={g.label}>
               {g.n}. {g.label}
             </span>
-            <span className="text-[11px] font-mono tabular-nums text-gray-800">
+            <span className="text-[11px] font-mono tabular-nums text-[var(--text-primary)]">
               {g.pct.toFixed(1)}%
             </span>
           </div>
         ))}
       </div>
       {row.isco_groups_reported != null && row.isco_groups_reported < 9 && (
-        <p className="mt-2 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-1.5">
+        <p className="mt-2 text-[10px] text-[var(--text-warn)] bg-[var(--surface-warn)] border border-amber-200 rounded p-1.5">
           Source reports only {row.isco_groups_reported} of 9 major groups — the national
           classification folds the missing group into another one.
         </p>
       )}
       {row.isco_classified_share_pct != null && row.isco_classified_share_pct < 90 && (
-        <p className="mt-2 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-1.5">
+        <p className="mt-2 text-[10px] text-[var(--text-warn)] bg-[var(--surface-warn)] border border-amber-200 rounded p-1.5">
           Only {row.isco_classified_share_pct.toFixed(0)}% of employment is classified by
           occupation. Shares above describe the classified portion only.
         </p>
@@ -176,13 +185,13 @@ function CareerStages({ row }) {
     { label: 'All ages', v: row.white_collar_pct, color: '#1a5490' },
   ];
   if (!stages.some((s) => s.v != null)) {
-    return <p className="text-xs text-gray-400">No career-stage breakdown published.</p>;
+    return <p className="text-xs text-[var(--text-faint)]">No career-stage breakdown published.</p>;
   }
   return (
     <div className="space-y-1">
       {stages.map((s) => (
         <div key={s.label}>
-          <div className="flex justify-between text-[10px] text-gray-600 mb-0.5">
+          <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mb-0.5">
             <span>{s.label}</span>
             <span className="font-mono tabular-nums">{fmt(s.v)}%</span>
           </div>
@@ -195,7 +204,7 @@ function CareerStages({ row }) {
         </div>
       ))}
       {row.young_white_collar_pct != null && row.prime_white_collar_pct != null && (
-        <p className="text-[10px] text-gray-500 pt-1 leading-snug">
+        <p className="text-[10px] text-[var(--text-muted)] pt-1 leading-snug">
           Youth are{' '}
           <strong>
             {fmt(Math.abs(row.prime_white_collar_pct - row.young_white_collar_pct))}pp{' '}
@@ -222,7 +231,7 @@ function Trends({ iso3 }) {
   const anyData = charts.some((c) => seriesFor(iso3, c.field).length >= 2);
   if (!anyData) {
     return (
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-[var(--text-faint)]">
         Not enough years of data to show a trend for this country.
       </p>
     );
@@ -234,12 +243,12 @@ function Trends({ iso3 }) {
         if (points.length < 2) return null;
         return (
           <div key={c.field}>
-            <div className="text-[10px] text-gray-600 mb-0.5">{c.label}</div>
+            <div className="text-[10px] text-[var(--text-secondary)] mb-0.5">{c.label}</div>
             <Sparkline points={points} color={c.color} />
           </div>
         );
       })}
-      <p className="text-[10px] text-gray-500 leading-snug">
+      <p className="text-[10px] text-[var(--text-muted)] leading-snug">
         Gaps between survey years are drawn as straight lines. A country that reports
         in only two years produces a two-point line, not a trend.
       </p>
@@ -251,7 +260,7 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
   if (!row) {
     return (
       <div className="panel-scroll w-96 bg-gray-50 overflow-y-auto p-6 border-l border-gray-200 flex items-center">
-        <p className="text-gray-400 text-sm text-center leading-relaxed">
+        <p className="text-[var(--text-faint)] text-sm text-center leading-relaxed">
           Select a country on the map, or a row in the ranking below, to see its full
           population and occupation breakdown.
         </p>
@@ -263,11 +272,11 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
   const isAggregate = row.row_type !== 'country';
 
   return (
-    <div className="panel-scroll w-96 bg-gray-50 overflow-y-auto border-l border-gray-200 text-gray-900">
+    <div className="panel-scroll w-96 bg-gray-50 overflow-y-auto border-l border-gray-200 text-[var(--text-primary)]">
       <div className="sticky top-0 bg-gray-50 px-4 pt-4 pb-3 border-b border-gray-200 z-10">
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-lg leading-none cursor-pointer"
+          className="absolute top-3 right-3 text-[var(--text-faint)] hover:text-[var(--text-body)] text-lg leading-none cursor-pointer"
         >
           &times;
         </button>
@@ -276,23 +285,23 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
             {row.iso3}
           </span>
           {isAggregate && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--surface-info)] text-[var(--text-info)]">
               AGGREGATE
             </span>
           )}
           {onCorridorBoard && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--surface-accent)] text-[var(--text-accent)]">
               CORRIDOR BOARD
             </span>
           )}
           {year !== null && (
-            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[var(--surface-warn)] text-[var(--text-warn)]">
               {year}
             </span>
           )}
         </div>
         <h2 className="text-lg font-bold leading-tight pr-6">{row.country_name}</h2>
-        <p className="text-[11px] text-gray-500 mt-0.5">
+        <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
           {isAggregate
             ? `${row.member_count} member countries`
             : `${row.region}${row.income_group ? ` · ${row.income_group}` : ''}`}
@@ -397,7 +406,7 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
               )} pp`}
             />
           )}
-          <p className="mt-2 text-[10px] text-orange-700 bg-orange-50 border border-orange-200 rounded p-1.5 leading-snug">
+          <p className="mt-2 text-[10px] text-[var(--text-caution)] bg-[var(--surface-caution)] border border-orange-200 rounded p-1.5 leading-snug">
             Seniority is not tracked globally. This is age 15–24 crossed with occupation —
             a stand-in, not a measurement of junior roles.
           </p>
@@ -416,7 +425,7 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
             label="Youth vs all-ages white collar"
             value={row.youth_wc_gap != null ? `${row.youth_wc_gap >= 0 ? '+' : ''}${fmt(row.youth_wc_gap)} pp` : '—'}
           />
-          <p className="mt-2 text-[10px] text-gray-500 leading-snug">
+          <p className="mt-2 text-[10px] text-[var(--text-muted)] leading-snug">
             A composite of the four percentile ranks above, not a measured quantity.
             Every component is listed so the index can be taken apart.
           </p>
@@ -473,7 +482,7 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
               hint="share of this group's employment in countries reporting occupation data"
             />
           )}
-          <p className="mt-2 text-[10px] text-gray-500 leading-snug">
+          <p className="mt-2 text-[10px] text-[var(--text-muted)] leading-snug">
             Years are not uniform across fields. Never read a row as a single-year snapshot.
           </p>
         </Section>

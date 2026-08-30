@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/* Spec 0008 R7 — text palette tokens.
+   These mirror `src/utils/textPalette.js` exactly, and `test/palette.test.mjs`
+   parses this block to assert the two have not drifted. Components reference
+   them as `text-[var(--text-muted)]` rather than using Tailwind's colour scale,
+   because with no `@theme` block the scale's utilities resolve from v4's OKLCH
+   defaults and their contrast ratios cannot be checked from the class name. */
+:root {
+  --text-primary: #111827;
+  --text-body: #374151;
+  --text-secondary: #4b5563;
+  --text-muted: #5b6270;
+  --text-faint: #6b7280;
+  --text-warn: #8a5300;
+  --text-caution: #9a4200;
+  --text-info: #1a4fa0;
+  --text-accent: #6b21a8;
+  --text-alert: #a4161a;
+  --surface-warn: #fdf6e7;
+  --surface-caution: #fdf1e7;
+  --surface-info: #e8eefb;
+  --surface-accent: #f4e8fb;
+  --surface-alert: #fdeaea;
+  --text-disabled: #d1d5db;
+}
+
 /* Leaflet required height */
 .leaflet-container {
   width: 100%;

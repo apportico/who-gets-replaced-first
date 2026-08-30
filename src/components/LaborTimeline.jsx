@@ -25,8 +25,8 @@ export default function LaborTimeline({ years, year, onChange, playing, onToggle
         disabled={isLatest}
         className={`text-xs w-6 h-6 rounded flex items-center justify-center transition-colors ${
           isLatest
-            ? 'text-gray-300 cursor-not-allowed'
-            : 'text-gray-700 hover:bg-gray-100 cursor-pointer'
+            ? 'text-[var(--text-disabled)] cursor-not-allowed'
+            : 'text-[var(--text-body)] hover:bg-gray-100 cursor-pointer'
         }`}
         title={isLatest ? 'Pick a year to animate' : playing ? 'Pause' : 'Play'}
       >
@@ -36,7 +36,7 @@ export default function LaborTimeline({ years, year, onChange, playing, onToggle
       <button
         onClick={() => onChange(null)}
         className={`text-[11px] px-2 py-0.5 rounded cursor-pointer transition-colors ${
-          isLatest ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'
+          isLatest ? 'bg-gray-900 text-white' : 'text-[var(--text-muted)] hover:bg-gray-100'
         }`}
         title="Most recent year available per country — years differ between countries"
       >
@@ -60,7 +60,7 @@ export default function LaborTimeline({ years, year, onChange, playing, onToggle
       {!isLatest && coverage != null && (
         <span
           className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-            coverage < 50 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'
+            coverage < 50 ? 'bg-[var(--surface-alert)] text-[var(--text-alert)]' : 'bg-gray-100 text-[var(--text-muted)]'
           }`}
           title="Share of world employment covered by countries reporting occupation data this year. Low coverage means year-to-year movement is composition change, not real change."
         >

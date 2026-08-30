@@ -4,7 +4,7 @@ export default function Header() {
       <h1 className="text-base font-bold tracking-wide flex-shrink-0">
         WHO GETS REPLACED FIRST
       </h1>
-      <span className="text-[11px] text-gray-400 hidden sm:block truncate">
+      <span className="text-[11px] text-[var(--text-faint)] hidden sm:block truncate">
         Population, work, and occupational exposure to AI — 218 countries
       </span>
 
@@ -14,7 +14,7 @@ export default function Header() {
         href="https://github.com/apportico/who-gets-replaced-first"
         target="_blank"
         rel="noreferrer"
-        className="text-[11px] text-gray-500 hover:text-gray-900 transition-colors flex-shrink-0"
+        className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
       >
         Source &amp; method →
       </a>

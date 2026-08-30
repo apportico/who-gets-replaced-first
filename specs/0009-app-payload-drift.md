@@ -42,7 +42,8 @@ Every row below is a command that was run, not an expectation.
 | Offline reconstruction — rows, by value | Same rows, keyed by `iso3`, compared under numeric normalisation | **0 of 19,236 cells disagree** (229 rows × 84 columns). The CSV carries all 84 `keep` columns. So the rows *are* checkable offline up to numeric equality, just not byte equality |
 | Row order | Compared `iso3` sequences | **Not reconstructible.** The JSON is 218 `country` rows then `WLD`, 7 `region`, 3 `group` — and the countries are in neither `iso3` nor name order (the first divergence from `iso3` order is at index 199: the sequence runs `TUV, TZA` where sorted order puts `TWN` between them). `export_csv` sorts (aggregates first, then `iso3`); `export_app_json` does not sort at all. Order is whatever `run()` produced |
 | Offline reconstruction — timeseries | Rebuilt `fields`/`years`/`series` from committed `global_labor_panel.csv` per `panel.py:163-172` | **Fully reconstructible: fields equal, 14 years equal, 226 series keys equal, 0 cells disagree** under the same normalisation |
-| Payload header vs. its inputs | `payload["ai_exposure_weights"] == run.load_weights()`; `sources` against the literal at `run.py:266-272` | **Both agree today** — so widening R2 to the whole header is preventive, like R3, not a second live defect. `load_weights()` (`run.py:79-81`) is a plain read of in-tree `pipeline/ai_exposure_isco.json`, offline-reconstructible on exactly the terms `field_tiers` is. **No test in `pipeline/tests/` asserts on either payload key** |
+| Payload header vs. the generator | `export_app_json([], tmp)`, then compared its non-`rows` keys to the committed payload's | **Works, and all four agree today** — returns `generated_from`, `field_tiers`, `sources`, `ai_exposure_weights` with `rows: []`, each equal to the committed file's. No rows means no cache and no network, so R2's guard stays unconditional. So widening R2 is preventive, like R3, not a second live defect. **No test in `pipeline/tests/` asserts on any of these keys** |
+| Why the header must be driven, not rebuilt | `grep -rn "SOURCES" pipeline/*.py` | **No match.** `generated_from` (`run.py:260`) and `sources` (`run.py:266-272`) are literals inside `export_app_json`; only `field_tiers` and `ai_exposure_weights` come from constants (`run.COLUMNS` + `config.FIELD_TIERS`, and `load_weights()` at `run.py:79-81`, a plain read of in-tree `ai_exposure_isco.json`). An earlier draft of this row checked `sources` *against the literal* — a transcription, not a rebuild, and exactly the copy that would go stale silently in a test |
 | `global_labor_dataset.csv` coverage | Read `test_golden_master.py:47` and `test_columns.py:20-66` | **Values unguarded.** The golden master's `EXPECTED` is `pilot_labor_dataset.csv`, the 7-row pilot batch; `CommittedHeaders` does include the full dataset CSV but every assertion is on `header(name)`, which reads the first row only. Headers and order, no values |
 | `verify` / CI reach | `cat scripts/verify.sh` | `npm run test:pipeline` is **unconditional** and documented as such; only the pilot is gated on `pipeline/raw/`. A test added under `pipeline/tests/` runs in a fresh clone with no network, and in CI |
 | `verify` must not republish | `scripts/verify.sh:27-35` | The pilot writes to `mktemp -d` explicitly so that "verify passed" and "the committed dataset changed" are never the same event. **A guard here must compare and never write** |
@@ -91,9 +92,31 @@ so no field's tier changes.
 
 A new test reads `src/data/global_labor.json` **from disk** and compares its
 **whole non-`rows` header** — `generated_from`, `field_tiers`, `sources` and
-`ai_exposure_weights` — against the same header rebuilt from `run.COLUMNS`,
-`config.FIELD_TIERS` and `run.load_weights()`. Offline and unconditional, per
-the probe showing every one of those needs no rows, no cache and no network.
+`ai_exposure_weights` — against the header the generator produces, obtained by
+calling **`export_app_json([], tmp)`** and reading back its non-`rows` keys.
+
+**Where the expected header comes from is part of the requirement, not an
+implementation detail.** Only two of the four keys can be rebuilt from
+constants: `field_tiers` from `run.COLUMNS` + `config.FIELD_TIERS`, and
+`ai_exposure_weights` from `run.load_weights()`. `generated_from`
+(`run.py:260`) and `sources` (`run.py:266-272`) are literals inside
+`export_app_json` with no module-level constant — `grep -rn "SOURCES"
+pipeline/*.py` returns nothing. So an implementer given an ingredient list
+would transcribe the `sources` dict into the test, and **that copy is a third
+witness that goes stale silently**: edit the literal in `run.py` without
+regenerating, and the test's copy agrees with the committed payload while both
+disagree with the code, suite green. That is this spec's own named failure,
+reproduced inside its own guard.
+
+Driving the generator instead transcribes nothing and covers all four keys in
+one call. It stays offline and unconditional: the header needs no rows, so
+`export_app_json([], tmp)` needs no cache and no network — verified, it returns
+all four keys with `rows: []`, each equal to the committed payload's. It writes
+only to a temp path, so R2's read-only criterion holds, and
+`test_tiers.py::AppPayload.setUp` already drives `export_app_json` into a temp
+file for the same reason. Lifting the two literals to module constants would
+also work but is a code change this spec has scoped out, and buys nothing this
+does not.
 
 `field_tiers` is the block #57 names, but scoping the guard to it would leave
 the same defect class open for the other three, and `ai_exposure_weights` is
@@ -117,6 +140,11 @@ shipping an unlabellable field to the app.
 - Editing one weight in `pipeline/ai_exposure_isco.json` without regenerating
   the payload makes `npm run test:pipeline` **fail**. Verified by making the
   edit, not by inspection.
+- Editing the `sources` literal in `run.py` without regenerating the payload
+  makes `npm run test:pipeline` **fail**. Also verified by making the edit.
+  Without this bullet the two above exercise `field_tiers` and
+  `ai_exposure_weights` and nothing exercises the other half of the widening —
+  and it is the half a transcribed expected value would leave green.
 - The test passes in a checkout with `pipeline/raw/` absent and networking
   unavailable.
 - It opens the file read-only; `git status --porcelain` is empty after the run.

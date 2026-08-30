@@ -67,8 +67,9 @@ spec may introduce a value the Python did not already produce.
 
 ### R1. [ ] A number layer that reproduces Python's arithmetic and formatting
 
-**Four** entry points, with the port using them everywhere the Python uses
-`round()`, `sum()`, or writes a float:
+**Five** entry points — `pyRound`, `pyStr`, `pySumInt`, `pySumFloat`, `pySum`,
+plus the `toBigInt` converter — with the port using them everywhere the Python
+uses `round()`, `sum()`, or writes a float:
 
 - `pyRound(x, n)` — half-to-even on the double's exact decimal value.
 - `pyStr(x)` — Python's `repr`: `.0` on integral floats, `-0.0` preserved.
@@ -125,13 +126,42 @@ spec may introduce a value the Python did not already produce.
   prefix = exact integer sum of the leading ints    // BigInt
   f = Number(prefix) + firstFloat                   // ONE plain add, no compensation
   c = 0
-  for x in elements after firstFloat: Neumaier(f, c, x)
+  for x in elements after firstFloat:
+      if x is int:  f = f + Number(x)               // ALSO uncompensated, c untouched
+      else:         Neumaier(f, c, x)
   return f + c
   ```
 
   An all-float sum never loses that residual, because `sum()` starts from the
-  integer `0` and its transition add is `0 + x0`, which is exact. That is the
-  whole of the difference, and it is not small — see the table below.
+  integer `0` and its transition add is `0 + x0`, which is exact.
+
+  **The `if x is int` branch is not a detail — it is the same finding one
+  element further along.** Inside CPython's float loop only `PyFloat_CheckExact`
+  items go through Neumaier; an exact `int` is added with a plain
+  `f_result += (double)value` and `c` is left untouched. So compensation is
+  suspended for *every* integer after the transition, not just the transition
+  itself. Compensating them instead diverges from `sum()`, and diverges on
+  exactly the shape the override path produces:
+
+  | Shape (200,000 lists each, elements under 1e12) | Compensating ints | Uncompensated, as above |
+  |---|---|---|
+  | int prefix, then all floats | **0** | **0** |
+  | `Int` column, one float override at a random position | **3,370** | **0** |
+  | float column, one int override at a random position | **10,270** | **0** |
+
+  Rates are distribution-dependent, as with the `sum()` row above; the counts
+  are illustrative and the separation is the finding. Smallest case, at
+  ordinary project magnitudes, and one showing it compounds with the number of
+  trailing ints:
+
+  ```python
+  sum([84.84239393266276, 387, 570])   # CPython 1041.8423939326626, compensating ...628
+  sum([10**16, 0.5, 1, 1, 1])          # CPython 1e+16,              compensating 1.0000000000000004e+16
+  ```
+
+  The first row of that table is the shape this spec measured for two rounds,
+  and it cannot separate the two algorithms at all — which is why the
+  acceptance below now names the shape that can.
 
   Measured, over 200,000 random 6-element lists with the first float at a
   random position, `sum(mixed)` against `sum(float(v) for v in mixed)`:
@@ -257,9 +287,22 @@ they can be regenerated if the pin moves.
   mean one path was never exercised:
   - `pySumInt`: all-integer, including cases **either side of 2^53**;
   - `pySumFloat`: all-float, including cases where naive folding diverges;
-  - `pySum`: mixed, **with the first float at varying positions**, and
-    including fractional floats at ordinary magnitudes — the regime where the
-    mixed path diverges from an all-float sum without going near the ceiling.
+  - `pySum`: mixed, with the first float at varying positions, fractional
+    floats at ordinary magnitudes, and — **the case without which this bullet
+    checks nothing** — **at least one integer element *after* the first float,
+    with the trailing-int count varied**.
+
+    An int prefix followed only by floats is the shape where a wrongly
+    compensated implementation and `sum()` agree on all 200,000 cases, so a
+    fixture built to "first float at varying positions" alone **passes a wrong
+    implementation**. The separating shapes are the two the pipeline actually
+    produces, per the override clause above: an `Int` column with one float
+    override, and a float column with one int override, both at a random
+    non-final position. Varying the trailing-int count matters because a single
+    trailing int often cancels in the final `f + c` and the divergence only
+    appears from two or three onward. This paragraph states the *why* so a
+    later revision does not simplify the case back out — it has been
+    simplified out once already.
 
   **A JSON array of numbers cannot hold this fixture**, so the format is part
   of the requirement rather than an implementation detail. `JSON.parse("9007199254740993")`
@@ -291,7 +334,21 @@ they can be regenerated if the pin moves.
 - `pyStr` reproduces all **78,257** numeric strings in the committed CSVs from
   their parsed doubles, including the **6,256** `.0` and **30** `-0.0` values,
   0 mismatches. (Already fixture-backed: it reads the committed CSVs.)
-- All three run **offline**, with no Python present.
+- **The override loader types numbers from the raw JSON token text**, checked
+  by a committed fixture overrides file rather than by inspection. The same
+  field written `15000000` for one country and `15000000.0` for another yields
+  `{ kind: 'int' }` and `{ kind: 'float' }` respectively; and an aggregate over
+  a column carrying one of them reproduces `sum()` against a committed expected
+  value generated from the pinned interpreter.
+
+  Without this the clause that gives `pySum` its only pipeline caller is the
+  one clause with nothing asserting it: R1's other criteria do not touch it,
+  and R3 cannot, because `overrides` is `{}`. An implementer reaching for
+  `JSON.parse` would get a green R1, a green R3, and the divergence recorded
+  above. The second half of the criterion is the load-bearing part — it
+  exercises `pySum` end to end on a real column instead of only through its own
+  fixture.
+- **All five entry points** run **offline**, with no Python present.
 
 ### R2. [ ] A hand-rolled CSV reader/writer, zero runtime dependencies
 

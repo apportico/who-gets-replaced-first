@@ -71,16 +71,48 @@ DATASET_CSV = os.path.join(context.PIPELINE, "data", "global_labor_dataset.csv")
 PANEL_CSV = os.path.join(context.PIPELINE, "data", "global_labor_panel.csv")
 
 
+# Both trees the guards touch, not just the one holding the payloads:
+# CommittedRowsMatchTheDataset reads pipeline/data/global_labor_dataset.csv and
+# CommittedTimeseriesMatchesThePanel drives panel.export, which writes a real
+# global_labor_panel.csv -- kept out of the tracked tree only by the `tmp`
+# argument it is handed. Watching src/data/ alone would leave that unobserved.
+_WATCHED = (APP_DATA, os.path.join(context.PIPELINE, "data"))
+
 # Captured before any test in this module runs. `unittest` calls setUpModule()
-# ahead of the module's first test, which is the only moment the tree is known
-# not to have been touched by these guards -- see GuardsDoNotWriteWhatTheyCheck
-# for why taking it inside the test is not enough.
+# ahead of the module's first test, which is the only moment these trees are
+# known not to have been touched by these guards -- see
+# GuardsDoNotWriteWhatTheyCheck for why taking it inside the test is not enough.
 _DIGEST_BEFORE_ANY_GUARD_RAN = None
+
+
+def _tree_state(path):
+    """Content digest **and** every file's mtime, because content is not enough.
+
+    A content digest cannot see an idempotent write. Driving `panel.export` at
+    `run.DATA` rewrites `global_labor_panel.csv` from rows read out of that same
+    file, and the round-trip is byte-perfect today -- `_read_csv` maps `""` to
+    None and the DictWriter writes None back as `""` -- so the digest is
+    unchanged, `git status` is clean, and the write is invisible. Verified: the
+    digest-only version of this check stayed green against exactly that.
+
+    Its harmlessness is accidental. It holds only while the CSV round-trips
+    byte-perfectly, which is a property of today's values rather than a
+    guarantee -- the float-repr divergences spec 0007 catalogued are the obvious
+    way to lose it. mtime sees the write itself, so the guard no longer depends
+    on the write happening to be a no-op.
+    """
+    mtimes = {}
+    for root, dirs, files in os.walk(path):
+        dirs.sort()
+        for name in sorted(files):
+            full = os.path.join(root, name)
+            mtimes[os.path.relpath(full, path)] = os.stat(full).st_mtime_ns
+    return _tree_digest(path), mtimes
 
 
 def setUpModule():
     global _DIGEST_BEFORE_ANY_GUARD_RAN
-    _DIGEST_BEFORE_ANY_GUARD_RAN = _tree_digest(APP_DATA)
+    _DIGEST_BEFORE_ANY_GUARD_RAN = [_tree_state(p) for p in _WATCHED]
 
 
 def _load(path):
@@ -353,6 +385,27 @@ class GuardsDoNotWriteWhatTheyCheck(unittest.TestCase):
     `test_golden_master.py:138-146` is the version with teeth and the fix is
     taken from it -- digest the tree, do the work, compare. `_tree_digest` is
     imported from there rather than copied, so the two cannot drift.
+
+    **Both trees, not just `src/data/`.** `CommittedTimeseriesMatchesThePanel`
+    drives `panel.export`, and `panel.py:154` writes
+    `os.path.join(data_dir, "global_labor_panel.csv")` unconditionally -- a real
+    write, four times a run, of the very CSV another guard compares against, kept
+    out of the tracked tree only by the `tmp` argument it is handed. Nothing else
+    would notice if that argument changed: `test_golden_master`'s own
+    `run.DATA` guard takes its baseline in `GoldenMaster.setUpClass`, and
+    discovery runs `test_app_payloads` first, so a write from here is already
+    baked into it -- the contaminated-baseline shape above, one directory over.
+    And there is no outer net: `git status --porcelain` appears nowhere in
+    `scripts/verify.sh` or in CI. This class is the only thing observing R2's
+    clean-tree criterion, so it has to observe all of it.
+
+    **Content alone does not observe it.** Handing `panel.export` `run.DATA`
+    instead of `tmp` rewrites the panel CSV from rows read out of that same
+    file, byte for byte, so a digest sees nothing and neither does
+    `git status`. The digest-only version of this check was green against that
+    exact probe. `_tree_state` therefore carries mtimes as well -- see its
+    docstring for why the write being a harmless no-op today is not something to
+    rely on.
     """
 
     def test_running_every_guard_leaves_src_data_byte_identical(self):
@@ -367,8 +420,8 @@ class GuardsDoNotWriteWhatTheyCheck(unittest.TestCase):
         before = _DIGEST_BEFORE_ANY_GUARD_RAN
         self.assertIsNotNone(before, "setUpModule did not run")
         self.assertEqual(
-            _tree_digest(APP_DATA), before,
-            "a guard wrote to src/data/ during the normal pass")
+            [_tree_state(p) for p in _WATCHED], before,
+            f"a guard wrote to one of {_WATCHED} during the normal pass")
 
         # The three classes are named explicitly rather than discovered: this
         # class lives in the same module, so loading the module's tests would
@@ -386,11 +439,13 @@ class GuardsDoNotWriteWhatTheyCheck(unittest.TestCase):
             result.wasSuccessful(),
             "the guards must pass before their write behaviour means anything")
         self.assertEqual(
-            _tree_digest(APP_DATA), before,
-            "running the payload guards modified src/data/. A guard that "
-            "rewrites the artifact it checks passes unconditionally and leaves "
-            "CI with a dirty tree -- verify.sh:27-35 exists to prevent exactly "
-            "that, and this is the check that observes it.")
+            [_tree_state(p) for p in _WATCHED], before,
+            f"running the payload guards modified one of {_WATCHED}. A guard "
+            "that rewrites the artifact it checks passes unconditionally and "
+            "leaves CI with a dirty tree. Nothing else observes this: "
+            "test_golden_master's run.DATA baseline is captured after this "
+            "module has already run, and no git status --porcelain exists in "
+            "verify.sh or CI.")
 
 
 if __name__ == "__main__":

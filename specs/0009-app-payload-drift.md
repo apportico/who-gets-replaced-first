@@ -214,7 +214,27 @@ shipping an unlabellable field to the app.
   alphabetical ordering means the guards have already run, so a guard writing a
   deterministic file was baked into the baseline and recreated identically.
   A deliberate write into `src/data/` from a guard's `setUp` passes the second
-  and fails the third.
+  and fails the third. The **fourth** version watches `pipeline/data/` as well
+  and carries mtimes, not just content — see below.
+- The clean-tree criterion is observed by that guard **and nothing else**:
+  `git status --porcelain` appears nowhere in `scripts/verify.sh` or in CI, and
+  `test_golden_master`'s own `run.DATA` guard takes its baseline in
+  `setUpClass`, after discovery has already run `test_app_payloads` first. So
+  the criterion is exactly as strong as this one class, which is why it watches
+  both trees: `CommittedTimeseriesMatchesThePanel` drives `panel.export`, and
+  `panel.py:154` writes `global_labor_panel.csv` unconditionally — a real write
+  of the CSV another guard compares against, kept out of the tracked tree only
+  by the `tmp` argument.
+- **A content digest does not observe that write.** Handing `panel.export`
+  `run.DATA` rewrites the panel CSV from rows read out of that same file, and
+  the round-trip is byte-perfect — `_read_csv` maps `""` to None and the
+  DictWriter writes None back as `""` — so the digest is unchanged and
+  `git status` is clean. Probed: the digest-only version stayed **green**
+  against exactly that defect. The guard therefore records mtimes too. The
+  write's harmlessness is accidental and holds only while the CSV round-trips
+  byte-perfectly, which is a property of today's values rather than a guarantee;
+  the float-repr divergences spec 0007 catalogued are the obvious way to lose
+  it.
 - `test_field_tiers_covers_every_key_a_row_ships` unions all 229 rows rather
   than reading `rows[0]`. One row suffices against the generator, which builds
   every row from the same `keep` list, but this class opens the artifact and the

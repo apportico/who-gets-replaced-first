@@ -1,12 +1,36 @@
 # 0008 — mobile and accessibility
 
-**Status:** in-progress
+**Status:** approved
 **Depends on:** none
 **Issue:** [#18](https://github.com/apportico/who-gets-replaced-first/issues/18)
 **Review:** [PR #55](https://github.com/apportico/who-gets-replaced-first/pull/55)
-— draft → in-review at `47ff762`, approved at `4b14bce` after six review rounds
-and 15 resolved threads. Two rounds corrected figures in the table below; four
-found acceptance criteria that named checks nothing could execute.
+— draft → in-review at `47ff762`, approved at `4b14bce`, in-progress at
+`cceb41e`, **back to approved 2026-08-30 by the author's instruction**.
+
+**Why in-progress → approved.** The lifecycle allows it and it needs a reason,
+so: the requirements themselves are settled — thirteen review rounds argued them
+into shape and nobody is now disputing what the spec asks for. What is not
+settled is the implementation. Five requirements were marked `[x]` and then
+reopened when the review found the checks behind them could not fail or could
+not see what they measured, and R11 is `[~]` because its acceptance names an
+instrument that has not been used.
+
+So `approved` here means *the spec is agreed*, not *the work is done*. The marks
+below are the honest record of implementation state and are unchanged by this
+transition:
+
+| Mark | Requirements |
+|---|---|
+| `[x]` | R1, R5, R8, R9, R10 |
+| `[ ]` | R2, R3, R4, R6, R7 — reopened after review, work exists but the acceptance is not met |
+| `[~]` | R11 |
+
+Reading this as "0008 is finished" would be wrong in exactly the way the reverted
+marks were wrong. `/implement` picks the work back up from the five `[ ]`.
+
+Note also that PR #55's own review state is `CHANGES_REQUESTED` and one thread
+is deliberately open (R9's ESLint block has no acceptance check). This field is
+the spec's status, not the PR's.
 
 ## Objective
 

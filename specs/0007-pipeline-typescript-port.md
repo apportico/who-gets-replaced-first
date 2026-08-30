@@ -41,6 +41,7 @@ Python 3.13.1. CI pins `node-version: 24` and `python-version: '3.13'`
 | `sum()` over **ints** | `sum([9007199254740993,1,1,1])` in both languages | **Neumaier is only the float branch.** CPython's `sum()` accumulates an integer prefix in **exact arbitrary-precision** arithmetic and enters the float path at the first float: Python gives `9007199254740996`, a JS `reduce` gives `9007199254740992`. Compensated summation cannot recover this — the first value is not representable as a double. |
 | Runtime types at `build.py:476` | Real offline build over spec 0004's committed fixtures, `type()` of each field on country rows | **5 of the 7 summed fields are Python `int`, not float**: `clerical_employed`, `professionals_employed`, `young_white_collar_employed`, `exposed_wage_bill_ppp`, `ict_service_exports_usd` — all produced by 1-arg `round()`, which returns `int`. Only `population_15_24` and `service_exports_usd` are floats. **So the majority of these sums take the exact integer branch, not Neumaier.** |
 | Headroom on the integer sums | Column sums of the committed dataset against 2^53 | Largest is `exposed_wage_bill_ppp` at **3.05e13** against a `Number.MAX_SAFE_INTEGER` of **9.01e15** — about **296x** of headroom, so no live defect today. It is a latent hazard, not a bug, and R1 records it as such. |
+| Whether a sub-2^53 fixture can test the integer branch | **200,000 random 6-element integer sums below 2^53**, BigInt accumulation against a naive fold | **0 differences.** Double addition on integers under the ceiling is exact, so the two branches are indistinguishable there. The same comparison at 2^53 separates them immediately (`...992` against `...996`). This is why R1's `≥2^53` fixture cases are the criterion rather than an edge of it, and why the loader must reach `bigint`: `Number("9007199254740993")` returns `...992`. |
 | Interpreter vintage of the committed outputs | `python3.11 -m unittest discover pipeline/tests` against `python3.13`, this checkout | **The golden master is interpreter-specific.** Under **3.11.16** the suite fails `test_output_matches_the_golden_master_byte_for_byte` on the WLD row: `service_exports_usd` = `5554959302720.801` against the committed `5554959302720.8`. Under **3.13.1** all 107 pass. So the committed outputs were produced by **3.12 or later**, and CI's `python-version: '3.13'` pin is load-bearing, not incidental. |
 | SQLite byte-reproducibility | Built the same table+index in `sqlite3` and `node:sqlite`, `cmp -l` | **Exactly 4 bytes differ, all in the 100-byte header**: change counter (offset 24), version-valid-for (92), and **`SQLITE_VERSION_NUMBER` (96) — 3048000 vs 3053003**. Page data byte-identical. Byte-identical SQLite is **impossible**: the runtimes bundle SQLite 3.48.0 and 3.53.3. |
 | App JSON — `global_labor.json` | `JSON.parse` → `JSON.stringify` round-trip | 604,736 → **602,826 bytes, a loss of 1,910**. (602,610 is the UTF-16 code-unit count, a loss of 2,126 — on a spec claiming byte identity the two must not be conflated; the 216-unit gap between them *is* the escaping finding.) 779 `.0` values lose their decimal, and **108 `\uXXXX` escapes** are emitted raw. |
@@ -90,6 +91,14 @@ spec may introduce a value the Python did not already produce.
   type of the field it is summing. The Python type distinction that exists
   today has to survive the port as a schema fact, or it is lost at the boundary.
 
+  **`Int` is a branded `number` in the schema; `bigint` appears only at the
+  helper boundary.** `pySum`'s integer branch takes `bigint`, and `Int` fields
+  convert on the way in — lossless by the headroom row above, since every
+  pipeline value is an ordinary double far below 2^53. Keeping `bigint` out of
+  the schema keeps the row types plain at 296x of headroom; putting it at the
+  boundary is what lets the helper be exercised at values the current data
+  never reaches, which is the entire point of a differential fixture.
+
   **Headroom, recorded rather than assumed:** the largest integer column sum is
   `exposed_wage_bill_ppp` at 3.05e13 against a 2^53 ceiling of 9.01e15 — about
   296x. So a naive double accumulation would pass R3 today. That makes this a
@@ -122,6 +131,20 @@ they can be regenerated if the pin moves.
   varying positions" becomes unsayable. **Each element is stored as a string
   with an explicit `int` / `float` tag**, so exact integers survive and a
   Python float that happens to be integral stays distinguishable from an int.
+
+  **The loader parses `int`-tagged elements — and the `int`-tagged `expected` —
+  to `bigint`, not `number`.** The tag lets the fixture *spell*
+  `9007199254740993`; `Number("9007199254740993")` still returns `...992`, so
+  without this the value is lost a third time, at a third layer. `expected` is
+  where the assertion lands and has no more right to be a `number` than the
+  inputs do.
+
+  **The cases at and above 2^53 are the whole criterion, not its edge.**
+  Measured: across **200,000 random 6-element integer sums below the ceiling,
+  BigInt accumulation and a naive fold agree on every one** — double addition
+  on integers under 2^53 is exact. So a fixture that stays below it cannot
+  distinguish the integer branch from the thing that branch exists to replace.
+  Dropping those cases would not shrink this criterion, it would empty it.
 - `pyStr` reproduces all **78,257** numeric strings in the committed CSVs from
   their parsed doubles, including the **6,256** `.0` and **30** `-0.0` values,
   0 mismatches. (Already fixture-backed: it reads the committed CSVs.)
@@ -277,12 +300,25 @@ current shape is sibling `data_year_*` columns, which cannot enforce anything.
 R4's serialiser must therefore flatten the pair back to sibling columns on the
 way out, or the byte-identical outputs break.
 
-**Acceptance:** three deliberately broken snippets **fail `tsc --noEmit`** — a
-value assigned without a tier, `v ?? 0` assigned to a `Measured<number>` field,
-and a value read without its year. The requirement is not met by the types
-existing, only by them rejecting these three; each is committed as a
-`// @ts-expect-error` case so a later refactor that weakens them fails the
-build.
+**Acceptance:** **four** deliberately broken snippets **fail `tsc --noEmit`**:
+
+1. a value assigned without a tier;
+2. `v ?? 0` assigned to a `Measured<number>` field;
+3. a value read without its year;
+4. **`pySum`'s integer overload applied to a field that is not `Int`** — e.g.
+   passing `population_15_24`, a Python float, where the integer branch is
+   selected.
+
+The requirement is not met by the types existing, only by them rejecting these
+four; each is committed as a `// @ts-expect-error` case so a later refactor
+that weakens them fails the build.
+
+The fourth is what makes `Int` load-bearing rather than decorative. R1
+delegates its branch selection to `Int`, so if `Int` were assignable from a
+plain `number`, the brand and the value-sniffing R1 explicitly rejects would be
+the same thing under different names, and the integer branch would silently
+take float fields again. It is placed at the **call site** rather than on an
+assignment because the call site is where the wrong branch would be taken.
 
 ### R8. [ ] The 107 tests ported, still passing
 

@@ -42,7 +42,7 @@ Every row below is a command that was run, not an expectation.
 | Offline reconstruction — rows, by value | Same rows, keyed by `iso3`, compared under numeric normalisation | **0 of 19,236 cells disagree** (229 rows × 84 columns). The CSV carries all 84 `keep` columns. So the rows *are* checkable offline up to numeric equality, just not byte equality |
 | Row order | Compared `iso3` sequences | **Not reconstructible.** The JSON is 218 `country` rows then `WLD`, 7 `region`, 3 `group` — and the countries are in neither `iso3` nor name order (the first divergence from `iso3` order is at index 199: the sequence runs `TUV, TZA` where sorted order puts `TWN` between them). `export_csv` sorts (aggregates first, then `iso3`); `export_app_json` does not sort at all. Order is whatever `run()` produced |
 | Offline reconstruction — timeseries | Rebuilt `fields`/`years`/`series` from committed `global_labor_panel.csv` per `panel.py:163-172` | **Fully reconstructible: fields equal, 14 years equal, 226 series keys equal, 0 cells disagree** under the same normalisation |
-| Payload header vs. the generator | `export_app_json([], tmp)`, then compared its non-`rows` keys to the committed payload's | **Works, and all four agree today** — returns `generated_from`, `field_tiers`, `sources`, `ai_exposure_weights` with `rows: []`, each equal to the committed file's. No rows means no cache and no network, so R2's guard stays unconditional. So widening R2 is preventive, like R3, not a second live defect. **No test in `pipeline/tests/` asserts on any of these keys** |
+| Payload header vs. the generator | `export_app_json([], tmp)`, then compared its non-`rows` keys to the committed payload's | **Works, and three of the four agree today — not four.** The generator returns `generated_from`, `field_tiers`, `sources`, `ai_exposure_weights` with `rows: []`; the committed payload has **three** non-`rows` keys, and `field_tiers` is absent, which is this table's first row and the spec's founding premise. `generated_from`, `sources` and `ai_exposure_weights` are each equal, so **those three are preventive**, like R3; the `field_tiers` half is **corrective**, and is the only half that is. No rows means no cache and no network, so R2's guard stays unconditional either way. **No test in `pipeline/tests/` asserts on those three** — grep returns nothing for any of them. It does not hold for `field_tiers`: `test_tiers.py::AppPayload` asserts on it six times (lines 150, 155, 156, 162, 168 and the loop at 171) and passes anyway, which is the finding the Objective is built on |
 | Why the header must be driven, not rebuilt | `grep -rn "SOURCES" pipeline/*.py` | **No match.** `generated_from` (`run.py:260`) and `sources` (`run.py:266-272`) are literals inside `export_app_json`; only `field_tiers` and `ai_exposure_weights` come from constants (`run.COLUMNS` + `config.FIELD_TIERS`, and `load_weights()` at `run.py:79-81`, a plain read of in-tree `ai_exposure_isco.json`). An earlier draft of this row checked `sources` *against the literal* — a transcription, not a rebuild, and exactly the copy that would go stale silently in a test |
 | `global_labor_dataset.csv` coverage | Read `test_golden_master.py:47` and `test_columns.py:20-66` | **Values unguarded.** The golden master's `EXPECTED` is `pilot_labor_dataset.csv`, the 7-row pilot batch; `CommittedHeaders` does include the full dataset CSV but every assertion is on `header(name)`, which reads the first row only. Headers and order, no values |
 | `verify` / CI reach | `cat scripts/verify.sh` | `npm run test:pipeline` is **unconditional** and documented as such; only the pilot is gated on `pipeline/raw/`. A test added under `pipeline/tests/` runs in a fresh clone with no network, and in CI |
@@ -111,7 +111,8 @@ reproduced inside its own guard.
 Driving the generator instead transcribes nothing and covers all four keys in
 one call. It stays offline and unconditional: the header needs no rows, so
 `export_app_json([], tmp)` needs no cache and no network — verified, it returns
-all four keys with `rows: []`, each equal to the committed payload's. It writes
+all four keys with `rows: []`. Three of them equal the committed payload's;
+`field_tiers` does not, because the committed payload does not have it. It writes
 only to a temp path, so R2's read-only criterion holds, and
 `test_tiers.py::AppPayload.setUp` already drives `export_app_json` into a temp
 file for the same reason. Lifting the two literals to module constants would
@@ -125,8 +126,13 @@ the one that matters most: `load_weights()` is a plain read of in-tree
 **stale MODELED weight set to the app with nothing failing**. Those weights are
 this project's own judgement, and the sensitivity analysis `CLAUDE.md` cites is
 what backs the rank-order claim resting on them — a silently stale copy is a
-worse outcome than a stale tier map. The probe confirms all four agree today,
-so this half of R2 is **preventive**, like R3.
+worse outcome than a stale tier map. The probe confirms those three agree
+today, so **that** part of the widening is preventive, like R3. The
+`field_tiers` half is **corrective** — it is absent from the committed payload,
+which is what #57 is and what R2's first acceptance bullet assumes when it
+requires that reverting the payload fails the suite naming `field_tiers`. An
+earlier draft said the probe confirmed all four, which cannot be true of a
+spec whose premise is that one of them is missing.
 
 It must also assert the payload's row-key set equals its `field_tiers` key set,
 so a column added to `COLUMNS` without a regeneration fails here rather than

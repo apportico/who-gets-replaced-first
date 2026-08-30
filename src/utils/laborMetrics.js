@@ -4,25 +4,41 @@
 // statistics with constructed proxies and one modeled overlay, and the UI is
 // required to keep that distinction visible rather than blurring it.
 
+// Spec 0008 R4 + R10. These four colours are constrained, not chosen freely, and
+// `test/palette.test.mjs` fails the build if either constraint breaks:
+//
+//   R4   each colour on its own `${color}1a`-over-white badge >= 4.5:1
+//   R10  every pair >= 15 dE00 under normal, protanopia, deuteranopia and
+//        tritanopia (CIEDE2000, Machado 2009 sev-1.0 — see scripts/palette-probe.mjs)
+//
+// The previous palette (#2f9e44 / #1971c2 / #e8590c / #9c36b5) failed both:
+// three of four badges were under 4.5:1, and DERIVED vs MODELED collapsed to
+// dE00 2.4 under deuteranopia — the two tiers were the same colour, which is
+// this project's measured-vs-constructed distinction disappearing.
+//
+// DERIVED is markedly more saturated than before because blue and purple share
+// a hue under deuteranopia: with the hue channel gone, lightness and chroma are
+// the only ones left to separate DERIVED from MODELED. That is why a subtler
+// recolour is not available.
 export const TIERS = {
   official: {
     label: 'OFFICIAL',
-    color: '#2f9e44',
+    color: '#306c54',
     blurb: 'Published national statistic (World Bank / ILOSTAT).',
   },
   derived: {
     label: 'DERIVED',
-    color: '#1971c2',
+    color: '#2460f0',
     blurb: 'Computed arithmetically from official statistics.',
   },
   proxy: {
     label: 'PROXY',
-    color: '#e8590c',
+    color: '#b4480c',
     blurb: 'A stand-in for something no source measures globally. Not a measurement.',
   },
   modeled: {
     label: 'MODELED',
-    color: '#9c36b5',
+    color: '#840c6c',
     blurb: 'Analyst-assigned model output. Rank order only — not official statistics.',
   },
 };
@@ -31,6 +47,11 @@ export const TIERS = {
 const RAMP_BLUE = ['#eaf2fb', '#c3dcf3', '#8fc0e6', '#5a9ed6', '#2f7ec1', '#1a5490'];
 const RAMP_HEAT = ['#fdf3e3', '#fbdcae', '#f7bd6f', '#ef9440', '#dd6a21', '#b23c0e'];
 const RAMP_TEAL = ['#e6f4f1', '#bde3dc', '#8bcdc2', '#55b3a4', '#2d9384', '#136b5f'];
+
+// Exported so `test/palette.test.mjs` (spec 0008 R10) can assert over the ramps
+// themselves rather than reaching them through METRICS, where each appears
+// several times and a ramp used by no metric would go unchecked.
+export const RAMPS_BY_NAME = { BLUE: RAMP_BLUE, HEAT: RAMP_HEAT, TEAL: RAMP_TEAL };
 
 export const METRICS = [
   {

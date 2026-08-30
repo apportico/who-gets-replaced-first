@@ -40,6 +40,7 @@ thresholds it is measured against. Every row below was run on this branch
 | Leaflet 1.9.4 keyboard support for vector markers | Read `node_modules/leaflet/dist/leaflet-src.js`; class boundaries via `grep -n` | `keyboard: true` (L7715) and `icon.tabIndex = '0'` (L7915) are inside **`Marker`** (L7701–8108). `CircleMarker` (L8253) extends `Path` (L8108), which sets no tabindex and has no keyboard option. The SVG renderer never makes a path focusable. `Map.Keyboard` (L13970) focuses the *container* — pan and zoom only. **A country marker cannot be tabbed to or activated by Enter. Confirmed, not assumed.** |
 | WCAG contrast of tier badges | `node scripts/palette-probe.mjs` §1 — WCAG 2.x relative luminance, badge bg composited from `${color}1a` over white | At 8–9px bold (WCAG "normal text", needs 4.5:1): OFFICIAL `#2f9e44` **3.08:1 FAIL**, PROXY `#e8590c` **3.16:1 FAIL**, DERIVED `#1971c2` **4.39:1 FAIL**, MODELED `#9c36b5` 5.02:1 pass. Independently reproduced by the reviewer of PR #55. |
 | WCAG contrast of body text | `palette-probe.mjs` §2 | `gray-400 #9ca3af` = **2.54:1 FAIL** (used for most 10px secondary text), `gray-300 #d1d5db` = **1.47:1 FAIL** (disabled play button). `gray-500 #6b7280` = 4.83:1 pass. Independently reproduced. |
+| White labels on data-driven swatches | `contrast()` imported from `palette-probe.mjs`, over `ISCO_GROUPS` (`laborMetrics.js:246`) and `AgeBar`'s segments (`LaborDetailPanel.jsx:43`) | The 9px bold white labels at `LaborDetailPanel.jsx:60` and `:132` sit on inline `style` backgrounds from the data, so no `text-*` grep reaches them. **7 of 9 ISCO labels below AA, 5 below even 3:1**; worst `#f7bd6f` **1.68:1**, below the `gray-300` 1.47:1 the row above already calls a failure. **ISCO 4 — clerical support, this project's subject — is 1.94:1.** Age bar: `#8bcdc2` **1.81:1**. Per-swatch foreground selection was tested as a fix and **cannot reach AA**: `#2f7ec1` is 4.31:1 white / 4.12:1 ink and `#b5651d` is 4.34:1 / 4.09:1, mid-tones where neither pole clears 4.5:1. R7 deletes the labels instead; the legends beneath both bars already carry the number, name and percentage. |
 | Colour-vision **method** | `scripts/palette-probe.mjs`, committed — every free parameter pinned in code | Linear-light sRGB input; D65/2°; **CIEDE2000**; **Machado, Oliveira & Fernandes (2009)** IEEE TVCG 15(6) Table 1, severity-1.0 matrices. The first draft said "CIELAB ΔE76 + Viénot" and pinned none of the input space, white point, or tritanopia matrix — the reviewer of PR #55 re-ran it and got different vision attributions, correctly. Machado is used here because all three deficiencies come from one derivation (Viénot 1999 is validated only for protanopia and deuteranopia; its tritanopia is an extrapolation), and its matrices are published constants. **The numbers in the three rows below are from this pinned method and supersede the first draft's.** |
 | Ramp vs no-data separation | `palette-probe.mjs` §4 | Lightest ramp step vs no-data `#dfe3e8`: **BLUE ΔE00 3.7**, **TEAL ΔE00 7.2** (falling to **3.7 under deuteranopia**), HEAT 11.2; WCAG contrast 1.14–1.17:1. Below any legibility threshold **for normal colour vision**, at marker sizes of 3.5–26px. This is the row R5 rests on, and it is starker than the first draft's ΔE76 figures suggested. |
 | Ramps under dichromacy | `palette-probe.mjs` §3 and §7 | Min adjacent-step ΔE00, **worst case across the four visions** — the worst vision differs per ramp: BLUE **7.5** (protanopia), HEAT **7.7** (*deuteranopia*; its protanopia figure is 10.1), TEAL **4.3** (protanopia). So all three fall under 10 somewhere, not just TEAL — the first draft reported BLUE and HEAT as comfortable, an artefact of ΔE76. At normal vision the figures are BLUE 8.4, TEAL 8.8, HEAT 10.3, so HEAT alone clears a ≥ 10 floor there. **But** §7 shows every ramp stays **strictly monotonic in L\*** under all four visions, min step gap 6.3 — so the ramps still read as *ordered scales*, which is what a sequential ramp is for. R10 is written against that, not against adjacent-step ΔE. |
@@ -199,17 +200,64 @@ stronger rather than weaker: the repo is on `tailwindcss ^4.2.2` with **no
 OKLCH default theme and their contrast ratios are not derivable from the class
 name at all.
 
+**The two worst violations in the app are text a `grep` can never reach.**
+`LaborDetailPanel.jsx:60` and `:132` are 9px bold white labels painted onto
+swatches whose background is an inline `style={{ backgroundColor: … }}` taken
+from the data — the age-structure bar's segments and the ISCO major-group bar's
+digit. No text-colour utility appears, so no pattern over `text-*` sees them,
+and the extracted palette above has no entry for "white over whatever colour
+this row resolves to". Their measured ratios:
+
+| Where | Background | White on it |
+|---|---|---|
+| `:132` ISCO 1 Managers | `#1a5490` | 7.74:1 AA |
+| `:132` ISCO 2 Professionals | `#2f7ec1` | 4.31:1 below AA |
+| `:132` ISCO 3 Technicians | `#5a9ed6` | 2.88:1 fails 3:1 |
+| `:132` **ISCO 4 Clerical support** | `#8fc0e6` | **1.94:1 fails 3:1** |
+| `:132` ISCO 5 Service & sales | `#f7bd6f` | **1.68:1 fails 3:1** |
+| `:132` ISCO 6 Agricultural | `#c9a227` | 2.42:1 fails 3:1 |
+| `:132` ISCO 7 Craft | `#dd8452` | 2.80:1 fails 3:1 |
+| `:132` ISCO 8 Operators | `#b5651d` | 4.34:1 below AA |
+| `:132` ISCO 9 Elementary | `#8c6d4f` | 4.76:1 AA |
+| `:60` age 0–14 | `#8bcdc2` | **1.81:1 fails 3:1** |
+| `:60` age 15–64 | `#2f7ec1` | 4.31:1 below AA |
+| `:60` age 65+ | `#b5651d` | 4.34:1 below AA |
+
+Seven of the nine ISCO labels are below AA and five below even the 3:1
+large-text floor. At 1.68:1 the worst is below `gray-300`'s 1.47:1 — which the
+probe row already names as a failure — and **ISCO 4 is clerical support, the
+occupational group this project exists to be about**, carrying an unreadable
+label.
+
+**Delete both labels rather than recolouring them.** Picking each label's
+foreground from its swatch was tested and **cannot reach AA**: `#2f7ec1` gives
+4.31:1 white / 4.12:1 against near-black `#111827`, and `#b5651d` gives 4.34:1 /
+4.09:1 — mid-tones where neither pole clears 4.5:1, and 9px bold is not large
+text. Making that approach work would mean constraining the swatch palette
+itself to avoid the mid-tone band, a new constraint pulling directly against R4
+and R10. Deletion costs nothing: `LaborDetailPanel.jsx:141–152` already renders
+a legend beneath the bar carrying `{g.n}. {g.label}` and the percentage for
+every group, and the age bar has the same legend beneath it. The digit is
+redundant with the line directly below it.
+
 **Acceptance:** a single exported text-palette module exists and the components
 take their text colours from it — asserted by `grep` over **`src/`** (not just
 `src/components/`) finding no remaining `text-[a-z]+-[0-9]+`, `text-black`, or
 arbitrary `text-[#…]` literals. The R9 palette test asserts every entry in that
 export is ≥ 4.5:1 against its declared background, or ≥ 3:1 where it is declared
-large. Two exclusions, named here rather than left to a pattern to drop
-silently: `text-white` on the `bg-gray-800`/`bg-gray-900` active chips (six
-sites — white on a near-black chip is the highest-contrast pairing in the app,
-≈14.7:1 and ≈17.7:1 against the v3 reference hexes, and the v4 OKLCH values
-cannot move that far), and disabled controls, which are exempt from the ratio
-but must not use colour as the only signal of their state.
+large. The in-swatch labels at `LaborDetailPanel.jsx:60` and `:132` are gone,
+asserted by `grep` finding no `text-white` inside an element carrying an inline
+`backgroundColor`, with the legends beneath both bars unchanged. Two exclusions,
+named here rather than left to a pattern to drop silently:
+
+- `text-white` on the four `bg-gray-800`/`bg-gray-900` active chips —
+  `ScenarioPanel.jsx:33`, `LaborSidebar.jsx:34`, `LaborTimeline.jsx:39` and
+  `LaborDetailPanel.jsx:275`. White on a near-black chip is the highest-contrast
+  pairing in the app, ≈17.7:1 and ≈14.7:1 against the v3 reference hexes, and
+  the v4 OKLCH values cannot move that far. This exclusion covers **only** these
+  four; the other two `text-white` sites are the deleted labels above.
+- Disabled controls, exempt from the ratio but which must not use colour as the
+  only signal of their state.
 
 ### R8. [ ] Landmarks and accessible names across the app
 

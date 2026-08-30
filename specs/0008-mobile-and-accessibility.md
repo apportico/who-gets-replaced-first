@@ -96,7 +96,16 @@ visible focus indicator of at least 3:1 against its background — note
 `LaborSidebar.jsx` currently sets `focus:outline-none` on the search input with
 only a `border-gray-400` change, which does not meet that.
 
-### R3. [ ] The map has a text equivalent that carries the numbers and their tiers
+### R3. [x] The map has a text equivalent that carries the numbers and their tiers
+
+**Done (2026-08-30, `e5e04d6`).** `src/utils/mapText.js` builds it as a pure
+function; `test/pure.test.mjs` asserts one entry per row carrying name, value or
+the literal "no data", and the tier word — including that a MODELED figure is
+never announced without "MODELED", and that a no-data row carries no digits at
+all. The summary naming the map publishes coverage (`N plotted, M with data, K
+without`), so a reader who cannot see the grey circles still learns what is
+missing. Wired via `aria-describedby`; the browser run reports ARIA attributes
+0 to 40.
 
 A choropleth conveys nothing to a screen reader. Provide a programmatically
 associated text equivalent listing each rendered country with its value for the
@@ -117,7 +126,19 @@ equivalent association), asserted in the R9 render test. A screen reader
 announcing the metric, the country count and the count with data is confirmed by
 listening in R11.
 
-### R4. [ ] Tier badges pass AA and are announced, not just coloured
+### R4. [x] Tier badges pass AA and are announced, not just coloured
+
+**Done (2026-08-30, `3aedd74` and `e5e04d6`).** All three criteria met, each by
+the check the spec assigned it:
+
+1. Contrast — `test/palette.test.mjs`: all four tiers now clear 4.5:1 on their
+   own badge background (3.08 / 4.39 / 3.16 / 5.02 becomes 5.35 / 4.55 / 4.67 /
+   7.71).
+2. Accessible text — `test/a11y.test.mjs` asserts every badge in the populated
+   panel carries non-empty text.
+3. Rendered size — **measured, not asserted**: `node scripts/r11-measure.mjs`
+   reports all 26 badges at 11px in a real browser, which is where this had to
+   be checked because jsdom has no layout engine.
 
 Three of four tier badges fail AA at their current size (3.08 / 3.16 / 4.39:1).
 Replace the four `TIERS` colours with AA-passing variants and raise badge text
@@ -137,7 +158,14 @@ probe found `target-size` unusable there. A test on the class or style string
 would assert what the markup *says*, not what it renders, and would go stale the
 moment a parent rule overrode it.
 
-### R5. [ ] A country with no data is distinguishable from a country with a low value
+### R5. [x] A country with no data is distinguishable from a country with a low value
+
+**Done (2026-08-30, `e5e04d6`).** No-data markers carry a dashed stroke
+(`NO_DATA_DASH`), a channel that is not colour, decided by `markerPropsFor()`.
+`test/pure.test.mjs` asserts the encoding lands on exactly the rows whose value
+is null or undefined and on no others, that it is all-or-nothing per row, and
+that **zero is treated as a measured value rather than as missing** — the one
+case where getting it wrong would paint a real measurement as absent.
 
 This is the project's non-negotiable, and it currently fails for **everyone**:
 the lightest BLUE step sits **ΔE00 3.7** and 1.14:1 from the no-data grey, and
@@ -172,7 +200,29 @@ browser. It cannot be measured under jsdom: the probe found axe's `target-size`
 rule reports a **false `pass`** over the real tree, because there are no layout
 boxes for it to fail, which is why R9 disables the rule outright.
 
-### R7. [ ] All text meets AA contrast
+### R7. [x] All text meets AA contrast
+
+**Done (2026-08-30, `5e8cf16`).** `src/utils/textPalette.js` is the single
+export, mirrored into CSS custom properties, and `test/text-palette.test.mjs`
+asserts all six criteria: every entry clears its declared background, each
+tinted role is paired with the surface it names, the CSS and the module have not
+drifted, no component uses a raw Tailwind text-colour utility anywhere under
+`src/`, `text-white` appears at exactly the four excluded chip sites, and the
+data-quality badges clear AA. The fixture render in `test/a11y.test.mjs` asserts
+every age and ISCO band renders its percentage as text outside its swatch.
+
+91 raw utilities were replaced across 8 files. The substantive fix: `gray-400`
+at **2.54:1** was carrying most of the app's 10px secondary text in **21
+places**, and is now 4.83:1. The neutral scale keeps five distinct steps, so
+hierarchy survived the darkening.
+
+Two things this requirement caught that the criterion as first written could
+not have. `qualityTone`'s five badge colours were **all** under AA (2.99 to
+4.39:1) and reach the DOM through an inline `style`, so no `text-*` grep sees
+them — the same blind spot as the in-swatch labels, in a third place. And
+`#2f9e44` appears twice in `laborMetrics.js`, as the OFFICIAL tier colour and as
+`qualityTone`'s "complete" flag; a blind replace would have silently changed the
+second.
 
 `gray-400 #9ca3af` at 2.54:1 is used for most 10px secondary text, and
 `gray-300` at 1.47:1 for the disabled play button. Replace the greys used for
@@ -331,7 +381,18 @@ Two exclusions, named here rather than left to a pattern to drop silently:
 - Disabled controls, exempt from the ratio but which must not use colour as the
   only signal of their state.
 
-### R8. [ ] Landmarks and accessible names across the app
+### R8. [x] Landmarks and accessible names across the app
+
+**Done (2026-08-30, `e5e04d6`).** `test/a11y.test.mjs` drives the recorded
+baseline to zero on both surfaces:
+
+```
+region 23 -> 0     label 2 -> 0     heading-order 1 -> 0
+```
+
+The browser run confirms landmarks 0 to 4 and ARIA attributes 0 to 40. The
+panel's landmark sits on its own root in both branches, so the standalone render
+is a real audit rather than one scoped down to pass.
 
 There are currently zero ARIA attributes. Add document structure — a `main`
 landmark, a `nav` or labelled region for the sidebar controls, a labelled region
@@ -348,7 +409,35 @@ for `region`, `button-name`, `link-name`, `label`, `aria-*` and
 `heading-order`. Heading levels descend without skipping from the `h1` in
 `Header.jsx`.
 
-### R9. [ ] `verify` and CI gain automated accessibility checks that run offline
+### R9. [x] `verify` and CI gain automated accessibility checks that run offline
+
+**Done (2026-08-30, `3aedd74` and `e5e04d6`).** All three parts exist and run in
+`npm run verify` and in CI as a named step: structural axe over the full app and
+over `LaborDetailPanel` rendered standalone with a fixture row; the palette
+assertions, which import their maths from `scripts/palette-probe.mjs` so the
+Source verification table and the gate are one implementation; and the
+pure-function assertions for R3 and R5.
+
+Acceptance checks, each actually run:
+
+- **The gate bites.** Reverting OFFICIAL to `#2f9e44` fails with
+  `OFFICIAL (#2f9e44) is 3.08:1 on its badge background, needs >= 4.5:1` and
+  `OFFICIAL vs PROXY is dE00 10.2 under deuteranopia, needs >= 15`.
+- **Exactly two devDependencies added.** `git diff main -- package.json` shows
+  `axe-core` and `jsdom` and nothing else; Vite's SSR transform already loads
+  the app and Node 24 has `node --test` built in. The Playwright decline in
+  Non-goals therefore still holds.
+- **`target-size` is explicitly disabled**, with the reason in a comment: over
+  the real tree it reports `pass`, and that pass is false because jsdom has no
+  layout boxes to fail. `color-contrast` is disabled for the same class of
+  reason and guarded arithmetically instead. Both are checked in R11 instead.
+- 20 assertions, no network, no browser.
+
+One thing the plan did not anticipate: ESLint's single config block extends
+`globals.browser`, so widening its glob to `.mjs` would have failed on
+`process.exit(0)` in `scripts/render-probe.mjs` — and lint runs first in
+`verify.sh` under `set -euo pipefail`, so that would have halted step 1 before
+the suite ever ran. A second block scoped to `globals.node` was added instead.
 
 Add a `node --test` suite — Node 24's built-in runner, so the only new
 devDependencies are `axe-core` and `jsdom` — wired into `scripts/verify.sh` and

@@ -41,6 +41,8 @@ Python 3.13.1. CI pins `node-version: 24` and `python-version: '3.13'`
 | `sum()` over **ints** | `sum([9007199254740993,1,1,1])` in both languages | **Neumaier is only the float branch.** CPython's `sum()` accumulates an integer prefix in **exact arbitrary-precision** arithmetic and enters the float path at the first float: Python gives `9007199254740996`, a JS `reduce` gives `9007199254740992`. Compensated summation cannot recover this — the first value is not representable as a double. |
 | Runtime types at `build.py:476` | Real offline build over spec 0004's committed fixtures, `type()` of each field on country rows | **5 of the 7 summed fields are Python `int`, not float**: `clerical_employed`, `professionals_employed`, `young_white_collar_employed`, `exposed_wage_bill_ppp`, `ict_service_exports_usd` — all produced by 1-arg `round()`, which returns `int`. Only `population_15_24` and `service_exports_usd` are floats. **So the majority of these sums take the exact integer branch, not Neumaier.** |
 | Headroom on the integer sums | Column sums of the committed dataset against 2^53 | Largest is `exposed_wage_bill_ppp` at **3.05e13** against a `Number.MAX_SAFE_INTEGER` of **9.01e15** — about **296x** of headroom, so no live defect today. It is a latent hazard, not a bug, and R1 records it as such. |
+| What the integer sum must return | `sum([9007199254740993,2,2,2])` in Python against BigInt accumulation, narrowed and not | **`pySumInt` cannot return `number`.** Python gives `...999`; exact BigInt accumulation gives `...999n`; `Number()` of that gives `...1000`; the naive fold gives `...998`. So narrowing inside the helper makes a *correct* implementation fail its own fixture, and fail it differently from the fold it replaces. The value cannot even be written as a JS number literal — `9007199254740999` parses to `...1000` — which is the same wall as the JSON literal, one layer further out. |
+| Whether `Int` can be checked by `tsc` at a `pySumInt` call site | `tsc --strict --noEmit` on the case, run **with the brand and with `Int` aliased to `number`** | **Discriminates.** With `Int` branded, `pySumInt(clerical_employed.map(toBigInt))` compiles and `pySumInt(population_15_24.map(toBigInt))` is rejected. With the brand removed, the rejection disappears and `tsc` reports **TS2578, unused `@ts-expect-error`**. Also measured: a case phrased as `number`-vs-`bigint` rejects `Int` fields too, and an overloaded `pySum` rejects nothing — neither tests the brand. |
 | Whether a sub-2^53 fixture can test the integer branch | **200,000 random 6-element integer sums below 2^53**, BigInt accumulation against a naive fold | **0 differences.** Double addition on integers under the ceiling is exact, so the two branches are indistinguishable there. The same comparison at 2^53 separates them immediately (`...992` against `...996`). This is why R1's `≥2^53` fixture cases are the criterion rather than an edge of it, and why the loader must reach `bigint`: `Number("9007199254740993")` returns `...992`. |
 | Interpreter vintage of the committed outputs | `python3.11 -m unittest discover pipeline/tests` against `python3.13`, this checkout | **The golden master is interpreter-specific.** Under **3.11.16** the suite fails `test_output_matches_the_golden_master_byte_for_byte` on the WLD row: `service_exports_usd` = `5554959302720.801` against the committed `5554959302720.8`. Under **3.13.1** all 107 pass. So the committed outputs were produced by **3.12 or later**, and CI's `python-version: '3.13'` pin is load-bearing, not incidental. |
 | SQLite byte-reproducibility | Built the same table+index in `sqlite3` and `node:sqlite`, `cmp -l` | **Exactly 4 bytes differ, all in the 100-byte header**: change counter (offset 24), version-valid-for (92), and **`SQLITE_VERSION_NUMBER` (96) — 3048000 vs 3053003**. Page data byte-identical. Byte-identical SQLite is **impossible**: the runtimes bundle SQLite 3.48.0 and 3.53.3. |
@@ -76,11 +78,28 @@ spec may introduce a value the Python did not already produce.
   build, **5 of the 7 fields summed at `build.py:476` are Python `int`** —
   `clerical_employed`, `professionals_employed`, `young_white_collar_employed`,
   `exposed_wage_bill_ppp`, `ict_service_exports_usd`, all from 1-arg `round()`
-  — so the majority of these sums never touch the float branch at all. `pySum`
-  therefore selects a branch: **BigInt accumulation** for integer fields,
-  **Neumaier** once a float appears, converting to `number` at the end.
-  Without the float branch, R3 cannot pass on an aggregate row; without the
-  integer branch, `pySum` is documented as something it is not.
+  — so the majority of these sums never touch the float branch at all. The
+  integer path is therefore **its own named entry point**, not an internal
+  branch that narrows on the way out:
+
+  ```ts
+  toBigInt(v: Int): bigint                       // the only route from row data in
+  pySumInt(values: readonly bigint[]): bigint    // exact, returns bigint
+  pySumFloat(values: readonly number[]): number  // Neumaier
+  ```
+
+  Without the float path, R3 cannot pass on an aggregate row; without the
+  integer path, `pySum` is documented as something it is not.
+
+  **`pySumInt` returns `bigint`, and the narrowing to `number` happens at the
+  pipeline call site** — `Number(pySumInt(fields.map(toBigInt)))` — where the
+  296x headroom row above is the stated licence for it rather than an unstated
+  assumption. Narrowing inside the helper would lose the value a **fourth**
+  time, and lose it in a way that breaks the fixture rather than the data:
+  Python's `sum([9007199254740993,2,2,2])` is `...999`, exact BigInt
+  accumulation gives `...999n`, and `Number()` of that is `...1000` — so a
+  *correct* implementation would fail its own fixture, and fail it differently
+  from the naive fold it exists to replace (`...998`).
 
   **The branch is chosen from the declared type, never from the value.** Once
   the pipeline is TypeScript, `clerical_employed` and `population_15_24` are
@@ -92,12 +111,21 @@ spec may introduce a value the Python did not already produce.
   today has to survive the port as a schema fact, or it is lost at the boundary.
 
   **`Int` is a branded `number` in the schema; `bigint` appears only at the
-  helper boundary.** `pySum`'s integer branch takes `bigint`, and `Int` fields
-  convert on the way in — lossless by the headroom row above, since every
-  pipeline value is an ordinary double far below 2^53. Keeping `bigint` out of
-  the schema keeps the row types plain at 296x of headroom; putting it at the
-  boundary is what lets the helper be exercised at values the current data
-  never reaches, which is the entire point of a differential fixture.
+  helper boundary.** `pySumInt` takes `bigint`, and `Int` fields convert
+  through `toBigInt` on the way in — lossless by the headroom row above, since
+  every pipeline value is an ordinary double far below 2^53. Keeping `bigint`
+  out of the schema keeps the row types plain at 296x of headroom; putting it
+  at the boundary is what lets the helper be exercised at values the current
+  data never reaches, which is the entire point of a differential fixture.
+
+  **`Int`'s constructor validates at runtime; it does not merely assert the
+  brand.** `BigInt()` throws `RangeError` on a non-integral `number`, so
+  `toBigInt` is total only if nothing non-integral can carry the brand — which
+  requires a `Number.isInteger` check where `Int` is minted, not a bare cast.
+  A throw is the right failure mode, and much better than a silent wrong figure
+  reaching a published column; the point is that it should be a *stated* one,
+  since a brand that is only asserted leaves the integer path one mislabelled
+  field away from a runtime error.
 
   **Headroom, recorded rather than assumed:** the largest integer column sum is
   `exposed_wage_bill_ppp` at 3.05e13 against a 2^53 ceiling of 9.01e15 — about
@@ -137,7 +165,11 @@ they can be regenerated if the pin moves.
   `9007199254740993`; `Number("9007199254740993")` still returns `...992`, so
   without this the value is lost a third time, at a third layer. `expected` is
   where the assertion lands and has no more right to be a `number` than the
-  inputs do.
+  inputs do. The integer assertion is therefore **`bigint` against `bigint`**,
+  which is only possible because `pySumInt` returns `bigint`: comparing a
+  `number` result against a `bigint` expectation is rejected outright by
+  `tsc` (TS2367, no overlap) and false at runtime under `===` even when the
+  two agree.
 
   **The cases at and above 2^53 are the whole criterion, not its edge.**
   Measured: across **200,000 random 6-element integer sums below the ceiling,
@@ -305,20 +337,32 @@ way out, or the byte-identical outputs break.
 1. a value assigned without a tier;
 2. `v ?? 0` assigned to a `Measured<number>` field;
 3. a value read without its year;
-4. **`pySum`'s integer overload applied to a field that is not `Int`** — e.g.
-   passing `population_15_24`, a Python float, where the integer branch is
-   selected.
+4. **a non-`Int` field routed into the integer sum** —
+   `pySumInt(population_15_24.map(toBigInt))`, where `population_15_24` is a
+   Python float.
 
 The requirement is not met by the types existing, only by them rejecting these
 four; each is committed as a `// @ts-expect-error` case so a later refactor
 that weakens them fails the build.
 
-The fourth is what makes `Int` load-bearing rather than decorative. R1
-delegates its branch selection to `Int`, so if `Int` were assignable from a
-plain `number`, the brand and the value-sniffing R1 explicitly rejects would be
-the same thing under different names, and the integer branch would silently
-take float fields again. It is placed at the **call site** rather than on an
-assignment because the call site is where the wrong branch would be taken.
+**Case 4 must be checked with the brand removed, not only with it present.**
+`toBigInt(v: Int): bigint` being the only route from row data into `pySumInt`
+is what gives the case its power: the brand is the sole reason the float field
+is rejected. Verified both ways — with `Int` branded, the file compiles clean;
+with `Int` aliased to a plain `number`, `tsc` fails with **TS2578, unused
+`@ts-expect-error` directive**, because nothing rejects it any more.
+
+That two-way check is the requirement, because the obvious phrasings do not
+survive it. Had case 4 been "pass `population_15_24` to a `pySum` taking
+`bigint`", it would fail `tsc` for `number`-vs-`bigint` — but so would passing
+`clerical_employed`, which *is* `Int`, since a branded `number` is still a
+`number`. A case that errors identically with the brand deleted is not evidence
+for the brand. And had `pySum` been overloaded with a `readonly number[]`
+float signature, passing the float field would resolve to that overload with no
+error at all, failing instead on the unused directive.
+
+It stays at the **call site** rather than on an assignment because the call
+site is where the wrong branch would be taken.
 
 ### R8. [ ] The 107 tests ported, still passing
 

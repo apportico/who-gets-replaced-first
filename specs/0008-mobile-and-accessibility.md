@@ -409,7 +409,11 @@ the fixture instead of through the pattern.
 one the guard actually reads, and it is the one a hand-authored fixture will
 omit: every payload row carrying all nine ISCO groups also carries it (181 of
 181), so a row *selected* from the data brings the guard along for free while a
-row *transcribed* from a field list does not. `isco_groups_reported` is read by
+row *transcribed* from a field list does not. (The 181 and the 170 below count
+different populations and are both right: 181 is every row in the payload with
+nine ISCO groups — 170 countries plus 11 aggregates — while 170 is the country
+rows that also satisfy the three-age-band and `isco_groups_reported == 9`
+conditions. No aggregate qualifies under the fuller predicate.) `isco_groups_reported` is read by
 the component, but at `:154` for the "reports only N of 9" caveat — not by the
 guard, so it does not protect this assertion. Such rows are abundant, not rare: **170 of 218**
 country rows in `global_labor.json` qualify, and **all 170** carry at least one
@@ -723,7 +727,7 @@ measured while "today" still exists.
 | Horizontal page scroll | no | no |
 | Landmarks / ARIA attributes | 0 / 0 | 0 / 0 |
 | Interactive targets under 24px | 186 of 234 | 187 of 234 |
-| Tier badge rendered size | 11px | 11px |
+| Tier badge rendered size *(not a baseline — see note)* | 11px | 11px |
 | Console | clean | clean |
 
 The 768px is what R1's desktop criterion compares against. The 0px at 375
@@ -734,6 +738,16 @@ comparison specifically: steps 2 and 3 changed colours, text tokens and badge
 padding, and touched neither `w-72` on the sidebar nor `w-96` on the detail
 panel, which are the only two things the map column's width is a remainder of.
 The 186-of-234 target count is likewise pre-R6.
+
+**The badge-size row is the exception and is not a baseline.** At the branch
+point the badges were `text-[8px]` and `text-[9px]`; `5e8cf16` raised all five
+to 11px, so that row records the *result* of R4 rather than the state before it.
+It is kept here because that is where the measurement was taken, but nothing
+should read it as a pre-change figure.
+
+**The target count in this table is also superseded.** It was produced by a
+census that could not see the map — see the R6 note and the corrected figures
+there.
 
 **Acceptance:** the browser console is clean at both viewports (no errors, no
 React warnings). A short written record is appended to this spec covering: the
@@ -756,7 +770,8 @@ encoding from R5.
 - **ESLint does not lint `.mjs`** — `eslint.config.js` has
   `files: ['**/*.{js,jsx}']`, which is why `scripts/palette-probe.mjs` passes
   lint without ever being read. A suite that `verify` runs but `lint` ignores is
-  a gap. R9's step closes it with a **second config block**, not by widening the
+  a gap. R9's step closed it with a **second config block** — applied in
+  `a482013`, so this describes work already in the tree — not by widening the
   existing glob: that block extends `js.configs.recommended` with
   `globals.browser`, so adding `.mjs` to it makes `no-undef` fire on
   `process.exit(0)` at `scripts/render-probe.mjs:87` — verified, `'process' is
@@ -797,7 +812,7 @@ listbox, text-equivalent wiring) · `LaborSidebar.jsx` · `LaborTimeline.jsx` ·
 
 | # | Step | Depends on |
 |---|---|---|
-| **0** | **R11 pre-change baseline** — record the 1440×900 map-container width | Browser access |
+| **0** | **R11 pre-change baseline** — record the 1440×900 map-container width | ~~Browser access~~ — done, `scripts/r11-measure.mjs` |
 | 1 | R9 harness: devDependencies, `test/`, wire into `verify.sh` and CI, widen the ESLint glob | — |
 | 2 | R7 text-palette export; R4 + R10 `TIERS` recolour (solved together) | 1 |
 | 3 | R7 delete the two in-swatch labels and add the age-legend percentage; R5 no-data encoding | 1, 2 |
@@ -844,9 +859,13 @@ change, per `CLAUDE.md`.
 
 ### Risks
 
-1. **R11 is blocked.** The Claude-in-Chrome extension is not connected, and R1,
-   R2, R6 and R11 all need a real browser. Steps 1–4 are unaffected; step 0
-   needs the extension connected or the measurement taken by hand.
+1. ~~**R11 is blocked.**~~ **Resolved 2026-08-30.** The Claude-in-Chrome
+   extension never connected, but that was never the only route: `playwright-core`
+   installed unsaved drives the system Chrome and downloads nothing, so
+   `package.json`, `verify.sh` and `ci.yml` are untouched and the Non-goals'
+   offline property holds. `scripts/r11-measure.mjs` and
+   `scripts/r11-announce.mjs` take every measurement R11 asks for. The step-0
+   baseline is recorded below.
 2. **R4 and R10 may not both hold while keeping the tier hues.** They are
    jointly satisfiable — a grid search found sets with worst pairwise ΔE00 18.7
    and every badge clearing AA — but that solution was four dark blues and

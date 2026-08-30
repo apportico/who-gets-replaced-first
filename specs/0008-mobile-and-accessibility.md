@@ -12,7 +12,7 @@ ramp — and the probes below show the third group includes people with normal
 colour vision. At 375px the map element is allocated **zero width**; the 218
 country markers are Leaflet `CircleMarker`s, which are not focusable, so there
 is no keyboard path to a country at all; and the lightest ramp step sits
-**ΔE 5.6** from the no-data grey, meaning a country *with* a low measured value
+**ΔE00 3.7** from the no-data grey, meaning a country *with* a low measured value
 and a country with *no data* look the same. That last one is not a cosmetic
 issue: it is the project's central non-negotiable — never blur measured and
 constructed — failing at the point of delivery. This spec makes the page usable
@@ -38,13 +38,14 @@ thresholds it is measured against. Every row below was run on this branch
 | Layout arithmetic at 375px | Read `App.jsx`, `LaborPage.jsx:190`, `LaborSidebar.jsx:19`, `LaborDetailPanel.jsx:253,266` | Root is `h-screen w-screen overflow-hidden`. Sidebar `w-72` (288px) is `flex-shrink-0`; detail panel `w-96` (384px) always renders (a placeholder when nothing is selected). The map column is `flex-1 min-w-0` → at 375px it resolves to **0px**, and `overflow-hidden` means it cannot be scrolled to. |
 | ARIA / landmarks / keyboard handlers | `grep -rn "aria-\|role=\|<main\|<nav\|sr-only\|focus-visible\|tabIndex\|onKeyDown" src/` | **Zero** matches across every component. No landmarks, no labels, no focus management, no key handlers. |
 | Leaflet 1.9.4 keyboard support for vector markers | Read `node_modules/leaflet/dist/leaflet-src.js`; class boundaries via `grep -n` | `keyboard: true` (L7715) and `icon.tabIndex = '0'` (L7915) are inside **`Marker`** (L7701–8108). `CircleMarker` (L8253) extends `Path` (L8108), which sets no tabindex and has no keyboard option. The SVG renderer never makes a path focusable. `Map.Keyboard` (L13970) focuses the *container* — pan and zoom only. **A country marker cannot be tabbed to or activated by Enter. Confirmed, not assumed.** |
-| WCAG contrast of tier badges | `scratchpad/contrast.mjs` — WCAG 2.x relative-luminance formula, badge bg composited from `${color}1a` over white | At 8–9px bold (WCAG "normal text", needs 4.5:1): OFFICIAL `#2f9e44` **3.08:1 FAIL**, PROXY `#e8590c` **3.16:1 FAIL**, DERIVED `#1971c2` **4.39:1 FAIL**, MODELED `#9c36b5` 5.02:1 pass. |
-| WCAG contrast of body text | same script | `gray-400 #9ca3af` = **2.54:1 FAIL** (used for most 10px secondary text), `gray-300 #d1d5db` = **1.47:1 FAIL** (disabled play button). `gray-500 #6b7280` = 4.83:1 pass. |
-| Ramp vs no-data separation | `scratchpad/cvd.mjs` — CIELAB ΔE76 + WCAG contrast | Lightest ramp step vs no-data `#dfe3e8`: BLUE **ΔE 5.6**, TEAL **ΔE 7.4**, HEAT ΔE 13.4; contrast 1.14–1.17:1. Below the ~10 ΔE legibility threshold **for normal colour vision**, at marker sizes of 3.5–26px. |
-| Ramps under dichromacy | same script — Viénot LMS-plane simulation | Min adjacent-step ΔE: BLUE 11.3–13.9, HEAT 10.7–17.7, **TEAL 7.2 under protanopia** (8.6 deuteranopia). TEAL's steps collapse. |
-| Tier colours under dichromacy | same script | **DERIVED vs MODELED = ΔE 9.8 under protanopia** (indistinguishable). OFFICIAL vs PROXY degrades from ΔE 106 to **17.8 under protanopia**. OFFICIAL vs DERIVED = **10.8 under tritanopia**. The badges' text labels currently carry this distinction alone. |
-| axe-core under jsdom | `scratchpad/axe-probe.mjs`, axe-core 4.13.0 + jsdom 30.0.1, fixture reproducing the real failures | Structural rules resolve: `button-name`, `image-alt`, `region` all returned **violations** correctly. But `color-contrast` → **INCOMPLETE** (jsdom has no `getContext`, so axe cannot sample pixels) and `target-size` → **INAPPLICABLE — the rule did not run at all** (no layout boxes). **jsdom cannot check the two rules this issue is most about.** |
-| Node test runner | `node -v`; `node --test --help` | Node **v24.19.0**, `node --test` built in. A JS test runner can be added with **no new runner dependency** — only `axe-core` and `jsdom`. |
+| WCAG contrast of tier badges | `node scripts/palette-probe.mjs` §1 — WCAG 2.x relative luminance, badge bg composited from `${color}1a` over white | At 8–9px bold (WCAG "normal text", needs 4.5:1): OFFICIAL `#2f9e44` **3.08:1 FAIL**, PROXY `#e8590c` **3.16:1 FAIL**, DERIVED `#1971c2` **4.39:1 FAIL**, MODELED `#9c36b5` 5.02:1 pass. Independently reproduced by the reviewer of PR #55. |
+| WCAG contrast of body text | `palette-probe.mjs` §2 | `gray-400 #9ca3af` = **2.54:1 FAIL** (used for most 10px secondary text), `gray-300 #d1d5db` = **1.47:1 FAIL** (disabled play button). `gray-500 #6b7280` = 4.83:1 pass. Independently reproduced. |
+| Colour-vision **method** | `scripts/palette-probe.mjs`, committed — every free parameter pinned in code | Linear-light sRGB input; D65/2°; **CIEDE2000**; **Machado, Oliveira & Fernandes (2009)** IEEE TVCG 15(6) Table 1, severity-1.0 matrices. The first draft said "CIELAB ΔE76 + Viénot" and pinned none of the input space, white point, or tritanopia matrix — the reviewer of PR #55 re-ran it and got different vision attributions, correctly. Machado is used here because all three deficiencies come from one derivation (Viénot 1999 is validated only for protanopia and deuteranopia; its tritanopia is an extrapolation), and its matrices are published constants. **The numbers in the three rows below are from this pinned method and supersede the first draft's.** |
+| Ramp vs no-data separation | `palette-probe.mjs` §4 | Lightest ramp step vs no-data `#dfe3e8`: **BLUE ΔE00 3.7**, **TEAL ΔE00 7.2** (falling to **3.7 under deuteranopia**), HEAT 11.2; WCAG contrast 1.14–1.17:1. Below any legibility threshold **for normal colour vision**, at marker sizes of 3.5–26px. This is the row R5 rests on, and it is starker than the first draft's ΔE76 figures suggested. |
+| Ramps under dichromacy | `palette-probe.mjs` §3 and §7 | Min adjacent-step ΔE00 falls under 10 for **all three** ramps, not just TEAL: BLUE 7.5, HEAT 7.7, **TEAL 4.3** (protanopia). The first draft reported BLUE and HEAT as comfortable; that was an artefact of ΔE76. **But** §7 shows every ramp stays **strictly monotonic in L\*** under all four visions, min step gap 6.3 — so the ramps still read as *ordered scales*, which is what a sequential ramp is for. R10 is written against that, not against adjacent-step ΔE. |
+| Tier colours under dichromacy | `palette-probe.mjs` §5 | **DERIVED vs MODELED = ΔE00 2.4 under deuteranopia** (9.4 protanopia) — effectively the same colour. The first draft attributed this collapse to protanopia; the reviewer was right that it lands under deuteranopia. **OFFICIAL vs PROXY = ΔE00 10.7** (deuteranopia) / 11.1 (protanopia) — measured vs constructed, the pair that matters most, far closer than the first draft's 17.8. OFFICIAL vs DERIVED = 13.1 under tritanopia. The badges' text labels currently carry these distinctions alone. |
+| axe-core over the **real app** under jsdom | `node scripts/render-probe.mjs`, committed — axe-core 4.13.0 + jsdom 30.0.1, full `App.jsx` tree | The whole tree mounts, map included: 146,996 chars, `.leaflet-container` present, 225 buttons, **0 aria attributes**. Two conditions make it work, both non-obvious: jsdom globals must exist **before** the first import (Leaflet dereferences `window` at module-evaluation time, `leaflet-src.js:230`), and the modules load through `vite.ssrLoadModule` (JSX + CSS + JSON). Results: `region` **23 violations**, `label` **2**, `heading-order` **1**; `button-name`, `link-name`, `image-alt` pass; `aria-allowed-attr` inapplicable (no ARIA exists yet). `color-contrast` → **INCOMPLETE** (no canvas). `target-size` → **reports `pass`, which is false** — jsdom has no layout, so there are no boxes to fail. A fixture returns INAPPLICABLE for that rule; the real tree returns a misleading green, which is worse. R9 disables it explicitly. |
+| Node test runner and R9's dependency budget | `node -v`; `node --test --help`; `render-probe.mjs` | Node **v24.19.0**, `node --test` built in. Vite is already a devDependency and its SSR transform loads the app, so R9 adds **only `axe-core` and `jsdom`** — no test runner, no bundler, no browser. The budget the Non-goals argument rests on survives the render finding. |
 | `verify` offline guarantee | Read `scripts/verify.sh`, `.github/workflows/ci.yml` | `verify` is explicitly designed to run in a fresh clone with no network; CI runs the same command and never has `pipeline/raw/`. Any new gate must hold that property — which rules out a Playwright browser download. See *Non-goals*. |
 | Live render at 375×812 | Attempted 2026-08-30 via Chrome extension; dev server up (HTTP 200 on `:5173`) | **BLOCKED — the Claude-in-Chrome extension is not connected.** No requirement below depends on a spec-time browser observation; the browser check is instead an *acceptance criterion* (R11), which is what the issue's definition of done asks for anyway. |
 
@@ -55,14 +56,21 @@ thresholds it is measured against. Every row below was run on this branch
 Below the `md` breakpoint, the sidebar and detail panel stop being fixed side
 columns. The map fills the viewport; the metric picker and year control collapse
 into a compact bar; the sidebar's controls and the selected country's detail
-move into a bottom sheet with peek / half / full positions. Above `md` the
-current three-column desktop layout is unchanged.
+move into a bottom sheet with peek / half / full positions.
 
-**Acceptance:** at a 375×812 viewport, `document.querySelector('.leaflet-container').getBoundingClientRect().width >= 320`
+Above `md` the three-column desktop arrangement stays as it is. That is an
+intent, not a criterion — R4, R7 and R10 change the palette and type sizes and
+R8 adds landmarks and ARIA to this same tree, so the desktop markup necessarily
+changes. What must not change is the *arrangement*: no column is removed,
+reordered, or made narrower than it is today.
+
+**Acceptance:** at a 375×812 viewport,
+`document.querySelector('.leaflet-container').getBoundingClientRect().width >= 320`
 and `document.documentElement.scrollWidth <= window.innerWidth` (no horizontal
-page scroll). At 1440×900 the sidebar, map and detail panel are all present and
-the layout is byte-identical in structure to today's. Both verified in a real
-browser per R11.
+page scroll). At 1440×900: the sidebar, the map container and the detail panel
+each have a non-zero width; they appear in that left-to-right order; and the map
+container is **no narrower than the 1440×900 baseline recorded in R11 before any
+change lands**. Both viewports verified in a real browser per R11.
 
 ### R2. [ ] Every country is reachable and selectable by keyboard
 
@@ -89,11 +97,18 @@ active metric, its tier, and its no-data state where applicable. The map
 container gets an accessible name describing what is plotted and how many
 countries carry data.
 
-**Acceptance:** with the map focused, a screen reader announces the metric, the
-country count and the count with data. The text equivalent contains one entry
-per country in `filtered`, each carrying country name, formatted value (or the
-words "no data"), and the tier word. Asserted in the R9 test against rendered
-output, and confirmed by listening in R11.
+Build the equivalent from a **pure function** — rows plus active metric in,
+entries out — that the component renders. The assertion then needs no DOM, which
+keeps it away from everything jsdom cannot do, and it stays true if the markup
+is reworked later.
+
+**Acceptance:** that function, given the `filtered` rows and a metric, returns
+one entry per row, each carrying country name, formatted value (or the literal
+words "no data") and the tier word — asserted directly, with no DOM. The
+rendered tree wires it to the map container via `aria-describedby` (or an
+equivalent association), asserted in the R9 render test. A screen reader
+announcing the metric, the country count and the count with data is confirmed by
+listening in R11.
 
 ### R4. [ ] Tier badges pass AA and are announced, not just coloured
 
@@ -104,16 +119,22 @@ from 8–9px to at least 11px. Because `TIERS` is one shared table, this fixes
 accessible text so `MODELED` is never announced as a bare number — per the
 issue, that is the misleading case.
 
-**Acceptance:** the R9 test asserts every tier's foreground on its own badge
-background is **≥ 4.5:1**, and that no badge renders below 11px. A number
-carrying a tier is never announced without its tier word — checked by asserting
-each badge element has non-empty accessible text adjacent to the value it
-qualifies.
+**Acceptance:** three checks, each attached to something that can actually run
+it. (1) The R9 **palette** test asserts every tier's foreground on its own badge
+background is **≥ 4.5:1** — pure arithmetic over `TIERS`, no DOM. (2) The R9
+**render** test asserts every badge element has non-empty accessible text, so a
+number carrying a tier is never announced without its tier word. (3) The
+**rendered** badge size of ≥ 11px is measured in the browser under R11, not
+asserted under jsdom — jsdom has no layout engine, which is the same reason the
+probe found `target-size` unusable there. A test on the class or style string
+would assert what the markup *says*, not what it renders, and would go stale the
+moment a parent rule overrode it.
 
 ### R5. [ ] A country with no data is distinguishable from a country with a low value
 
 This is the project's non-negotiable, and it currently fails for **everyone**:
-the lightest BLUE step sits ΔE 5.6 and 1.14:1 from the no-data grey. Distinguish
+the lightest BLUE step sits **ΔE00 3.7** and 1.14:1 from the no-data grey, and
+TEAL falls to the same 3.7 under deuteranopia. Distinguish
 no-data by something other than hue and lightness alone — a dashed or hatched
 marker stroke, or an explicit shape difference — so the distinction survives
 both a small marker and colour-blind vision. The legend gains the same
@@ -121,10 +142,13 @@ treatment; it already carries the words "no data — kept, never imputed", and
 that wording stays.
 
 **Acceptance:** no-data markers differ from every ramp step by a non-colour
-channel that is present in the DOM and assertable (e.g. a `dashArray` or a
-distinct class on the marker path). The R9 test asserts the chosen encoding is
-applied to exactly the rows where the active metric's value is `null`, and to no
-others. Confirmed visually under a deuteranopia simulation in R11.
+channel (e.g. a `dashArray` or a distinct class on the marker path). The
+decision is made by a **pure function** — row plus metric in, marker props out —
+and the R9 test asserts, with no DOM, that the encoding is applied to exactly
+the rows whose value for the active metric is `null` and to no others. Keeping
+this off rendered output matters here specifically: the markers are Leaflet
+paths, and asserting over them would couple the check to how Leaflet happens to
+render inside jsdom. Confirmed visually under a deuteranopia simulation in R11.
 
 ### R6. [ ] Interactive targets meet 24×24px
 
@@ -136,8 +160,10 @@ px on touch viewports, using spacing where the visual bar must stay thin.
 
 **Acceptance:** at 375×812, every element matching
 `button, a, input, [role="option"], [tabindex="0"]` has a bounding box of at
-least 24×24px, or a 24px exclusion zone around it. Measured in R11, since the
-probe showed axe's `target-size` rule cannot run under jsdom.
+least 24×24px, or a 24px exclusion zone around it. Measured in R11, in a
+browser. It cannot be measured under jsdom: the probe found axe's `target-size`
+rule reports a **false `pass`** over the real tree, because there are no layout
+boxes for it to fail, which is why R9 disables the rule outright.
 
 ### R7. [ ] All text meets AA contrast
 
@@ -146,10 +172,23 @@ probe showed axe's `target-size` rule cannot run under jsdom.
 text with AA-passing values (`gray-500 #6b7280` at 4.83:1 already passes), and
 raise the 7–10px text sizes that carry meaning.
 
-**Acceptance:** the R9 test asserts every colour in the app's text palette is
-≥ 4.5:1 against the background it is used on (≥ 3:1 where the rendered size
-qualifies as large text). Disabled controls are exempt from the ratio but must
-not be the only signal of their state.
+**This requirement also has to create the thing it checks.** Unlike `TIERS` —
+one exported table at `src/utils/laborMetrics.js:7`, which is exactly why R4's
+contrast check is cheap — the text greys are inline Tailwind classes scattered
+across the components. There is no module to enumerate, and no record of which
+background or rendered size each grey is used against, which the threshold
+choice needs. Left as-is, the R9 test would become a hand-maintained list that
+components are free to drift away from, and a `text-gray-400` added later would
+pass a green suite — the exact failure this requirement exists to prevent. So
+extract the text palette into one exported module the components consume, each
+entry naming its colour, its intended background, and whether it is large text.
+
+**Acceptance:** a single exported text-palette module exists and the components
+take their text colours from it — asserted by `grep` finding no remaining
+`text-gray-[0-9]+` literals in `src/components/`. The R9 palette test asserts
+every entry in that export is ≥ 4.5:1 against its declared background, or ≥ 3:1
+where it is declared large. Disabled controls are exempt from the ratio but must
+not use colour as the only signal of their state.
 
 ### R8. [ ] Landmarks and accessible names across the app
 
@@ -168,14 +207,30 @@ for `region`, `button-name`, `link-name`, `label`, `aria-*` and
 
 Add a `node --test` suite — Node 24's built-in runner, so the only new
 devDependencies are `axe-core` and `jsdom` — wired into `scripts/verify.sh` and
-therefore into CI, which runs the same command. It has two parts, split because
-the probe showed one tool cannot do both:
+therefore into CI, which runs the same command. Three parts, split along the
+lines the probes actually drew:
 
-1. **Structural axe under jsdom** over the rendered app. The probe confirmed
-   `button-name`, `image-alt` and `region` resolve correctly here.
-2. **A dependency-free palette assertion** over `TIERS`, the three ramps and the
-   text greys, computing WCAG ratios and CIELAB ΔE directly — this is what
-   actually guards R4, R5 and R7, and it needs no browser at all.
+1. **Structural axe over the full rendered app.** `scripts/render-probe.mjs`
+   confirmed the whole tree mounts under jsdom, map included, on two conditions
+   that the suite must reproduce: jsdom globals installed **before** the first
+   import (Leaflet dereferences `window` at module-evaluation time,
+   `leaflet-src.js:230`), and modules loaded through `vite.ssrLoadModule` —
+   Vite is already a devDependency, so this adds nothing. The baseline it must
+   drive to zero is `region` 23, `label` 2, `heading-order` 1.
+   **`target-size` must be explicitly disabled in the axe config**, with a
+   comment saying why: over the real tree it reports `pass`, and that pass is
+   false, because jsdom has no layout boxes to fail. A rule that returns a
+   misleading green is worse than one that does not run, and R6 sends that check
+   to R11 instead. `color-contrast` stays INCOMPLETE for the same class of
+   reason (no canvas) and is guarded by part 2.
+2. **A dependency-free palette assertion** over `TIERS`, the three ramps and
+   R7's new text-palette export. `scripts/palette-probe.mjs` is already this
+   code — it graduates into the test rather than being rewritten, so the numbers
+   in the Source verification table and the numbers the gate enforces are
+   produced by one implementation. It pins the algorithm (linear sRGB, D65,
+   CIEDE2000, Machado 2009 severity 1.0) so R4, R5 and R10 have a defined unit.
+3. **Pure-function assertions** for R3's text equivalent and R5's marker
+   encoding, needing no DOM at all.
 
 The suite must not require network or a browser download, preserving the
 property `scripts/verify.sh` and `ci.yml` both depend on.
@@ -183,40 +238,60 @@ property `scripts/verify.sh` and `ci.yml` both depend on.
 **Acceptance:** `npm run verify` runs the new suite and exits non-zero when it
 fails — demonstrated by temporarily reverting one tier colour to `#2f9e44` and
 observing the failure. It passes in a fresh clone with no network and no
-`pipeline/raw/`. The suite documents in a comment that `color-contrast` is
-INCOMPLETE and `target-size` INAPPLICABLE under jsdom, and that R4–R7 are
-therefore guarded by part 2 and by R11 rather than by axe.
+`pipeline/raw/`. `npm ls --depth=0` shows exactly two devDependencies added
+beyond today's. The suite documents in a comment which axe rules are disabled or
+INCOMPLETE under jsdom and where each is checked instead.
 
 ### R10. [ ] The ramps survive colour-vision deficiency, or stop relying on colour alone
 
-TEAL's adjacent steps fall to ΔE 7.2 under protanopia, and DERIVED vs MODELED
-falls to ΔE 9.8 — the two tier colours become the same colour. Either adjust the
-ramp and tier palettes so the minimum separation holds under all three
-dichromacies, or ensure the distinction is carried by a redundant non-colour
-channel. The tier badges already carry text labels, which is why this is a
-degradation rather than a WCAG 1.4.1 failure today; the requirement is to keep
-that redundancy and fix the palette where it is cheap to do so.
+Under the pinned algorithm, **DERIVED vs MODELED collapses to ΔE00 2.4 under
+deuteranopia** — the two tier colours are the same colour, and that is the
+project's measured-vs-constructed distinction disappearing. OFFICIAL vs PROXY,
+the pair that matters most, sits at 10.7. Those must be fixed, and R4's recolour
+is where it happens.
 
-**Acceptance:** the R9 palette test asserts minimum adjacent-step ΔE ≥ 10 for
-every ramp under normal, protanopia, deuteranopia and tritanopia simulation, and
-minimum pairwise ΔE ≥ 10 between the four tier colours under the same four. Any
-pair that cannot meet it is recorded in the spec as `[~]` with the redundant
-channel that covers it instead.
+The ramps are a different case, and the first draft got the criterion wrong.
+Adjacent-step ΔE00 is under 10 for all three ramps, but that is what a
+*sequential* ramp looks like: it is read as an ordered scale against a legend,
+not by discriminating neighbouring buckets. Demanding ΔE ≥ 10 between adjacent
+steps would fail all three ramps at normal vision and force a palette nobody
+asked for. What must survive colour-vision deficiency is the **order**, and
+§7 of the probe shows it does — every ramp is strictly monotonic in L\* under
+all four visions, minimum step gap 6.3. So the ramp criterion guards that
+property rather than inventing a new one, and the readable-value path is R3's
+text equivalent, which does not depend on colour at all.
+
+**Acceptance:** the R9 palette test, using the algorithm pinned in
+`scripts/palette-probe.mjs`, asserts (1) minimum pairwise **ΔE00 ≥ 15** between
+the four tier colours under normal, protanopia, deuteranopia and tritanopia —
+currently 2.4, so this fails until R4 lands; and (2) every ramp is strictly
+monotonic in L\* under all four visions with a minimum adjacent gap of **≥ 5**
+— currently 6.3, so this passes today and guards against a regression. No
+adjacent-step ΔE floor is asserted, for the reason above. Any pair that cannot
+meet (1) is recorded as `[~]` with the redundant non-colour channel that covers
+it instead.
 
 ### R11. [ ] Verified in a real browser, not inferred from a clean build
 
 Per `CLAUDE.md`: a clean build is not evidence the page renders. Load the app at
 **375×812** and **1440×900**, exercise keyboard-only navigation end to end,
-listen to the detail panel and tier badges with a screen reader, and measure
-touch targets and rendered contrast — the two things the jsdom probe proved axe
-cannot check.
+listen to the detail panel and tier badges with a screen reader, and measure the
+things that need a layout engine — rendered target sizes, rendered font sizes
+and rendered contrast. The probes established that jsdom can check none of the
+three, and that for `target-size` it will actively report a false pass.
+
+**Record the 1440×900 baseline first**, before any change lands: R1's desktop
+criterion is defined against the map container's width today, so it has to be
+measured while "today" still exists.
 
 **Acceptance:** the browser console is clean at both viewports (no errors, no
 React warnings). A short written record is appended to this spec covering: the
-two viewports, keyboard-only reach of every control, the screen reader used and
-what it announced for one `OFFICIAL` and one `MODELED` figure, measured
-target sizes for the ranking strip and the "Latest" button, and a deuteranopia
-check of the no-data encoding from R5.
+pre-change 1440×900 map-container width that R1 compares against; the two
+viewports after the change; keyboard-only reach of every control; the screen
+reader used and what it announced for one `OFFICIAL` and one `MODELED` figure;
+measured target sizes for the ranking strip and the "Latest" button; the
+rendered badge font size from R4; and a deuteranopia check of the no-data
+encoding from R5.
 
 ## Non-goals
 

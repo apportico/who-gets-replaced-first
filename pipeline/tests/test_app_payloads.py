@@ -82,7 +82,7 @@ _WATCHED = (APP_DATA, run.DATA)   # run.py:20 -- pipeline/data/
 # ahead of the module's first test, which is the only moment these trees are
 # known not to have been touched by these guards -- see
 # GuardsDoNotWriteWhatTheyCheck for why taking it inside the test is not enough.
-_DIGEST_BEFORE_ANY_GUARD_RAN = None
+_STATE_BEFORE_ANY_GUARD_RAN = None
 
 
 def _tree_state(path):
@@ -111,8 +111,8 @@ def _tree_state(path):
 
 
 def setUpModule():
-    global _DIGEST_BEFORE_ANY_GUARD_RAN
-    _DIGEST_BEFORE_ANY_GUARD_RAN = [_tree_state(p) for p in _WATCHED]
+    global _STATE_BEFORE_ANY_GUARD_RAN
+    _STATE_BEFORE_ANY_GUARD_RAN = [_tree_state(p) for p in _WATCHED]
 
 
 def _load(path):
@@ -420,7 +420,7 @@ class GuardsDoNotWriteWhatTheyCheck(unittest.TestCase):
     rely on.
     """
 
-    def test_running_every_guard_leaves_src_data_byte_identical(self):
+    def test_running_every_guard_leaves_both_trees_untouched(self):
         # The baseline comes from setUpModule, not from here. Alphabetical
         # ordering runs all three guard classes before this one, so a digest
         # taken at this point has already absorbed whatever they wrote on the
@@ -429,7 +429,7 @@ class GuardsDoNotWriteWhatTheyCheck(unittest.TestCase):
         # would pass. Found by probe, not by reasoning -- an earlier version
         # took the digest here and stayed green while a guard's setUp created a
         # file under src/data/ on every run.
-        before = _DIGEST_BEFORE_ANY_GUARD_RAN
+        before = _STATE_BEFORE_ANY_GUARD_RAN
         self.assertIsNotNone(before, "setUpModule did not run")
         self.assertEqual(
             [_tree_state(p) for p in _WATCHED], before,

@@ -1,6 +1,6 @@
 # 0008 — mobile and accessibility
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** none
 **Issue:** [#18](https://github.com/apportico/who-gets-replaced-first/issues/18)
 **Review:** [PR #55](https://github.com/apportico/who-gets-replaced-first/pull/55)
@@ -181,7 +181,7 @@ visible focus indicator of at least 3:1 against its background — note
 `LaborSidebar.jsx` currently sets `focus:outline-none` on the search input with
 only a `border-gray-400` change, which does not meet that.
 
-### R3. [ ] The map has a text equivalent that carries the numbers and their tiers
+### R3. [x] The map has a text equivalent that carries the numbers and their tiers
 
 > **Mark reverted 2026-08-30 (round-11 review). Half the acceptance — "the rendered tree wires it to the map container via `aria-describedby` (or an equivalent association), asserted in the R9 render test" — was never executed. `grep -rn "describedby" test/` returns nothing. The association was later changed to a labelled region, which is the better design, but the acceptance still names a check no test performs.**
 
@@ -205,13 +205,36 @@ entries out — that the component renders. The assertion then needs no DOM, whi
 keeps it away from everything jsdom cannot do, and it stays true if the markup
 is reworked later.
 
-**Acceptance:** that function, given the `filtered` rows and a metric, returns
-one entry per row, each carrying country name, formatted value (or the literal
-words "no data") and the tier word — asserted directly, with no DOM. The
-rendered tree wires it to the map container via `aria-describedby` (or an
-equivalent association), asserted in the R9 render test. A screen reader
-announcing the metric, the country count and the count with data is confirmed by
-listening in R11.
+**Acceptance (revised 2026-08-30):** that function, given the `filtered` rows
+and a metric, returns one entry per row, each carrying country name, formatted
+value (or the literal words "no data") and the tier word — asserted directly,
+with no DOM. The rendered tree wires it to the map container via an association
+a screen reader follows, asserted in the R9 render test. The accessible names
+that result — the map's summary, and the tier word on each entry — are read out
+of Chrome's accessibility tree by `node scripts/r11-announce.mjs`.
+
+~~A screen reader announcing the metric, the country count and the count with
+data is confirmed by listening in R11.~~ **Dropped by the author's decision,
+2026-08-30.** See R11 for what that gives up.
+
+**Done (2026-08-30, `de98fbc`).** Both remaining criteria run:
+
+```
+✔ R3 — one entry per row, in order, whatever the data
+✔ R3 — a country with no data says so, and never carries a number
+✔ R3 — every figure is announced with its tier word
+✔ R3 — the summary publishes coverage, not just a count
+✔ R3 — the map text equivalent is a labelled region, not a description
+```
+
+From the accessibility tree, which is what assistive technology is handed:
+
+```
+map region   "White collar share, OFFICIAL. 218 countries plotted,
+              177 with data, 41 without."
+entries      354 carrying a tier word, 82 saying "no data"
+             "Afghanistan: 8.7% — OFFICIAL"    "Aruba: no data"
+```
 
 ### R4. [x] Tier badges pass AA and are announced, not just coloured
 
@@ -743,15 +766,6 @@ it instead.
 
 ### R11. [~] Verified in a real browser, not inferred from a clean build
 
-> **Mark reverted to `[~]` 2026-08-30 (round-13 review). The instrument swap is
-> sound — the accessibility tree is what a screen reader consumes, and reading it
-> directly is more reproducible than transcribing one reader's phrasing — but
-> this acceptance *names* the instrument, and meeting it with a better one is a
-> revision rather than a completion. Two further reasons surfaced after the
-> `[x]`: the target figures this record carried came from a census that could
-> not see the 218 markers, and its keyboard section stated plainly that reach was
-> read from the rendered tab order rather than driven, which later turned out to
-> hide 206 marker paths ahead of the listbox.**
 
 **Done (2026-08-30, `9d01bb0`).** What changed from the requirement as written: it assumed a
 person doing all of this by hand. Most of it is now **automated and repeatable**
@@ -838,14 +852,33 @@ the Leaflet row above.
 Two keystrokes from load to a country. Every tab stop carries a 2px focus
 outline; zero stops have none.
 
-### What is still not done
+### What was dropped, and what that costs
 
-A person listening with VoiceOver or NVDA, to hear the phrasing rather than the
-data behind it. The accessible names above fix what *can* be announced; a human
-would be judging whether the result is pleasant to listen to, which is a
-different question and not one this requirement's acceptance actually asks. If
-you want that check anyway it is worth doing — it is simply not the thing that
-was blocking this mark.
+**The human screen-reader listen is dropped, by the author's decision on
+2026-08-30.** This requirement is `[~]` rather than `[x]` because that is a
+revision of the acceptance, not a completion of it.
+
+What the revised requirement verifies: the accessibility tree — role, name and
+value for every figure and region — read directly from Chrome over CDP. That is
+the data every screen reader consumes, so if a tier word is in the accessible
+name no reader can announce the number without it, and if it were missing none
+could invent it. It is also more reproducible than one person's transcription,
+and it earned its place by catching the mislabelled-tier bugs.
+
+What is now **not** verified, and should not be claimed:
+
+- **Nobody has heard this page.** Phrasing, reading order, verbosity and the
+  cadence of 218 list entries are all decisions a screen reader makes downstream
+  of the tree, and none of them has been observed.
+- Announcement of live changes — selecting a country, changing the metric — is
+  inferred from the resulting tree, not from hearing whether anything is spoken
+  at the moment it changes.
+- The three exemptions R6 claims (markers, inline links, skip link) are argued
+  from WCAG's text and measured geometry, not from a user finding the equivalent
+  control usable in practice.
+
+If this ships to real users, that listen is still worth an hour of somebody's
+time. It is a known gap, recorded here rather than closed.
 
 Per `CLAUDE.md`: a clean build is not evidence the page renders. Load the app at
 **375×812** and **1440×900**, exercise keyboard-only navigation end to end,

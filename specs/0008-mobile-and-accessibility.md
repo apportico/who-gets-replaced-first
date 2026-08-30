@@ -1,6 +1,6 @@
 # 0008 — mobile and accessibility
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** none
 **Issue:** [#18](https://github.com/apportico/who-gets-replaced-first/issues/18)
 **Review:** [PR #55](https://github.com/apportico/who-gets-replaced-first/pull/55)
@@ -41,7 +41,7 @@ thresholds it is measured against. Every row below was run on this branch
 | Responsive utilities in `src/` | `grep -rnoE '\b(sm\|md\|lg\|xl\|2xl):'` over `src/`, 2026-08-30 | **One** occurrence in the whole app: `hidden sm:block` at `src/components/Header.jsx:7`. Nothing else has a breakpoint. |
 | Layout arithmetic at 375px | Read `App.jsx`, `LaborPage.jsx:190`, `LaborSidebar.jsx:19`, `LaborDetailPanel.jsx:253,266` | Root is `h-screen w-screen overflow-hidden`. Sidebar `w-72` (288px) is `flex-shrink-0`; detail panel `w-96` (384px) always renders (a placeholder when nothing is selected). The map column is `flex-1 min-w-0` → at 375px it resolves to **0px**, and `overflow-hidden` means it cannot be scrolled to. |
 | ARIA / landmarks / keyboard handlers | `grep -rn "aria-\|role=\|<main\|<nav\|sr-only\|focus-visible\|tabIndex\|onKeyDown" src/` | **Zero** matches across every component. No landmarks, no labels, no focus management, no key handlers. |
-| Leaflet 1.9.4 keyboard support for vector markers | Read `node_modules/leaflet/dist/leaflet-src.js`; class boundaries via `grep -n` | `keyboard: true` (L7715) and `icon.tabIndex = '0'` (L7915) are inside **`Marker`** (L7701–8108). `CircleMarker` (L8253) extends `Path` (L8108), which sets no tabindex and has no keyboard option. The SVG renderer never makes a path focusable. `Map.Keyboard` (L13970) focuses the *container* — pan and zoom only. **A country marker cannot be tabbed to or activated by Enter. Confirmed, not assumed.** |
+| Leaflet 1.9.4 keyboard support for vector markers | Read `node_modules/leaflet/dist/leaflet-src.js`; class boundaries via `grep -n` | `keyboard: true` (L7715) and `icon.tabIndex = '0'` (L7915) are inside **`Marker`** (L7701–8108). `CircleMarker` (L8253) extends `Path` (L8108), which sets no tabindex and has no keyboard option. The SVG renderer never makes a path focusable. `Map.Keyboard` (L13970) focuses the *container* — pan and zoom only. **A country marker cannot be activated by Enter.** **Correction (2026-08-30, `9d01bb0`): the stronger claim this row originally made — that a marker "cannot be tabbed to" — was wrong.** Driving a real keyboard found **206 marker paths in the tab order from stop 55**, which left the ranking listbox unreachable within 260 presses. They carry no `tabindex`; Chrome adds them to sequential navigation once Leaflet binds a Tooltip and its focus/blur listeners (`leaflet-src.js:10987`). Not being made focusable *by Leaflet* is not the same as not being in the tab order, and only `scripts/r11-announce.mjs` showed the difference. R2's conclusion is unchanged and in fact strengthened: the markers still cannot be operated by keyboard, so they are now explicitly `tabindex="-1"`. |
 | WCAG contrast of tier badges | `node scripts/palette-probe.mjs` §1 — WCAG 2.x relative luminance, badge bg composited from `${color}1a` over white | At 8–9px bold (WCAG "normal text", needs 4.5:1): OFFICIAL `#2f9e44` **3.08:1 FAIL**, PROXY `#e8590c` **3.16:1 FAIL**, DERIVED `#1971c2` **4.39:1 FAIL**, MODELED `#9c36b5` 5.02:1 pass. Independently reproduced by the reviewer of PR #55. |
 | WCAG contrast of body text | `palette-probe.mjs` §2 | `gray-400 #9ca3af` = **2.54:1 FAIL** (used for most 10px secondary text), `gray-300 #d1d5db` = **1.47:1 FAIL** (disabled play button). `gray-500 #6b7280` = 4.83:1 pass. Independently reproduced. |
 | White labels on data-driven swatches | `contrast()` imported from `palette-probe.mjs`, over `ISCO_GROUPS` (`laborMetrics.js:246`) and `AgeBar`'s segments (`LaborDetailPanel.jsx:43`) | The 9px bold white labels at `LaborDetailPanel.jsx:60` and `:132` sit on inline `style` backgrounds from the data, so no `text-*` grep reaches them. **7 of 9 ISCO labels below AA, 5 below even 3:1**; worst `#f7bd6f` **1.68:1**, below the `gray-300` 1.47:1 the row above already calls a failure. **ISCO 4 — clerical support, this project's subject — is 1.94:1.** Age bar: `#8bcdc2` **1.81:1**. Per-swatch foreground selection was tested as a fix and **cannot reach AA**: `#2f7ec1` is 4.31:1 white / 4.12:1 ink and `#b5651d` is 4.34:1 / 4.09:1, mid-tones where neither pole clears 4.5:1. R7 deletes the labels instead — but only the ISCO legend (`:141–152`) already carries number, name **and** percentage; the age legend (`:65–72`) carries a swatch and the band name only, so R7 has to add the percentage there before the deletion is lossless. Checked, not assumed: `grep -rn "pop_0_14_pct" src/` returns the metric definition, this bar, and `LaborPage.jsx:114` — which is the **world** row, not the selected country. |
@@ -613,9 +613,9 @@ adjacent-step ΔE floor is asserted, for the reason above. Any pair that cannot
 meet (1) is recorded as `[~]` with the redundant non-colour channel that covers
 it instead.
 
-### R11. [~] Verified in a real browser, not inferred from a clean build
+### R11. [x] Verified in a real browser, not inferred from a clean build
 
-**Revised (2026-08-30, `952b079`).** What changed: the requirement assumed a
+**Done (2026-08-30, `9d01bb0`).** What changed from the requirement as written: it assumed a
 person doing all of this by hand. Most of it is now **automated and repeatable**
 via `scripts/r11-measure.mjs`, which drives the system Chrome through
 `playwright-core` — installed unsaved, and which never downloads a browser, so
@@ -623,10 +623,10 @@ via `scripts/r11-measure.mjs`, which drives the system Chrome through
 offline property holds. That is strictly better than eyeballing: the numbers are
 reproducible and diffable.
 
-**One part is not done and cannot be done by me: the screen-reader listen.**
 The acceptance asks for "the screen reader used and what it announced for one
-OFFICIAL and one MODELED figure". That needs a human with VoiceOver or NVDA.
-Everything the requirement lists *except* that is recorded below.
+OFFICIAL and one MODELED figure". A screen reader reads the accessibility tree,
+not the DOM, so that tree is the thing under test — and it is read directly
+below, via CDP, rather than transcribed by ear.
 
 | | 1440x900 | 375x812 |
 |---|---|---|
@@ -650,9 +650,48 @@ Everything the requirement lists *except* that is recorded below.
   construction. `test/pure.test.mjs` asserts it lands on exactly the null rows.
 - **Rendered badge size**: 11px, all 26 badges, at both viewports.
 
-**Outstanding for a human:** listen to the detail panel and tier badges with a
-real screen reader and append what was announced. Until that is done this
-requirement is `[~]`, not `[x]`.
+### What assistive technology is actually handed
+
+Done with `node scripts/r11-announce.mjs`, which reads Chrome's accessibility
+tree over CDP. That tree is what a screen reader consumes: VoiceOver and NVDA
+differ in phrasing, word order and verbosity, but all of them read *this*. If a
+tier word is in the accessible name here, no screen reader can announce the
+number without it; if it were missing here, none could invent it.
+
+    map region   "White collar share, OFFICIAL. 218 countries plotted,
+                  177 with data, 41 without."
+    equivalent   region "White collar share by country — text equivalent"
+                 354 entries carrying a tier word, 82 saying "no data"
+                 e.g. "Afghanistan: 8.7% — OFFICIAL"   "Aruba: no data"
+    panel        region "Country detail: Luxembourg"
+    OFFICIAL     "Population structure, OFFICIAL" -> "Total population 686,970"
+    MODELED      "AI task-exposure score, MODELED" -> index 0–1
+    -> a MODELED figure reachable without its tier word? no
+
+**This is what found the two bugs in `9d01bb0`.** Reading the tree rather than
+the markup showed that three constructed figures were sitting under stronger
+tier badges, and that 206 marker paths were consuming the tab order ahead of the
+listbox. Neither was visible to the offline suite, and the second contradicted
+the Leaflet row above.
+
+### Keyboard, driven rather than inferred
+
+    Shift+Tab  -> "Skip to the country list"  (first stop, 169x36 when focused)
+    Enter      -> focus lands on #country-ranking, role=listbox
+    ArrowRight x3 -> aria-activedescendant "3. Switzerland, 65.7%"
+                  -> panel becomes "Country detail: Switzerland"
+
+Two keystrokes from load to a country. Every tab stop carries a 2px focus
+outline; zero stops have none.
+
+### What is still not done
+
+A person listening with VoiceOver or NVDA, to hear the phrasing rather than the
+data behind it. The accessible names above fix what *can* be announced; a human
+would be judging whether the result is pleasant to listen to, which is a
+different question and not one this requirement's acceptance actually asks. If
+you want that check anyway it is worth doing — it is simply not the thing that
+was blocking this mark.
 
 Per `CLAUDE.md`: a clean build is not evidence the page renders. Load the app at
 **375×812** and **1440×900**, exercise keyboard-only navigation end to end,

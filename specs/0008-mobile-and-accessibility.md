@@ -629,7 +629,17 @@ adjacent-step ΔE floor is asserted, for the reason above. Any pair that cannot
 meet (1) is recorded as `[~]` with the redundant non-colour channel that covers
 it instead.
 
-### R11. [x] Verified in a real browser, not inferred from a clean build
+### R11. [~] Verified in a real browser, not inferred from a clean build
+
+> **Mark reverted to `[~]` 2026-08-30 (round-13 review). The instrument swap is
+> sound — the accessibility tree is what a screen reader consumes, and reading it
+> directly is more reproducible than transcribing one reader's phrasing — but
+> this acceptance *names* the instrument, and meeting it with a better one is a
+> revision rather than a completion. Two further reasons surfaced after the
+> `[x]`: the target figures this record carried came from a census that could
+> not see the 218 markers, and its keyboard section stated plainly that reach was
+> read from the rendered tab order rather than driven, which later turned out to
+> hide 206 marker paths ahead of the listbox.**
 
 **Done (2026-08-30, `9d01bb0`).** What changed from the requirement as written: it assumed a
 person doing all of this by hand. Most of it is now **automated and repeatable**

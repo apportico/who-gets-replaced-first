@@ -7,10 +7,16 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   // `'dist'` alone matches only the top-level directory: flat-config ignore
   // patterns are relative to this file, so a nested `dist/` is not covered.
-  // `.claude/` holds git worktrees — full checkouts of this repo — so without
-  // it ESLint lints duplicate copies of src/ and their minified build output.
+  // `.claude/worktrees/` holds full checkouts of this repo, so without it
+  // ESLint lints duplicate copies of src/ and their minified build output.
   // ESLint v9 does not read .gitignore, so being gitignored is not enough.
-  globalIgnores(['**/dist', '.claude']),
+  //
+  // Scoped to `worktrees` rather than all of `.claude`: .gitignore un-ignores
+  // `.claude/hooks/`, `skills/`, `agents/` and `settings.json`, so a tracked
+  // hook script would be real, lintable project code. A blanket `.claude`
+  // would skip it silently — which is the failure this whole config note is
+  // about, one directory over.
+  globalIgnores(['**/dist', '.claude/worktrees']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

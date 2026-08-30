@@ -41,10 +41,18 @@ Probed 2026-08-30 in the primary checkout, which has three worktrees on disk.
 holding built copies of the project — the state any contributor reaches after
 one worktree and one `npm run build`.
 
-`.claude/` is not project source. It holds skills, agents, settings and
-worktrees; none of it is code this project lints. `**/dist` covers nested build
-output wherever it appears, which is the half that would still bite if worktrees
-moved elsewhere.
+`.claude/worktrees/` is not project source — it holds full checkouts of this
+repo. `**/dist` covers nested build output wherever it appears, which is the
+half that would still bite if worktrees moved elsewhere.
+
+**Scoped to `worktrees`, not all of `.claude`.** The first version ignored the
+whole directory. Review pointed out that `.gitignore` un-ignores
+`.claude/hooks/`, `skills/`, `agents/` and `settings.json`, so a tracked hook
+script would be real project code — and a blanket `.claude` would skip it
+silently. Verified with a probe: a `.claude/hooks/probe.js` carrying two
+deliberate errors is **invisible** to ESLint under `'.claude'` and **caught**
+under `'.claude/worktrees'`, at no cost to the fix (15 project files either
+way). Issue #4 is specifically about adding files to `.claude/hooks/`.
 
 **Acceptance (met 2026-08-30, run in the primary checkout with three built
 worktrees on disk):**
@@ -84,8 +92,10 @@ back to `dist` would reintroduce this silently and CI would not catch it.
 - **Reading `.gitignore` into ESLint** via `@eslint/compat`'s
   `includeIgnoreFile()`. It would couple lint scope to VCS scope, which is
   usually right but adds a dependency to solve a two-pattern problem — and
-  `.gitignore` is deliberately more permissive here (it un-ignores
-  `.claude/skills/` and `.claude/agents/`, which ESLint should still skip).
+  `.gitignore` is deliberately more permissive here, un-ignoring
+  `.claude/skills/`, `.claude/hooks/`, `.claude/agents/` and
+  `.claude/settings.json` (`.gitignore:7-10`). Of those only `hooks/` could ever
+  hold lintable code, and R1's scoping keeps it lintable.
 - **Cleaning up the stale worktrees themselves.** Housekeeping, not a code
   change; done alongside but not specified here. The fix must work whether or
   not they exist.

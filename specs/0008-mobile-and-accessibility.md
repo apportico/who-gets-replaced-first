@@ -5,7 +5,17 @@
 **Issue:** [#18](https://github.com/apportico/who-gets-replaced-first/issues/18)
 **Review:** [PR #55](https://github.com/apportico/who-gets-replaced-first/pull/55)
 — draft → in-review at `47ff762`, approved at `4b14bce`, in-progress at
-`cceb41e`, **back to approved 2026-08-30 by the author's instruction**.
+`cceb41e`, **back to approved 2026-08-30 by the author's instruction**, then
+in-progress and done as the reopened requirements were closed.
+**Evaluated 2026-08-30** (`/evaluate`): 9 pass, 2 revised, 0 fail — **and that
+verdict was premature.** It was produced at `4eef34a`, and the round-16 review
+then found fifteen further overstated figures in `OccupationBreakdown` and
+`Trends`, fixed at `58cef78`. Both of the R4 assertions the evaluation relied on
+walk `[data-field]`, and neither component carried one, so the checks passed by
+not seeing the failing case — the same shape as the two defects the evaluation
+itself had just caught. The verdict is left standing with this correction rather
+than quietly restated, because "9 pass, 0 fail" was wrong when it was written
+and the reason it was wrong is the useful part.
 
 **Why in-progress → approved.** The lifecycle allows it and it needs a reason,
 so: the requirements themselves are settled — thirteen review rounds argued them
@@ -231,11 +241,20 @@ data is confirmed by listening in R11.~~ **Dropped by the author's decision,
 From the accessibility tree, which is what assistive technology is handed:
 
 ```
-map region   "White collar share, OFFICIAL. 218 countries plotted,
+map region   "White collar share, DERIVED. 218 countries plotted,
               177 with data, 41 without."
 entries      354 carrying a tier word, 82 saying "no data"
-             "Afghanistan: 8.7% — OFFICIAL"    "Aruba: no data"
+             "Afghanistan: 8.7% — DERIVED"     "Aruba: no data"
 ```
+
+**Corrected after `/evaluate` (2026-08-30, `4eef34a`).** Those lines read
+`OFFICIAL` until the evaluation found the metric badge overstating its tier —
+`white_collar_pct` is `DERIVED` in the registry. Because `mapSummary` and
+`mapTextEntries` both take the tier from the active metric, one wrong entry in
+`METRICS` was announced **354 times** to a screen reader, on every row of the
+text equivalent. The tier word was present, as this requirement asks; it was the
+wrong word. Both now derive from the payload registry, asserted in
+`test/field-tiers.test.mjs`.
 
 ### R4. [x] Tier badges pass AA and are announced, not just coloured
 
@@ -251,6 +270,45 @@ the check the spec assigned it:
 3. Rendered size — **measured, not asserted**: `node scripts/r11-measure.mjs`
    reports all 26 badges at 11px in a real browser, which is where this had to
    be checked because jsdom has no layout engine.
+
+**Extended after `/evaluate` (2026-08-30, `4eef34a`).** Loading the page found
+what the suite could not: **six of nineteen metric badges overstated their
+tier**, every one in the overstating direction.
+
+```
+White collar share          OFFICIAL   registry: DERIVED
+Professional core           OFFICIAL   registry: DERIVED
+Clerical support workers    OFFICIAL   registry: DERIVED
+Entry-level squeeze index   DERIVED    registry: MODELED
+Prime-age white collar      OFFICIAL   registry: PROXY
+Late-career white collar    OFFICIAL   registry: PROXY
+```
+
+`test/field-tiers.test.mjs` walks the rendered *detail panel*, and `METRICS` is
+never rendered there, so the check that exists for exactly this class of defect
+could not see it. `METRICS` now takes each tier from the payload registry at
+module load — the same source the panel reads — so a metric added later cannot
+reintroduce the drift by declaring its own. Two assertions added: one over
+`METRICS` directly, one over what the text equivalent announces.
+
+**Two existing R3 tests failed on that fix**, and that is the part worth keeping:
+they hardcoded `OFFICIAL` for `white_collar_pct`, so the tests carried the same
+mislabel as the app and agreed with it. A test that encodes the bug cannot find
+the bug.
+
+**And that fix was still not the end of it (`58cef78`).** Fifteen further figures
+were overstated — twelve DERIVED ISCO rows and three series in `Trends`, all
+under `tier="official"` headings — because `OccupationBreakdown` and `Trends`
+render their own markup and carried no `[data-field]`, which is what both R4
+assertions walk. The checks were green by not seeing the failing case.
+
+That is now four distinct forms of one failure on this spec: an assertion that
+could not fail, a census that could not see the map, a test that encoded the bug
+it was meant to catch, and a check whose population excluded the defect. The fix
+is accordingly structural rather than another list — `R4 — no figure inside a
+section escapes the annotation` walks every digit-bearing leaf inside a Section
+and fails if it cannot reach a `data-tier`, so a component rendering its own
+figures fails rather than being skipped.
 
 Three of four tier badges fail AA at their current size (3.08 / 3.16 / 4.39:1).
 Replace the four `TIERS` colours with AA-passing variants and raise badge text

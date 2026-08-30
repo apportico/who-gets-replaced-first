@@ -256,6 +256,11 @@ text equivalent. The tier word was present, as this requirement asks; it was the
 wrong word. Both now derive from the payload registry, asserted in
 `test/field-tiers.test.mjs`.
 
+Re-captured by re-running `node scripts/r11-announce.mjs` at `58cef78`, rather
+than by editing the words: the lines above are the script's output at that
+commit. The map region's own accessible name carried the same wrong tier, so it
+was 354 entries plus the region name.
+
 ### R4. [x] Tier badges pass AA and are announced, not just coloured
 
 
@@ -897,17 +902,26 @@ below, via CDP, rather than transcribed by ear.
 
 ### What assistive technology is actually handed
 
+**Captured at `58cef78`.** A transcript is evidence only for the commit it was
+taken at, and nothing in `verify` re-captures it, so it ages into a claim about
+an older build unless the SHA is recorded next to it. This one went stale once
+already: it read `OFFICIAL` for `white_collar_pct` from the first capture until
+`4eef34a` corrected the metric tiers. What `verify` *does* hold continuously is
+the offline half, `test/field-tiers.test.mjs` asserting `mapSummary` and
+`mapTextEntries` announce the registry's tier, so the drift now fails a test
+rather than waiting for the next capture.
+
 Done with `node scripts/r11-announce.mjs`, which reads Chrome's accessibility
 tree over CDP. That tree is what a screen reader consumes: VoiceOver and NVDA
 differ in phrasing, word order and verbosity, but all of them read *this*. If a
 tier word is in the accessible name here, no screen reader can announce the
 number without it; if it were missing here, none could invent it.
 
-    map region   "White collar share, OFFICIAL. 218 countries plotted,
+    map region   "White collar share, DERIVED. 218 countries plotted,
                   177 with data, 41 without."
     equivalent   region "White collar share by country — text equivalent"
                  354 entries carrying a tier word, 82 saying "no data"
-                 e.g. "Afghanistan: 8.7% — OFFICIAL"   "Aruba: no data"
+                 e.g. "Afghanistan: 8.7% — DERIVED"   "Aruba: no data"
     panel        region "Country detail: Luxembourg"
     OFFICIAL     "Population structure, OFFICIAL" -> "Total population 686,970"
     MODELED      "AI task-exposure score, MODELED" -> index 0–1

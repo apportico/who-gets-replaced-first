@@ -86,7 +86,6 @@ export const METRICS = [
     unit: '%',
     domain: [0, 70],
     ramp: RAMP_BLUE,
-    tier: 'official',
     caveat: 'The occupation split is a real survey measurement; calling groups 1–4 "white collar" is a definitional choice.',
   },
   {
@@ -97,7 +96,6 @@ export const METRICS = [
     unit: '%',
     domain: [0, 55],
     ramp: RAMP_BLUE,
-    tier: 'official',
   },
   {
     key: 'isco4_clerical_pct',
@@ -107,7 +105,6 @@ export const METRICS = [
     unit: '%',
     domain: [0, 14],
     ramp: RAMP_HEAT,
-    tier: 'official',
   },
   {
     key: 'young_white_collar_pct',
@@ -117,7 +114,6 @@ export const METRICS = [
     unit: '%',
     domain: [0, 60],
     ramp: RAMP_HEAT,
-    tier: 'proxy',
     caveat: 'No global source tracks junior vs. senior within an occupation. Age 15–24 is a stand-in: it misses graduate entry at 25–29 and counts tenured young workers as entry-level.',
   },
   {
@@ -129,7 +125,6 @@ export const METRICS = [
     decimals: 3,
     domain: [0.15, 0.6],
     ramp: RAMP_HEAT,
-    tier: 'modeled',
     caveat: 'Weights are assigned by us, informed by published research. Only the rank order is defensible — read the value as an index, never as a probability of job loss.',
   },
   {
@@ -140,7 +135,6 @@ export const METRICS = [
     unit: '%',
     domain: [15, 60],
     ramp: RAMP_TEAL,
-    tier: 'derived',
   },
   {
     key: 'lfp_rate_total',
@@ -150,7 +144,6 @@ export const METRICS = [
     unit: '%',
     domain: [35, 85],
     ramp: RAMP_TEAL,
-    tier: 'official',
   },
   {
     key: 'emp_services_pct',
@@ -160,7 +153,6 @@ export const METRICS = [
     unit: '%',
     domain: [10, 90],
     ramp: RAMP_TEAL,
-    tier: 'official',
     caveat: 'Services includes retail, hospitality, transport and domestic work. The US is ~80% services but ~61% white collar — that gap is the whole point.',
   },
   {
@@ -171,7 +163,6 @@ export const METRICS = [
     unit: '%',
     domain: [0, 45],
     ramp: RAMP_HEAT,
-    tier: 'official',
   },
   {
     key: 'pop_65plus_pct',
@@ -181,7 +172,6 @@ export const METRICS = [
     unit: '%',
     domain: [1, 30],
     ramp: RAMP_BLUE,
-    tier: 'official',
     caveat: 'An age band, not pension receipt. Says nothing about actual retirement age or work after 65.',
   },
   {
@@ -194,7 +184,6 @@ export const METRICS = [
     scale: 'log',
     domain: [10000, 60000000],
     ramp: RAMP_HEAT,
-    tier: 'derived',
     caveat: 'Ranking by headcount reorders the map completely — India and Indonesia outrank Luxembourg.',
   },
   {
@@ -207,7 +196,6 @@ export const METRICS = [
     scale: 'log',
     domain: [50000, 300000000],
     ramp: RAMP_BLUE,
-    tier: 'derived',
   },
   {
     key: 'entry_level_squeeze_index',
@@ -217,7 +205,6 @@ export const METRICS = [
     unit: '',
     domain: [20, 90],
     ramp: RAMP_HEAT,
-    tier: 'derived',
     caveat: 'A constructed composite of four percentile ranks, not a measured quantity. Its components are all inspectable separately in the panel.',
   },
   {
@@ -228,7 +215,6 @@ export const METRICS = [
     unit: '%',
     domain: [0, 70],
     ramp: RAMP_BLUE,
-    tier: 'official',
   },
   {
     key: 'late_career_white_collar_pct',
@@ -238,7 +224,6 @@ export const METRICS = [
     unit: '%',
     domain: [0, 70],
     ramp: RAMP_BLUE,
-    tier: 'official',
   },
   {
     key: 'exposed_wage_bill_ppp',
@@ -250,7 +235,6 @@ export const METRICS = [
     scale: 'log',
     domain: [100000000, 10000000000000],
     ramp: RAMP_HEAT,
-    tier: 'modeled',
     caveat: 'An order-of-magnitude scale built on a modeled index. It is NOT an amount of money at risk.',
   },
   {
@@ -261,7 +245,6 @@ export const METRICS = [
     unit: '%',
     domain: [0, 80],
     ramp: RAMP_TEAL,
-    tier: 'official',
   },
   {
     key: 'ict_service_exports_pct',
@@ -271,7 +254,6 @@ export const METRICS = [
     unit: '%',
     domain: [0, 70],
     ramp: RAMP_TEAL,
-    tier: 'official',
     caveat: 'Countries whose exposed jobs are export-facing (India, the Philippines) carry a compounding risk a domestic-only workforce does not.',
   },
   {
@@ -282,15 +264,24 @@ export const METRICS = [
     unit: '%',
     domain: [10, 50],
     ramp: RAMP_TEAL,
-    tier: 'official',
   },
 ];
 
-// Applied here rather than edited into each literal above, so a metric added
-// later cannot reintroduce the drift by declaring its own tier.
+// A metric's tier is NOT declared above. It is assigned here, from the payload
+// registry the pipeline writes, and there is no literal to fall back to.
+//
+// Correcting the six wrong literals in place would have left nineteen copies of
+// the tier map standing, which is the shape `0c7a59e` deleted from the panel one
+// level down: derive exhaustively rather than enumerate and then patch. It also
+// left a real hole. `registryTier` returns null for a key the registry does not
+// tier, and a conditional assignment then kept whatever the literal declared —
+// so the one case a hand-written tier is most tempting for, a metric keyed on
+// something the pipeline does not tier, was exactly the case the loop could not
+// correct. With nothing to fall back to, such a key now surfaces as a missing
+// badge rather than a plausible wrong one, and `field-tiers.test.mjs` fails on
+// it rather than skipping it.
 for (const m of METRICS) {
-  const fromRegistry = registryTier(m.key);
-  if (fromRegistry) m.tier = fromRegistry;
+  m.tier = registryTier(m.key);
 }
 
 export const METRIC_BY_KEY = Object.fromEntries(METRICS.map((m) => [m.key, m]));

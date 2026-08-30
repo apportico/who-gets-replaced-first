@@ -104,14 +104,20 @@ test('R4 — every metric announces the tier the registry gives its field', asyn
   // accessible name and `mapTextEntries` puts it on every entry of the text
   // equivalent, so one wrong tier is announced 354 times.
   const { METRICS } = await import('../src/utils/laborMetrics.js');
-  const wrong = [];
-  for (const m of METRICS) {
-    const truth = FIELD_TIERS[m.key];
-    if (!truth || !REAL_TIERS.has(truth)) continue;
-    if (m.tier !== truth.toLowerCase()) {
-      wrong.push(`${m.key}: metric says ${m.tier.toUpperCase()}, registry says ${truth}`);
-    }
-  }
+
+  // This used to `continue` on a key the registry does not tier, which skipped
+  // precisely the metrics the derivation could not fix — the assertion had the
+  // same hole as the code it was checking. Every metric must resolve to a real
+  // tier, so an app-side composite keyed on something the pipeline never tiers
+  // fails here instead of being passed over.
+  const untiered = METRICS
+    .filter((m) => !REAL_TIERS.has(FIELD_TIERS[m.key]))
+    .map((m) => `${m.key}: ${FIELD_TIERS[m.key] ?? '(absent from the registry)'}`);
+  assert.deepEqual(untiered, [], `metrics the registry gives no tier, so nothing can announce their provenance:\n  ${untiered.join('\n  ')}`);
+
+  const wrong = METRICS
+    .filter((m) => m.tier !== FIELD_TIERS[m.key].toLowerCase())
+    .map((m) => `${m.key}: metric says ${String(m.tier).toUpperCase()}, registry says ${FIELD_TIERS[m.key]}`);
   assert.deepEqual(wrong, [], `metric tiers disagreeing with the registry:\n  ${wrong.join('\n  ')}`);
 });
 

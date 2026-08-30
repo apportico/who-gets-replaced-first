@@ -81,6 +81,12 @@ export default function LaborPage() {
     });
   }, [search, activeRegions, activeIncome, requireIsco, year]);
 
+  // Spec 0008 R2. `ranked` drives the bar heights; `options` drives the listbox.
+  // They used to be the same array, which meant a country with no value for the
+  // active metric had a clickable marker on the map and no keyboard path at all
+  // — against a requirement titled "Every country is reachable". No-data rows
+  // now sort to the end and are still selectable, which is also the only way to
+  // reach the panel that explains WHY they have no data.
   const ranked = useMemo(
     () =>
       filtered
@@ -88,6 +94,26 @@ export default function LaborPage() {
         .sort((a, b) => b[metric.key] - a[metric.key]),
     [filtered, metric],
   );
+
+  const options = useMemo(() => {
+    const withData = ranked;
+    const withoutData = filtered
+      .filter((r) => r[metric.key] == null)
+      .sort((a, b) => a.country_name.localeCompare(b.country_name));
+    return [...withData, ...withoutData];
+  }, [filtered, ranked, metric]);
+
+  // The active option is what the arrow keys move and what
+  // `aria-activedescendant` points at. It is deliberately NOT `selected`:
+  // `selected` can be an aggregate from the sidebar, or a country dropped out of
+  // `options` by a metric change, and pointing the attribute at an id that is
+  // not rendered leaves assistive tech with a dangling reference.
+  const [activeIso, setActiveIso] = useState(null);
+  const activeIndex = useMemo(
+    () => options.findIndex((r) => r.iso3 === activeIso),
+    [options, activeIso],
+  );
+  const activeOption = activeIndex >= 0 ? options[activeIndex] : null;
 
   const worldRow = useMemo(() => rowForYear(WORLD, year), [year]);
   const yearCoverage = coverageForYear(year);
@@ -243,7 +269,7 @@ export default function LaborPage() {
                 Ranked by {metric.short}
               </h2>
               <span className="text-[10px] text-[var(--text-faint)]">
-                {ranked.length} countries with data · click to inspect
+                {ranked.length} with data · {options.length - ranked.length} without · click or use arrow keys
               </span>
             </div>
             {/* Spec 0008 R2 + R6. This is the keyboard path to a country:
@@ -263,26 +289,40 @@ export default function LaborPage() {
               className="flex-1 overflow-x-auto overflow-y-hidden"
               role="listbox"
               tabIndex={0}
-              aria-label={`Countries ranked by ${metric.label}, highest first`}
-              aria-activedescendant={selected ? `rank-${selected.iso3}` : undefined}
+              aria-label={`Countries ranked by ${metric.label}, highest first. ${options.length - ranked.length} without data, listed last.`}
+              aria-activedescendant={activeOption ? `rank-${activeOption.iso3}` : undefined}
+              onFocus={() => { if (!activeOption && options.length) setActiveIso(options[0].iso3); }}
               onKeyDown={(e) => {
-                if (!ranked.length) return;
-                const at = ranked.findIndex((r) => r.iso3 === selected?.iso3);
+                if (!options.length) return;
+                const at = activeIndex;
                 let next = null;
-                if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = at < 0 ? 0 : Math.min(at + 1, ranked.length - 1);
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = at < 0 ? 0 : Math.min(at + 1, options.length - 1);
                 else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = at < 0 ? 0 : Math.max(at - 1, 0);
                 else if (e.key === 'Home') next = 0;
-                else if (e.key === 'End') next = ranked.length - 1;
-                else if ((e.key === 'Enter' || e.key === ' ') && at >= 0) next = at;
+                else if (e.key === 'End') next = options.length - 1;
+                else if (e.key === 'Enter' || e.key === ' ') {
+                  // Arrows move; this commits. Previously the arrows called
+                  // handleSelect directly, which made this branch a no-op —
+                  // it re-selected what was already selected.
+                  if (at < 0) return;
+                  e.preventDefault();
+                  handleSelect(options[at]);
+                  return;
+                }
                 if (next === null) return;
                 e.preventDefault();
-                handleSelect(ranked[next]);
+                setActiveIso(options[next].iso3);
               }}
             >
               <div className="flex h-full items-end gap-px px-3 pb-2 pt-1">
-                {ranked.map((r, i) => {
-                  const h = Math.max(4, normalise(metric, r[metric.key]) * 100);
+                {options.map((r, i) => {
+                  const value = r[metric.key];
+                  const hasData = value != null;
+                  const h = hasData ? Math.max(4, normalise(metric, value) * 100) : 6;
                   const isSel = selected?.iso3 === r.iso3;
+                  const isActive = activeOption?.iso3 === r.iso3;
+                  const position = hasData ? `${i + 1}. ` : '';
+                  const spoken = hasData ? fmtMetric(metric, value) : 'no data';
                   return (
                     <button
                       key={r.iso3}
@@ -290,20 +330,22 @@ export default function LaborPage() {
                       role="option"
                       aria-selected={isSel}
                       tabIndex={-1}
-                      onClick={() => handleSelect(r)}
-                      aria-label={`${i + 1}. ${r.country_name}, ${fmtMetric(metric, r[metric.key])}`}
-                      title={`${i + 1}. ${r.country_name} — ${fmtMetric(metric, r[metric.key])}`}
-                      className="group relative flex-shrink-0 w-6 md:w-[9px] cursor-pointer flex flex-col justify-end h-full"
+                      onClick={() => { setActiveIso(r.iso3); handleSelect(r); }}
+                      aria-label={`${position}${r.country_name}, ${spoken}`}
+                      title={`${position}${r.country_name} — ${spoken}`}
+                      className={`group relative flex-shrink-0 w-6 md:w-[9px] cursor-pointer flex flex-col justify-end h-full ${isActive ? 'outline-2 outline-[var(--text-info)]' : ''}`}
                     >
                       <div
                         style={{
                           height: `${h}%`,
-                          backgroundColor: colorFor(metric, r[metric.key]),
+                          backgroundColor: colorFor(metric, value),
                           outline: isSel ? '2px solid #111827' : 'none',
+                          // Same non-colour channel as the map markers (R5).
+                          borderTop: hasData ? 'none' : '2px dashed #8b929b',
                         }}
                         className="w-full rounded-t-sm transition-all group-hover:brightness-90"
                       />
-                      <span className="absolute -bottom-0 left-1/2 -translate-x-1/2 text-[7px] font-mono text-[var(--text-faint)] rotate-0">
+                      <span className="absolute -bottom-0 left-1/2 -translate-x-1/2 text-[11px] font-mono text-[var(--text-faint)] rotate-0">
                         {isSel ? '▲' : ''}
                       </span>
                     </button>

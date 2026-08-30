@@ -1,6 +1,7 @@
 import {
   ISCO_GROUPS, TIERS, fmt, fmtInt, fmtCompact, qualityTone,
 } from '../utils/laborMetrics';
+import { useEffect, useRef } from 'react';
 import Sparkline from './Sparkline';
 import { seriesFor } from '../utils/laborPanel';
 
@@ -277,6 +278,22 @@ function Trends({ iso3 }) {
 }
 
 export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }) {
+  // Hooks before the early return: the placeholder branch below returns without
+  // rendering a row, and React requires the same hook order on every render.
+  const panelRef = useRef(null);
+  // matchMedia rather than a resize listener: it fires only on the transition
+  // that matters, and `md` here is Tailwind's 768px.
+  const isOverlay = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && !window.matchMedia('(min-width: 768px)').matches;
+  const iso3 = row?.iso3 ?? null;
+
+  useEffect(() => {
+    // Move focus into the panel when it opens as an overlay. Without this the
+    // keyboard user selects a country and focus stays behind the sheet.
+    if (isOverlay && iso3 && panelRef.current) panelRef.current.focus();
+  }, [isOverlay, iso3]);
+
   if (!row) {
     return (
       <div
@@ -296,16 +313,25 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
   const isAggregate = row.row_type !== 'country';
 
   return (
-    // Spec 0008 R8. The landmark lives here, on the panel's own root, in both
-    // this branch and the placeholder above — not on a wrapper in LaborPage.
-    // R9 part 1 renders this component standalone, and a wrapper would not be
-    // in that tree, so `region` could never reach zero there and the escape
-    // would be to scope the rule out. Announcing the country name also makes
-    // the panel identifiable when several regions are listed.
+    // Spec 0008 R8 + R2. The landmark lives here, on the panel's own root, in
+    // both this branch and the placeholder above — not on a wrapper in
+    // LaborPage. R9 part 1 renders this component standalone, and a wrapper
+    // would not be in that tree, so `region` could never reach zero there and
+    // the escape would be to scope the rule out.
+    //
+    // Below `md` this is `fixed inset-0` over the sheet and the map, which makes
+    // it a modal in every respect. It was announced as one more landmark among
+    // four, took no focus when it opened, and could not be dismissed by
+    // keyboard. `role` and `aria-modal` now switch with the breakpoint, focus
+    // moves to the panel on open, and Escape closes it.
     <div
+      ref={panelRef}
+      tabIndex={-1}
       className="panel-scroll fixed inset-0 z-[1100] w-full md:static md:z-auto md:w-96 bg-gray-50 overflow-y-auto md:border-l border-gray-200 text-[var(--text-primary)]"
-      role="region"
+      role={isOverlay ? 'dialog' : 'region'}
+      aria-modal={isOverlay ? 'true' : undefined}
       aria-label={`Country detail: ${row.country_name}`}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
     >
       <div className="sticky top-0 bg-gray-50 px-4 pt-4 pb-3 border-b border-gray-200 z-10">
         {/* Spec 0008 R8. axe's button-name rule PASSES on a bare &times; — the

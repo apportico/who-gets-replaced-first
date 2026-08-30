@@ -1,6 +1,6 @@
 # 0008 — mobile and accessibility
 
-**Status:** done
+**Status:** in-progress
 **Depends on:** none
 **Issue:** [#18](https://github.com/apportico/who-gets-replaced-first/issues/18)
 **Review:** [PR #55](https://github.com/apportico/who-gets-replaced-first/pull/55)
@@ -97,7 +97,9 @@ each have a non-zero width; they appear in that left-to-right order; and the map
 container is **no narrower than the 1440×900 baseline recorded in R11 before any
 change lands**. Both viewports verified in a real browser per R11.
 
-### R2. [x] Every country is reachable and selectable by keyboard
+### R2. [ ] Every country is reachable and selectable by keyboard
+
+> **Mark reverted 2026-08-30 (round-11 review). The listbox was built over `ranked`, which filters `r[metric.key] != null`, so a country with no data for the active metric had a clickable marker on the map and **no option in the strip** — against a requirement titled "*Every* country". Also found: `aria-activedescendant` dangles whenever `selected` is not in the option list (any aggregate, any no-data country, or a metric change after selection), and the Enter/Space branch is dead because the arrow keys already select.**
 
 **Done (2026-08-30, `952b079`).** The ranking strip is a listbox: one tab stop
 for the strip, arrows to move, Home/End, Enter or Space to select, with
@@ -130,7 +132,9 @@ visible focus indicator of at least 3:1 against its background — note
 `LaborSidebar.jsx` currently sets `focus:outline-none` on the search input with
 only a `border-gray-400` change, which does not meet that.
 
-### R3. [x] The map has a text equivalent that carries the numbers and their tiers
+### R3. [ ] The map has a text equivalent that carries the numbers and their tiers
+
+> **Mark reverted 2026-08-30 (round-11 review). Half the acceptance — "the rendered tree wires it to the map container via `aria-describedby` (or an equivalent association), asserted in the R9 render test" — was never executed. `grep -rn "describedby" test/` returns nothing. The association was later changed to a labelled region, which is the better design, but the acceptance still names a check no test performs.**
 
 **Done (2026-08-30, `e5e04d6`).** `src/utils/mapText.js` builds it as a pure
 function; `test/pure.test.mjs` asserts one entry per row carrying name, value or
@@ -160,7 +164,9 @@ equivalent association), asserted in the R9 render test. A screen reader
 announcing the metric, the country count and the count with data is confirmed by
 listening in R11.
 
-### R4. [x] Tier badges pass AA and are announced, not just coloured
+### R4. [ ] Tier badges pass AA and are announced, not just coloured
+
+> **Mark reverted 2026-08-30 (round-11 review). The render assertion is **tautological**: it selects spans whose trimmed text already matches `/^(OFFICIAL|DERIVED|PROXY|MODELED)$/`, then asserts that same text is non-empty. No panel state can fail it. The contrast and rendered-size halves stand; this half never ran.**
 
 **Done (2026-08-30, `3aedd74` and `e5e04d6`).** All three criteria met, each by
 the check the spec assigned it:
@@ -219,7 +225,9 @@ this off rendered output matters here specifically: the markers are Leaflet
 paths, and asserting over them would couple the check to how Leaflet happens to
 render inside jsdom. Confirmed visually under a deuteranopia simulation in R11.
 
-### R6. [x] Interactive targets meet 24×24px
+### R6. [ ] Interactive targets meet 24×24px
+
+> **Mark reverted 2026-08-30 (round-11 review). **The census instrument could not see the map.** `scripts/r11-measure.mjs` collected `button, a, input, [role="option"], [tabindex="0"]`; the 218 country markers are Leaflet `CircleMarker`s rendered as `path.leaflet-interactive`, which matches none of those. Measured directly at 375×812: **218 markers, 0 matched by that selector, 155 of them under 24px, smallest 8px**. So the reported "2 of 236" was not R6's census — the real figure is roughly **157 of 454**, and the markers are the app's primary interaction.**
 
 **Done (2026-08-30, `952b079`).** At 375x812, measured in a browser:
 **186 of 234 targets under 24px becomes 2 of 236.**
@@ -250,7 +258,9 @@ browser. It cannot be measured under jsdom: the probe found axe's `target-size`
 rule reports a **false `pass`** over the real tree, because there are no layout
 boxes for it to fail, which is why R9 disables the rule outright.
 
-### R7. [x] All text meets AA contrast
+### R7. [ ] All text meets AA contrast
+
+> **Mark reverted 2026-08-30 (round-11 review). Two gaps. The requirement body asks to "raise the 7–10px text sizes that carry meaning" and nothing in the acceptance, the plan, or the delta does so — 42 sites in `src/` are still 7–10px, including the ramp domain labels and the aggregate coverage figures. And every neutral token declares `on: '#ffffff'` while the app paints several of them on `gray-50`/`gray-100`; `faint #6b7280` is **4.39:1** on `gray-100`, below AA, at `LaborSidebar.jsx:122` among others.**
 
 **Done (2026-08-30, `5e8cf16`).** `src/utils/textPalette.js` is the single
 export, mirrored into CSS custom properties, and `test/text-palette.test.mjs`

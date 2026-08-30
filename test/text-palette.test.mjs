@@ -96,17 +96,27 @@ test('R7 — data-quality badges clear AA on their own badge background', () => 
   }
 });
 
-test('R7 — index.css declares no text colour outside the token block', () => {
+test('R7 — index.css declares no raw colour outside the token block', () => {
   // The third place this blind spot appeared: `.leaflet-control-attribution`
   // set `color: #9ca3af` — the same 2.54:1 grey — in raw CSS, where neither the
   // Tailwind grep nor the exported tables reach. Every `color:` outside the
   // `:root` token block must therefore be a `var(--…)` reference.
-  const withoutRoot = CSS.replace(/:root\s*\{[^}]*\}/s, '');
-  const offenders = [...withoutRoot.matchAll(/(?<!-)\bcolor:\s*([^;]+);/g)]
-    .map((m) => m[1].trim())
-    .filter((v) => !v.startsWith('var(') && !/^(inherit|transparent|currentColor)$/i.test(v.replace(/\s*!important$/, '')))
-    .filter((v) => !v.replace(/\s*!important$/, '').startsWith('var('));
-  assert.deepEqual(offenders, [], `index.css sets a colour outside the token block:\n  ${offenders.join('\n  ')}`);
+  // Widened from `color:` to any hex literal. The narrow version passed over
+  // `outline: 2px solid #1a4fa0` — a second copy of --text-info, in the very
+  // commit that added this guard — because an outline shorthand contains no
+  // `color:` substring. Anything that is genuinely not a token (the white and
+  // grey chrome of the Leaflet popups) is listed explicitly below, so adding a
+  // new one is a deliberate act rather than an oversight.
+  // Comments are stripped first: several of them cite a hex to explain why a
+  // token has the value it does, and a hex in prose is not a colour the browser
+  // paints. Scanning them made the guard fail on its own rationale.
+  const withoutComments = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+  const withoutRoot = withoutComments.replace(/:root\s*\{[^}]*\}/s, '');
+  const ALLOWED = new Set(['#ffffff', '#e5e7eb', '#d1d5db', '#9ca3af', '#374151', '#f3f4f6', '#f8fafc']);
+  const offenders = [...withoutRoot.matchAll(/#[0-9a-fA-F]{3,8}\b/g)]
+    .map((m) => m[0].toLowerCase())
+    .filter((hex) => !ALLOWED.has(hex));
+  assert.deepEqual([...new Set(offenders)], [], `index.css uses a raw colour that is not a token and not an allowed chrome colour:\n  ${[...new Set(offenders)].join('\n  ')}`);
 });
 
 test('R7 — text-white appears only on the dark chips it is excluded for', () => {

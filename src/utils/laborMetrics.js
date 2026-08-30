@@ -299,9 +299,10 @@ export function markerPropsFor(metric, row, isSelected = false) {
     weight: isSelected ? 2.5 : hasData ? 1 : 1.5,
     fillOpacity: hasData ? 0.88 : 0.4,
     // The non-colour channel. Present only on no-data markers, and the thing
-    // R9 asserts over.
+    // R9 asserts over. There was a `className` here too — nothing read it, no
+    // CSS rule matched it, and the test asserted it, so it existed only to be
+    // asserted. Removed: the dash is the encoding.
     dashArray: hasData ? null : NO_DATA_DASH,
-    className: hasData ? 'has-data' : 'no-data',
   };
 }
 

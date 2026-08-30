@@ -19,7 +19,7 @@ export default function ScenarioPanel({ rate, onRate, basis, onBasis, rows, worl
     <div className="p-3 border-b border-gray-200 bg-[var(--surface-accent)]">
       <div className="flex items-center gap-2 mb-2">
         <h2 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Scenario</h2>
-        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-[var(--surface-accent)] text-[var(--text-accent)]">
+        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-white border border-[var(--text-accent)]/30 text-[var(--text-accent)]">
           SENSITIVITY TOOL
         </span>
       </div>

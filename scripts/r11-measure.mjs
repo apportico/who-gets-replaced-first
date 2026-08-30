@@ -27,7 +27,10 @@ import { chromium } from 'playwright-core';
 
 const CHROME = process.env.CHROME_PATH
   || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const URL_ = process.env.APP_URL || 'http://localhost:5174/';
+// 5173 is Vite's default. An earlier version defaulted to 5174, which is only
+// where this machine happened to land when 5173 was already taken — the
+// documented two-step usage then failed, or worse measured another project.
+const URL_ = process.env.APP_URL || 'http://localhost:5173/';
 
 // Vite falls through to the next free port when 5173 is taken, and this machine
 // runs more than one project. The first run of this script measured "THE GRAND
@@ -73,7 +76,13 @@ for (const vp of VIEWPORTS) {
       return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.x) };
     };
     // Interactive targets, for R6's 24x24 floor.
-    const targets = [...document.querySelectorAll('button, a, input, [role="option"], [tabindex="0"]')]
+    // `path.leaflet-interactive` is the important one and was missing: the 218
+    // country markers are Leaflet CircleMarkers, which render as bare SVG paths
+    // and match none of the HTML selectors. Clicking one is the app's primary
+    // interaction, so a target census that excludes them is not a census — the
+    // first version of this script reported "2 of 236" while 155 markers sat
+    // under 24px, the smallest at 8px.
+    const targets = [...document.querySelectorAll('button, a, input, [role="option"], [tabindex="0"], path.leaflet-interactive')]
       .map((el) => {
         const r = el.getBoundingClientRect();
         if (r.width === 0 && r.height === 0) return null;
@@ -81,6 +90,7 @@ for (const vp of VIEWPORTS) {
           w: Math.round(r.width), h: Math.round(r.height),
           tag: el.tagName.toLowerCase(),
           label: (el.getAttribute('aria-label') || el.textContent || el.getAttribute('title') || '').trim().slice(0, 40),
+          marker: el.tagName.toLowerCase() === 'path',
         };
       })
       .filter(Boolean);
@@ -103,9 +113,25 @@ for (const vp of VIEWPORTS) {
       horizontalScroll: document.documentElement.scrollWidth > window.innerWidth,
       ariaCount: document.querySelectorAll('[aria-label],[aria-labelledby],[aria-pressed],[role]').length,
       landmarks: document.querySelectorAll('main, nav, [role="main"], [role="navigation"], [role="region"]').length,
-      targetsUnder24: targets.filter((t) => t.w < 24 || t.h < 24).length,
+      // Reported in three buckets so an exemption is visible rather than folded
+      // into one number. WCAG 2.5.8 exempts a target whose function is available
+      // through another control on the same page that does meet the size floor:
+      //  - markers: every country, including the no-data ones, is selectable in
+      //    the ranking listbox, whose options are 24px below `md`.
+      //  - inline: the Leaflet attribution links, exempt as inline text
+      //    constrained by the line-height of the sentence they sit in.
+      //  - sr-only: 1x1 until focused; the skip link measures 169x36 when it is.
+      // Everything else has to pass, and `mustPassUnder24` is the number R6 is
+      // judged on.
       targetsTotal: targets.length,
-      smallestTargets: targets.filter((t) => t.w < 24 || t.h < 24)
+      markersUnder24: targets.filter((t) => t.marker && (t.w < 24 || t.h < 24)).length,
+      inlineExempt: targets.filter((t) => !t.marker && t.tag === 'a' && t.h < 16 && t.w < 60).length,
+      srOnlyExempt: targets.filter((t) => t.w <= 1 && t.h <= 1).length,
+      mustPassUnder24: targets.filter((t) => !t.marker && !(t.w <= 1 && t.h <= 1)
+        && !(t.tag === 'a' && t.h < 16 && t.w < 60) && (t.w < 24 || t.h < 24)).length,
+      targetsUnder24: targets.filter((t) => t.w < 24 || t.h < 24).length,
+      smallestTargets: targets.filter((t) => !t.marker && !(t.w <= 1 && t.h <= 1)
+        && !(t.tag === 'a' && t.h < 16 && t.w < 60) && (t.w < 24 || t.h < 24))
         .sort((a, b) => a.w * a.h - b.w * b.h).slice(0, 6),
       badges,
     };
@@ -119,7 +145,9 @@ for (const vp of VIEWPORTS) {
   console.log(`  .panel-scroll widths  [${measured.panels.join(', ')}]`);
   console.log(`  horizontal scroll  ${measured.horizontalScroll} (scrollWidth ${measured.scrollWidth} vs innerWidth ${measured.innerWidth})`);
   console.log(`  landmarks          ${measured.landmarks}   aria attributes ${measured.ariaCount}`);
-  console.log(`  targets under 24px ${measured.targetsUnder24} of ${measured.targetsTotal}`);
+  console.log(`  targets            ${measured.targetsTotal} total, ${measured.targetsUnder24} under 24px`);
+  console.log(`    exempt: ${measured.markersUnder24} markers (equivalent control), ${measured.inlineExempt} inline links, ${measured.srOnlyExempt} sr-only`);
+  console.log(`    MUST PASS under 24px: ${measured.mustPassUnder24}`);
   for (const t of measured.smallestTargets) console.log(`      ${String(t.w).padStart(4)} x ${String(t.h).padStart(3)}  <${t.tag}> ${t.label}`);
   console.log(`  tier badges        ${measured.badges.length ? measured.badges.map((b) => `${b.text} ${b.px}px`).join(', ') : 'none rendered'}`);
   console.log(`  console            ${consoleErrors.length ? consoleErrors.length + ' message(s)' : 'clean'}`);

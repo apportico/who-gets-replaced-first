@@ -154,14 +154,63 @@ test('R4 — no MODELED or PROXY figure sits under a stronger tier badge', async
   }
 });
 
-test('R4 — every tier badge carries accessible text', async () => {
+test('R4 — every section heading carries a tier badge', async () => {
+  // The assertion this replaces was tautological: it selected spans whose
+  // trimmed text already matched /^(OFFICIAL|DERIVED|PROXY|MODELED)$/, then
+  // asserted that same text was non-empty. No panel state could fail it.
+  //
+  // What R4 actually needs is that a figure cannot be announced without its
+  // provenance, so the check is now positional: every section heading in the
+  // panel must be accompanied by a tier badge. Delete a Section's `tier` prop
+  // and this fails, which the old one did not.
   const host = await renderInto(React.createElement(LaborDetailPanel, {
     row: FIXTURE_ROW, year: null, onCorridorBoard: false, onClose: () => {},
   }));
-  const badges = [...host.querySelectorAll('span')]
-    .filter((el) => /^(OFFICIAL|DERIVED|PROXY|MODELED)$/.test(el.textContent.trim()));
-  assert.ok(badges.length > 0, 'no tier badges rendered in the panel — the fixture or the markup changed');
-  for (const badge of badges) {
-    assert.ok(badge.textContent.trim().length > 0, 'a tier badge has no text; a MODELED figure would be announced as a bare number');
-  }
+  const TIER = /^(OFFICIAL|DERIVED|PROXY|MODELED)$/;
+  const headings = [...host.querySelectorAll('h3')];
+  assert.ok(headings.length >= 10, `expected the panel's sections to render, found ${headings.length} headings`);
+
+  const unbadged = headings
+    .filter((h) => {
+      const siblings = [...(h.parentElement?.children || [])];
+      return !siblings.some((el) => el !== h && TIER.test(el.textContent.trim()));
+    })
+    .map((h) => h.textContent.trim());
+
+  assert.deepEqual(unbadged, [], `section headings with no tier badge beside them:\n  ${unbadged.join('\n  ')}`);
+});
+
+test('R3 — the map text equivalent is a labelled region, not a description', async () => {
+  // R3's acceptance named `aria-describedby` (or an equivalent association) and
+  // said the render test would assert it. Nothing did — `grep -rn describedby
+  // test/` returned nothing — so R3 was marked done on an unexecuted criterion.
+  //
+  // The association also changed during implementation, for a reason worth
+  // keeping: a description is flattened into one string, so pointing it at 218
+  // entries announced the whole dataset in the slot meant for a sentence. It is
+  // a labelled region now, which is navigable and skippable. This asserts the
+  // association that actually ships.
+  const host = await renderInto(React.createElement(App));
+
+  const regions = [...host.querySelectorAll('[role="region"], section')];
+  const equivalent = regions.find((el) => /text equivalent/i.test(el.getAttribute('aria-label') || ''));
+  assert.ok(equivalent, 'no labelled region for the map text equivalent');
+
+  const items = equivalent.querySelectorAll('li');
+  assert.ok(items.length > 0, 'the text equivalent renders no entries');
+
+  // Every entry carries a value-and-tier or says "no data" — the property R3
+  // exists for, asserted on rendered output rather than only on the builder.
+  const bad = [...items]
+    .map((li) => li.textContent.trim())
+    .filter((t) => !/(—\s(OFFICIAL|DERIVED|PROXY|MODELED)|:\sno data)$/.test(t));
+  assert.deepEqual(bad.slice(0, 5), [], `entries missing a tier word or a "no data" statement:\n  ${bad.slice(0, 5).join('\n  ')}`);
+
+  // And the map itself must not point a description at that list.
+  const mapRegion = regions.find((el) => /countries plotted/.test(el.getAttribute('aria-label') || ''));
+  assert.ok(mapRegion, 'the map region has no accessible name carrying its coverage');
+  assert.equal(
+    mapRegion.getAttribute('aria-describedby'), null,
+    'the map must not describe itself with the full country list — a description is announced as one uninterrupted string',
+  );
 });

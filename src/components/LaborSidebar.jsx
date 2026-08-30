@@ -84,7 +84,7 @@ export default function LaborSidebar({
             <div key={s.color} className="flex-1" style={{ backgroundColor: s.color }} />
           ))}
         </div>
-        <div className="flex justify-between text-[9px] text-[var(--text-muted)] mt-0.5 font-mono">
+        <div className="flex justify-between text-[11px] text-[var(--text-muted)] mt-0.5 font-mono">
           <span>{fmtMetric(metric, metric.domain[0])}</span>
           <span>
             {fmtMetric(metric, metric.domain[1])}+
@@ -124,7 +124,7 @@ export default function LaborSidebar({
                 {fmtMetric(metric, a[metric.key])}
               </span>
               {a.isco_coverage_pct_of_employment != null && (
-                <span className="text-[9px] font-mono text-[var(--text-faint)] w-8 text-right">
+                <span className="text-[11px] font-mono text-[var(--text-faint)] w-9 text-right">
                   {a.isco_coverage_pct_of_employment.toFixed(0)}%
                 </span>
               )}

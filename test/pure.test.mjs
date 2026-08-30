@@ -69,7 +69,6 @@ test('R5 — the no-data encoding is applied to exactly the null rows', () => {
     // The encoding must be all-or-nothing per row: a dashed marker that also
     // claims hasData would be the blur this requirement exists to prevent.
     assert.equal(props.dashArray === null, props.hasData);
-    assert.equal(props.className, props.hasData ? 'has-data' : 'no-data');
   }
   assert.deepEqual(dashed, ['CHN', 'ARM'], 'exactly the rows whose value is null or undefined');
 });

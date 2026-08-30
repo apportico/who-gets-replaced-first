@@ -15,19 +15,26 @@
 // — which also checks the CSS and this module have not drifted apart.
 //
 // `on` is the background each colour is *used* against and is what the ratio is
-// computed for. `large` marks entries whose rendered size qualifies for the 3:1
+// computed for. The neutrals originally all declared `#ffffff`, but the app
+// paints them on the sidebar's `gray-50` panels and the detail panel's
+// `gray-100` too, where `faint` fell to 4.39:1 — below AA, at
+// `LaborSidebar.jsx:122` among others. They now declare the DARKEST surface
+// they are used on, so the assertion checks the worst case rather than the
+// flattering one. `large` marks entries whose rendered size qualifies for the 3:1
 // large-text threshold; none currently do, because this app's small text is the
 // whole problem R7 is about.
 
 /** Text colours. Every entry must clear 4.5:1 against its `on` background. */
 export const TEXT = {
-  primary: { hex: '#111827', on: '#ffffff', large: false, css: '--text-primary' },
-  body: { hex: '#374151', on: '#ffffff', large: false, css: '--text-body' },
-  secondary: { hex: '#4b5563', on: '#ffffff', large: false, css: '--text-secondary' },
-  muted: { hex: '#5b6270', on: '#ffffff', large: false, css: '--text-muted' },
-  // The lightest neutral that still clears AA. Everything that was gray-400
-  // lands here — that is the fix, not a rename.
-  faint: { hex: '#6b7280', on: '#ffffff', large: false, css: '--text-faint' },
+  primary: { hex: '#111827', on: '#f3f4f6', large: false, css: '--text-primary' },
+  body: { hex: '#374151', on: '#f3f4f6', large: false, css: '--text-body' },
+  secondary: { hex: '#4b5563', on: '#f3f4f6', large: false, css: '--text-secondary' },
+  muted: { hex: '#5b6270', on: '#f3f4f6', large: false, css: '--text-muted' },
+  // The lightest neutral that still clears AA *on gray-100*, which is the
+  // darkest surface it is painted on. #6b7280 cleared 4.83 on white but only
+  // 4.39 there, so it is darkened rather than left passing against a background
+  // the app does not always use.
+  faint: { hex: '#646b78', on: '#f3f4f6', large: false, css: '--text-faint' },
 
   // Tinted roles. Each is paired with its own surface below, because the
   // ratio is meaningless without the background it actually sits on.

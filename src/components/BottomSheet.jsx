@@ -42,7 +42,7 @@ export default function BottomSheet({ title, children }) {
       <button
         onClick={cycle}
         aria-expanded={index > 0}
-        aria-label={`${title}. Currently ${position.label}. Activate to expand.`}
+        aria-label={`${title}. Currently ${position.label}. Activate for ${POSITIONS[(index + 1) % POSITIONS.length].label}.`}
         className="md:hidden flex-shrink-0 w-full min-h-[44px] flex flex-col items-center justify-center gap-1 cursor-pointer"
       >
         <span aria-hidden="true" className="w-10 h-1 rounded-full bg-gray-300" />

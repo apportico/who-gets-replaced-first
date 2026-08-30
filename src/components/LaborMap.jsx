@@ -83,11 +83,10 @@ export default function LaborMap({ rows, metric, selected, onSelect, flyTarget, 
         // Spec 0008 R5. The dashed stroke on no-data markers is the non-colour
         // channel: the lightest ramp step is ΔE00 3.7 from the no-data grey, so
         // colour alone cannot say "no data" rather than "a low value".
-        const { hasData, className, ...pathStyle } = markerPropsFor(metric, r, isSelected);
+        const { hasData, ...pathStyle } = markerPropsFor(metric, r, isSelected);
         return (
           <CircleMarker
             key={r.iso3}
-            className={className}
             center={[r.lat, r.lon]}
             radius={radiusFor(r.employed_total) * (isSelected ? 1.35 : 1)}
             pathOptions={pathStyle}

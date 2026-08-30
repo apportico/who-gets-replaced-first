@@ -67,12 +67,12 @@ spec may introduce a value the Python did not already produce.
 
 ### R1. [ ] A number layer that reproduces Python's arithmetic and formatting
 
-**Three** helpers, with the port using them everywhere the Python uses
+**Four** entry points, with the port using them everywhere the Python uses
 `round()`, `sum()`, or writes a float:
 
 - `pyRound(x, n)` — half-to-even on the double's exact decimal value.
 - `pyStr(x)` — Python's `repr`: `.0` on integral floats, `-0.0` preserved.
-- `pySum(values)` — CPython `sum()`, **both branches**. Not Neumaier alone:
+- **The summation trio** — CPython `sum()` is **not Neumaier alone**:
   `sum()` accumulates an integer prefix in exact arbitrary-precision arithmetic
   and enters the float path at the first float. Measured on a real offline
   build, **5 of the 7 fields summed at `build.py:476` are Python `int`** —
@@ -83,23 +83,55 @@ spec may introduce a value the Python did not already produce.
   branch that narrows on the way out:
 
   ```ts
+  type PyNum = { kind: 'int';   value: bigint }
+             | { kind: 'float'; value: number }
+
   toBigInt(v: Int): bigint                       // the only route from row data in
   pySumInt(values: readonly bigint[]): bigint    // exact, returns bigint
   pySumFloat(values: readonly number[]): number  // Neumaier
-  pySum(values: readonly PyNum[]): number        // mixed: exact prefix, then Neumaier
+  pySum(values: readonly PyNum[]): number        // mixed, see the transition step below
   ```
+
+  **`PyNum` is an explicit runtime tag, and it has to be.** The two shorter
+  spellings fail, both verified with `tsc`:
+
+  - **`Int | number` collapses.** `Int` is a branded `number`, so a plain
+    `number` is assignable to the union and back out again — nothing is
+    rejected (`tsc` reports TS2578 on a `@ts-expect-error` over it), and at
+    runtime there is no tag to switch on. That is the `Number.isInteger` wall
+    one layer further out.
+  - **`bigint | number`** discriminates, but then `pySum` is not callable on
+    row data without the caller already knowing which elements were ints —
+    which is exactly what it does not know, since that is what `JSON.parse`
+    erased.
+
+  The tag is what the fixture's tagged strings deserialise into, and — via the
+  override clause below — it has a real producer in the pipeline rather than
+  being a fixture-only construct.
 
   Without the float path, R3 cannot pass on an aggregate row; without the
   integer path, the helper is documented as something it is not.
 
-  **`pySum` is the mixed case, and it is a third behaviour rather than a
-  relabelling of the other two.** CPython sums the integer prefix exactly,
-  converts at the first float, and runs Neumaier from there — so the
-  compensation term starts at zero *after* the prefix, where an all-float sum
-  has been accumulating it from the first element. `PyNum` is the discriminated
-  `int`/`float` element the fixture format already carries at the acceptance
-  below, so the mixed shape has a home rather than a criterion with no function
-  to call.
+  **`pySum` is the mixed case, and its transition step is not what it looks
+  like.** CPython's integer fast path does not hand over to a compensated loop.
+  On meeting the first float it materialises the prefix, performs **one
+  ordinary uncompensated addition**, and only then initialises the float loop
+  with `c = 0.0`. The residual of that single transition add is **discarded**.
+  So compensation starts after the prefix *and the first float* — not after the
+  prefix. Written as pseudocode, because every other phrasing of this has been
+  wrong:
+
+  ```
+  prefix = exact integer sum of the leading ints    // BigInt
+  f = Number(prefix) + firstFloat                   // ONE plain add, no compensation
+  c = 0
+  for x in elements after firstFloat: Neumaier(f, c, x)
+  return f + c
+  ```
+
+  An all-float sum never loses that residual, because `sum()` starts from the
+  integer `0` and its transition add is `0 + x0`, which is exact. That is the
+  whole of the difference, and it is not small — see the table below.
 
   Measured, over 200,000 random 6-element lists with the first float at a
   random position, `sum(mixed)` against `sum(float(v) for v in mixed)`:
@@ -114,17 +146,57 @@ spec may introduce a value the Python did not already produce.
   diverges at **this project's magnitudes**, not only past the ceiling, and
   `service_exports_usd` is fractional (`2988845686.27002`).
 
-  **Why not drop mixed and assert homogeneity instead.** Every one of the 7
-  columns at `build.py:472-476` is homogeneous today — the 5 integer ones from
-  1-arg `round()` (`build.py:309,317,333,338`), the other two through `num()`,
-  which is `float(x)` at `build.py:24-28`. But that is a property of the data,
-  not of the code: `apply_overrides` assigns the raw JSON value
-  (`row[field] = spec["value"]`, no `num()`) and runs at `run.py:115`, **before**
-  the aggregation at `run.py:119`. An override supplying `population_15_24` as a
-  JSON integer makes that column mixed — and `manual_overrides.json` is exactly
-  the mechanism this project uses to add nationally-sourced figures. It is `{}`
-  today, so this is a latent hazard of the same kind as the 296x headroom row,
-  and the port covers the case rather than assuming it away.
+  **And the transition step is worth the same magnitude again.** Implementing
+  "exact prefix, then Neumaier over every remaining element" — the obvious
+  reading, and what an earlier revision of this spec said — differs from
+  `sum()` on **24,130 of the same 200,000 lists (12.1%)**. Smallest case found:
+
+  ```python
+  sum([796, 0.6403143822699731, 7.582302462868173])
+  #   CPython:              804.2226168451381
+  #   compensating too early: 804.2226168451382
+  ```
+
+  The pseudocode above gives **0 differences** over the same 200,000. So a port
+  that gets the transition wrong reproduces mixed rows about as badly as the
+  naive fold this entry point exists to replace, and R3 would surface it as a
+  one-ulp mystery diff on an aggregate row rather than as a known gap.
+
+  **What actually calls `pySum`: the override path, and only it.** Every one of
+  the 7 columns at `build.py:472-476` is homogeneous by construction — the 5
+  integer ones from 1-arg `round()` (`build.py:309,317,333,338`), the other two
+  through `num()`, which is `float(x)` at `build.py:24-28`. Those columns select
+  `pySumInt` or `pySumFloat` at the call site and never reach the mixed path.
+
+  The one thing that breaks homogeneity is `apply_overrides`, which assigns the
+  raw JSON value (`build.py:520`, `row[field] = spec["value"]`, no `num()`) and
+  runs at `run.py:115`, **before** the aggregation at `run.py:119`. In Python
+  that distinction is real — `json.loads` yields `int` for `15000000` and
+  `float` for `15000000.0` — so an override written without a decimal point
+  makes its column mixed and changes what `sum()` returns.
+
+  **`JSON.parse` cannot see it.** Both arrive as `number` with
+  `Number.isInteger` true, which is the erasure already recorded above. So a
+  port that reads overrides through `JSON.parse` would select `pySumFloat` and
+  **return a different number from the Python for the same
+  `manual_overrides.json`** — and R3 could not catch it, because `overrides` is
+  `{}` today, so byte identity passes and the divergence ships unseen.
+
+  The port therefore **types override numbers from the raw JSON token text** —
+  a literal containing `.`, `e` or `E` is a float, otherwise an integer — the
+  same reason R2 hand-rolls a CSV reader rather than trusting a stock one. A
+  column carrying any overridden value is then summed through `pySum` over
+  `PyNum` elements, and that is `pySum`'s pipeline caller. Without this clause
+  the mixed entry point would be reachable only from its own fixture.
+
+  Scope note: this is a **deliberate addition** beyond issue #21, taken because
+  `manual_overrides.json` is the documented mechanism for nationally-sourced
+  figures — `CLAUDE.md` records Armenia, New Zealand and Saudi Arabia sitting
+  there unfilled on purpose — so the empty-today argument is a statement about
+  when this breaks, not whether. Checked so as not to overstate the surface:
+  `ai_exposure_isco.json`'s 36 weights are **all written with a decimal point**,
+  and `build.py:324` multiplies through `/100.0` first, so that site is float
+  either way. The override path is the only live instance.
 
   **`pySumInt` returns `bigint`, and the narrowing to `number` happens at the
   pipeline call site** — `Number(pySumInt(fields.map(toBigInt)))` — where the

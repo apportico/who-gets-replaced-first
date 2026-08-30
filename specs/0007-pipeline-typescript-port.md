@@ -49,8 +49,9 @@ Python 3.13.1. CI pins `node-version: 24` and `python-version: '3.13'`
 | The test suite | `pipeline/tests/context.py`, import graph, `python3 -m unittest discover` | **107 tests, 1,512 lines, pass in 0.292s.** They `import build` / `import config` through a `sys.path` shim — they bind to the **Python modules** and die with them. **Not mentioned in issue #21's scope.** |
 | Response cache | `du -sh pipeline/raw` | **80MB present on the probing machine** (`eurostat`, `ilostat`, `worldbank`). But `pipeline/raw` is **gitignored and absent in a fresh clone** — so this row is machine-local, CI can never re-run R3/R4, and `CLAUDE.md` documents `verify` skipping the pilot when it is missing. R3 names the durable evidence and R8 the repeatable guard. |
 | CLI surface | `grep add_argument pipeline/run.py` | **Three flags**: `--pilot`, `--no-app-json`, `--out-dir`. Issue #21 names only `--pilot`. |
-| Golden-master surface | `git ls-files pipeline/ src/data/`, filtered to non-source files — **derived from what the pipeline writes, not from where we expected it to write** | **11 tracked outputs.** The first probe looked only in `pipeline/data/` and `src/data/` and reported 9, then 10; it could not see `pipeline/summary_report.md`, which `report.py:398` writes one level up. The list: 6 CSVs, `global_labor_dataset.sqlite`, `pipeline/data/validation_report.txt`, `pipeline/summary_report.md`, `src/data/global_labor.json`, `src/data/global_labor_timeseries.json`. (`port_data.json` and `sanctions_regimes.json` are also tracked but are the corridor-wars static snapshot `CLAUDE.md` records — out of scope.) Two gaps hid behind the narrow probe, one level apart, which is why the row now records the command that cannot miss rather than a corrected count. |
-| `pipeline/summary_report.md` | `wc -l`, `report.py:76`, `README.md:43` | **245 lines, tracked, and the only output that cannot be byte-compared**: `report.py:76` stamps `Generated {date.today()}`, and the committed file carries `Generated 2026-08-29` on line 3, so any fresh run differs daily. The root `README.md:43` points readers at it as the project's findings document. R6 covers it with a named single-line exclusion. |
+| Golden-master surface | **Enumerated from the write sites in the pipeline source**, not from a directory listing | **11 tracked outputs**, each traced to the line that writes it: `crosscheck.py:82` → `crosscheck_eurostat.csv`; `crosscheck.py:141` → `ai_exposure_sensitivity.csv`; `panel.py:155` → `global_labor_panel.csv`; `panel.py:172` → `src/data/global_labor_timeseries.json`; `report.py:392` → `summary_report.md`; `run.py:202` → `global_labor_dataset.csv` / `pilot_labor_dataset.csv`; `run.py:277` → `src/data/global_labor.json`; `run.py:354` → `validation_report.txt`; `run.py:357` → `outliers_for_review.csv`; `run.py:215,234` → `global_labor_dataset.sqlite` (via `sqlite3.connect`, which an `open()` grep misses); `fetch.py:27` → `pipeline/raw/`, gitignored. **Directory listings were the wrong probe twice**: `pipeline/data/ src/data/` reported 9 and then 10, missing `validation_report.txt` and then `summary_report.md`. Widening to `git ls-files pipeline/ src/data/` does not fix it either — that returns 41 paths, including two inputs (`ai_exposure_isco.json`, `manual_overrides.json`) and 25 test fixtures, so getting to 11 is the same hand filter that lost the first two. Only the write-site enumeration answers the question the row asks. |
+| `pipeline/summary_report.md` | `wc -l`, `report.py:76`, `README.md:43`, and a regeneration diff | **245 lines, tracked, and the only output that cannot be byte-compared**: `report.py:76` stamps `Generated {date.today()}`, and the committed file carries `Generated 2026-08-29` on line 3, so any fresh run differs daily. The root `README.md:43` points readers at it as the project's findings document. Written at `report.py:392`; the pipeline reaches it via `run.py:379`, while `report.py:398` is the `__main__` entry point. **Regenerating from the current Python and diffing with line 3 removed gives 4 differing lines, not 0** — two from the `sensitivity` invocation gap, two from tier drift on `main` ([#54](https://github.com/apportico/who-gets-replaced-first/issues/54)). R6 covers it, blocked on that issue. |
+| `pipeline/tests/fixtures/expected/pilot_labor_dataset.csv` | `git ls-files pipeline/tests/fixtures/` | A **committed expected output**, and deliberately not a twelfth entry in the list above: it is spec 0004's in-tree golden master, an input to the test suite rather than something a pipeline run writes. **R8 covers it**, and names it as the only re-runnable evidence in this spec. |
 
 **Note on tiers.** This spec produces **no new figures**. Every number it emits
 already exists and carries a tier; the port's whole obligation is to reproduce
@@ -75,10 +76,19 @@ spec may introduce a value the Python did not already produce.
   `clerical_employed`, `professionals_employed`, `young_white_collar_employed`,
   `exposed_wage_bill_ppp`, `ict_service_exports_usd`, all from 1-arg `round()`
   — so the majority of these sums never touch the float branch at all. `pySum`
-  therefore dispatches on type: **BigInt accumulation** for integer input,
+  therefore selects a branch: **BigInt accumulation** for integer fields,
   **Neumaier** once a float appears, converting to `number` at the end.
   Without the float branch, R3 cannot pass on an aggregate row; without the
   integer branch, `pySum` is documented as something it is not.
+
+  **The branch is chosen from the declared type, never from the value.** Once
+  the pipeline is TypeScript, `clerical_employed` and `population_15_24` are
+  both `number`, and `Number.isInteger(14455.0)` is `true` — so sniffing the
+  value takes the BigInt branch for a Python float **by construction, not as an
+  edge case**. The 1-arg-`round()` outputs therefore carry a branded `Int` in
+  R7's shared schema, beside `Measured`, and `pySum` dispatches on the declared
+  type of the field it is summing. The Python type distinction that exists
+  today has to survive the port as a schema fact, or it is lost at the boundary.
 
   **Headroom, recorded rather than assumed:** the largest integer column sum is
   `exposed_wage_bill_ppp` at 3.05e13 against a 2^53 ceiling of 9.01e15 — about
@@ -102,6 +112,16 @@ they can be regenerated if the pin moves.
   **either side of 2^53** and float cases where naive folding diverges. A
   float-only fixture would exercise only one branch and could not check the
   requirement it sits under.
+
+  **A JSON array of numbers cannot hold this fixture**, so the format is part
+  of the requirement rather than an implementation detail. `JSON.parse("9007199254740993")`
+  returns `9007199254740992` — the spec's own motivating input cannot be
+  written as a JSON number literal, and a fixture that tried would assert the
+  wrong expected value. And `[1.0, 2.0]` and `[1, 2]` are the same JSON text,
+  so all-integer and all-float collapse into one case and "first float at
+  varying positions" becomes unsayable. **Each element is stored as a string
+  with an explicit `int` / `float` tag**, so exact integers survive and a
+  Python float that happens to be integral stays distinguishable from an int.
 - `pyStr` reproduces all **78,257** numeric strings in the committed CSVs from
   their parsed doubles, including the **6,256** `.0` and **30** `-0.0` values,
   0 mismatches. (Already fixture-backed: it reads the committed CSVs.)
@@ -203,11 +223,35 @@ under `pipeline/raw/` stays byte-compatible so re-runs remain offline and free.
   **one named line, not a general "diffs explained" allowance**: any second
   differing line fails this requirement.
 
+  **The comparison is against a full `run.py` run, not `npm run report`.**
+  `report.write(rows, out_path, sensitivity=None)` (`report.py:58`) gates the
+  AI-exposure-sensitivity paragraph on `sensitivity` at `report.py:326`, and
+  only `run.py:379` passes it. The `__main__` block at `report.py:398` — what
+  `npm run report` and `pipeline/README.md:15` both invoke — passes nothing and
+  silently drops `summary_report.md:212-213`. Naming the invocation is part of
+  the criterion, or a contributor takes the documented path and gets a 3-line
+  diff that has nothing to do with the port.
+
+  **Blocked on [#54](https://github.com/apportico/who-gets-replaced-first/issues/54)
+  until the committed report is regenerated.** Reproduced on this branch:
+  regenerating from the *current* Python and diffing with the `Generated` line
+  removed gives **4 differing lines, not 0**. Two are the invocation gap above.
+  The other two are tier drift on `main`: `summary_report.md:231` says
+  `DERIVED composite` where `report.py:363` says `MODELED composite`, changed in
+  `ff507b0` and never regenerated. **That is not excluded here.** A second
+  exclusion would launder exactly the tier drift `CLAUDE.md` exists to prevent,
+  in the one document written for humans to quote from. It is fixed on `main`
+  under #54, and R6 asserts against the corrected file.
+
 ### R7. [ ] A shared schema module, consumed on both sides
 
 `Tier` as `'OFFICIAL' | 'DERIVED' | 'PROXY' | 'MODELED'`; `number | null`
 wherever a country may be missing; a per-field vintage type pairing a value with
-its year.
+its year; and a branded **`Int`** for the 1-arg-`round()` outputs, which R1's
+`pySum` dispatches on. `Int` is not cosmetic: it is the only surviving record
+that `clerical_employed` was a Python `int` and `population_15_24` a Python
+`float`, a distinction JavaScript's single `number` type erases and
+`Number.isInteger` cannot recover.
 
 **`strictNullChecks` alone does not reach the rule that matters.** It rejects
 `const x: number = maybeNull`, but every shape this project actually forbids

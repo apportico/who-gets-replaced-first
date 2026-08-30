@@ -53,7 +53,8 @@ thresholds it is measured against. Every row below was run on this branch
 | Tailwind theme resolution (R7's premise) | `ls tailwind.config.*`; `grep -n "@theme" src/styles/index.css`; `node -p` on the dependency | `tailwindcss ^4.2.2`, **no `tailwind.config.*`** and **no `@theme` block**. So every utility colour resolves from Tailwind v4's OKLCH default theme, and a class name like `text-amber-700` carries no derivable contrast ratio. This is why R7 requires the text palette to be extracted into an export rather than checked by pattern — the enumeration argument is stronger for the non-grey families than for the greys, where a v3 reference hex was at least guessable. |
 | Node test runner and R9's dependency budget | `node -v`; `node --test --help`; `render-probe.mjs` | Node **v24.19.0**, `node --test` built in. Vite is already a devDependency and its SSR transform loads the app, so R9 adds **only `axe-core` and `jsdom`** — no test runner, no bundler, no browser. The budget the Non-goals argument rests on survives the render finding. |
 | `verify` offline guarantee | Read `scripts/verify.sh`, `.github/workflows/ci.yml` | `verify` is explicitly designed to run in a fresh clone with no network; CI runs the same command and never has `pipeline/raw/`. Any new gate must hold that property — which rules out a Playwright browser download. See *Non-goals*. |
-| Live render at 375×812 | Attempted 2026-08-30 via Chrome extension; dev server up (HTTP 200 on `:5173`) | **BLOCKED — the Claude-in-Chrome extension is not connected.** No requirement below depends on a spec-time browser observation; the browser check is instead an *acceptance criterion* (R11), which is what the issue's definition of done asks for anyway. |
+| Live render at 375×812 and 1440×900 | `node scripts/r11-measure.mjs`, committed — Playwright driving the system Chrome, 2026-08-30 | **Unblocked and measured.** The Claude-in-Chrome extension never connected, but R11 is a manual one-off, not the automated gate the Non-goals decline a browser for, so `playwright-core` (installed **unsaved**, and which never downloads a browser) drives the installed Chrome instead. Results confirm the layout arithmetic row above **to the pixel**: at 1440×900 the map container is **768 × 544** — exactly 1440 − 288 − 384 — with `.panel-scroll` widths `[288, 384]`. At 375×812 the map container is **0 × 448**: the spec's headline claim, now observed rather than derived. Landmarks 0 and ARIA attributes 0 at both, matching the grep. Console clean at both. **768px is R1's desktop baseline.** |
+| First run measured the wrong application | Same script, first attempt against `:5173` | Recorded because it nearly became the baseline. Vite falls through to the next free port when 5173 is taken, and this machine runs another project; `:5173` served **"THE GRAND CHESSBOARD"** and returned a 1360px map and buttons named "BRI — Maritime Silk Road". Nothing in those numbers announced they were from the wrong app — they were simply plausible. The script now asserts `document.title` before measuring anything and aborts on a mismatch. This is `CLAUDE.md`'s "a clean build is not evidence the page renders" one layer further out: a clean *measurement* is not evidence you measured the right thing. |
 
 ## Requirements
 
@@ -485,6 +486,27 @@ three, and that for `target-size` it will actively report a false pass.
 **Record the 1440×900 baseline first**, before any change lands: R1's desktop
 criterion is defined against the map container's width today, so it has to be
 measured while "today" still exists.
+
+**Baseline recorded 2026-08-30, at `5e8cf16`, via `node scripts/r11-measure.mjs`:**
+
+| | 1440×900 | 375×812 |
+|---|---|---|
+| `.leaflet-container` | **768 × 544** | **0 × 448** |
+| `.panel-scroll` widths | `[288, 384]` | `[288, 87]` |
+| Horizontal page scroll | no | no |
+| Landmarks / ARIA attributes | 0 / 0 | 0 / 0 |
+| Interactive targets under 24px | 186 of 234 | 187 of 234 |
+| Tier badge rendered size | 11px | 11px |
+| Console | clean | clean |
+
+The 768px is what R1's desktop criterion compares against. The 0px at 375
+confirms the Objective's headline claim by observation rather than derivation.
+
+Taken at `5e8cf16` rather than at the branch point, which is sound for the width
+comparison specifically: steps 2 and 3 changed colours, text tokens and badge
+padding, and touched neither `w-72` on the sidebar nor `w-96` on the detail
+panel, which are the only two things the map column's width is a remainder of.
+The 186-of-234 target count is likewise pre-R6.
 
 **Acceptance:** the browser console is clean at both viewports (no errors, no
 React warnings). A short written record is appended to this spec covering: the

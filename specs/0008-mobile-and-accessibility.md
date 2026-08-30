@@ -277,10 +277,21 @@ fails until it is either fixed or added below with its ratio.
 
 And, in the R9 suite's **fixture render of `LaborDetailPanel`** (R9 part 1 —
 nothing else in this spec can reach these bars, since the default mount shows
-the placeholder), **every band surviving the null filter at
-`LaborDetailPanel.jsx:47` has its percentage rendered as text outside its
-swatch, for both bars** — which requires the age legend to change rather than
-stay as it is.
+the placeholder), **every band surviving its bar's null filter — `:47` for the
+age bar, `:121` for the ISCO bar — has its percentage rendered as text outside
+its swatch**, which requires the age legend to change rather than stay as it is.
+
+**The fixture row must carry all three age bands and all nine ISCO groups
+non-null**, or the ISCO half of that assertion passes vacuously:
+`OccupationBreakdown` returns early at `:113` when `row.white_collar_pct` is
+null, rendering the "no ISCO-08 breakdown published" paragraph and no bands at
+all — zero bands, zero assertions, green. That is the same bypass this
+acceptance has been tightened against twice, arriving through the fixture
+instead of through the pattern. Such rows are abundant, not rare: **170 of 218**
+country rows in `global_labor.json` qualify, and **all 170** carry at least one
+ISCO group under 7% (minimum group share ranges from NER at 0.06% to LCA at
+5.7%), so any qualifying row also exercises the `:131` suppression described
+below. The choice of row is therefore unconstrained beyond being one of the 170.
 
 "Every band surviving the null filter", not "every band that shows an in-bar
 label today", because both in-bar labels are **conditional**: `:59` renders the
@@ -310,7 +321,11 @@ Two exclusions, named here rather than left to a pattern to drop silently:
 
 There are currently zero ARIA attributes. Add document structure — a `main`
 landmark, a `nav` or labelled region for the sidebar controls, a labelled region
-for the detail panel — and an accessible name for every control that has none.
+for the detail panel **on `LaborDetailPanel`'s own root element in both its
+branches**, not on a wrapper in `LaborPage` (R9 part 1 explains why: the panel
+is rendered standalone as a second axe surface, and a wrapper would put the
+landmark outside that tree) — and an accessible name for every control that has
+none.
 Metric, region and income buttons are toggles and get `aria-pressed`; the
 detail panel announces the selected country when it opens.
 
@@ -344,6 +359,18 @@ lines the probes actually drew:
    Leaflet, and reading text content is what jsdom does reliably. The same
    fixture render carries R7's legend assertion and extends the axe pass to the
    panel's populated state.
+   Because that makes the panel a **second axe surface**, R8's landmark for the
+   detail panel must live on **`LaborDetailPanel`'s own root element, in both
+   the placeholder and populated branches** (`:253` and the populated root
+   below `:265`) — not on a wrapper added in `LaborPage`, where it is rendered
+   as a bare sibling at `LaborPage.jsx:257`. R8's wording admits either, and the
+   wrapper would leave the full-app pass green while the standalone render could
+   never reach zero `region` violations, since the landmark would not be in the
+   mounted tree. The likely escapes at that point are reworking R8 or scoping
+   `region` out of the fixture render — and disabling a rule to make a check
+   pass is exactly what this part argues against for `target-size` two
+   paragraphs down. Putting the landmark on the panel's own root also keeps the
+   panel's accessible identity in the component that owns it.
    **`target-size` must be explicitly disabled in the axe config**, with a
    comment saying why: over the real tree it reports `pass`, and that pass is
    false, because jsdom has no layout boxes to fail. A rule that returns a

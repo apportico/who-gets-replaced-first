@@ -42,7 +42,7 @@ Python 3.13.1. CI pins `node-version: 24` and `python-version: '3.13'`
 | Runtime types at `build.py:476` | Real offline build over spec 0004's committed fixtures, `type()` of each field on country rows | **5 of the 7 summed fields are Python `int`, not float**: `clerical_employed`, `professionals_employed`, `young_white_collar_employed`, `exposed_wage_bill_ppp`, `ict_service_exports_usd` — all produced by 1-arg `round()`, which returns `int`. Only `population_15_24` and `service_exports_usd` are floats. **So the majority of these sums take the exact integer branch, not Neumaier.** |
 | Headroom on the integer sums | Column sums of the committed dataset against 2^53 | Largest is `exposed_wage_bill_ppp` at **3.05e13** against a `Number.MAX_SAFE_INTEGER` of **9.01e15** — about **296x** of headroom, so no live defect today. It is a latent hazard, not a bug, and R1 records it as such. |
 | What the integer sum must return | `sum([9007199254740993,2,2,2])` in Python against BigInt accumulation, narrowed and not | **`pySumInt` cannot return `number`.** Python gives `...999`; exact BigInt accumulation gives `...999n`; `Number()` of that gives `...1000`; the naive fold gives `...998`. So narrowing inside the helper makes a *correct* implementation fail its own fixture, and fail it differently from the fold it replaces. The value cannot even be written as a JS number literal — `9007199254740999` parses to `...1000` — which is the same wall as the JSON literal, one layer further out. |
-| Whether `Int` can be checked by `tsc` at a `pySumInt` call site | `tsc --strict --noEmit` on the case, run **with the brand and with `Int` aliased to `number`** | **Discriminates.** With `Int` branded, `pySumInt(clerical_employed.map(toBigInt))` compiles and `pySumInt(population_15_24.map(toBigInt))` is rejected. With the brand removed, the rejection disappears and `tsc` reports **TS2578, unused `@ts-expect-error`**. Also measured: a case phrased as `number`-vs-`bigint` rejects `Int` fields too, and an overloaded `pySum` rejects nothing — neither tests the brand. |
+| Whether `Int` can be checked by `tsc` at a `pySumInt` call site | `tsc --strict --noEmit` on the case, run **with the brand and with `Int` aliased to `number`** | **Discriminates**, using **column arrays** (`rows.map(r => r.population_15_24)`), not the scalar fields: with `Int` branded the `Int` column compiles and the float column is rejected; with the brand removed the rejection disappears and `tsc` reports **TS2578, unused `@ts-expect-error`**. Three phrasings measured and rejected as non-discriminating: `number`-vs-`bigint` (rejects `Int` columns too), an overloaded `pySum` (rejects nothing), and `.map` on the **scalar** field (TS2339 with and without the brand). |
 | Whether a sub-2^53 fixture can test the integer branch | **200,000 random 6-element integer sums below 2^53**, BigInt accumulation against a naive fold | **0 differences.** Double addition on integers under the ceiling is exact, so the two branches are indistinguishable there. The same comparison at 2^53 separates them immediately (`...992` against `...996`). This is why R1's `≥2^53` fixture cases are the criterion rather than an edge of it, and why the loader must reach `bigint`: `Number("9007199254740993")` returns `...992`. |
 | Interpreter vintage of the committed outputs | `python3.11 -m unittest discover pipeline/tests` against `python3.13`, this checkout | **The golden master is interpreter-specific.** Under **3.11.16** the suite fails `test_output_matches_the_golden_master_byte_for_byte` on the WLD row: `service_exports_usd` = `5554959302720.801` against the committed `5554959302720.8`. Under **3.13.1** all 107 pass. So the committed outputs were produced by **3.12 or later**, and CI's `python-version: '3.13'` pin is load-bearing, not incidental. |
 | SQLite byte-reproducibility | Built the same table+index in `sqlite3` and `node:sqlite`, `cmp -l` | **Exactly 4 bytes differ, all in the 100-byte header**: change counter (offset 24), version-valid-for (92), and **`SQLITE_VERSION_NUMBER` (96) — 3048000 vs 3053003**. Page data byte-identical. Byte-identical SQLite is **impossible**: the runtimes bundle SQLite 3.48.0 and 3.53.3. |
@@ -86,10 +86,45 @@ spec may introduce a value the Python did not already produce.
   toBigInt(v: Int): bigint                       // the only route from row data in
   pySumInt(values: readonly bigint[]): bigint    // exact, returns bigint
   pySumFloat(values: readonly number[]): number  // Neumaier
+  pySum(values: readonly PyNum[]): number        // mixed: exact prefix, then Neumaier
   ```
 
   Without the float path, R3 cannot pass on an aggregate row; without the
-  integer path, `pySum` is documented as something it is not.
+  integer path, the helper is documented as something it is not.
+
+  **`pySum` is the mixed case, and it is a third behaviour rather than a
+  relabelling of the other two.** CPython sums the integer prefix exactly,
+  converts at the first float, and runs Neumaier from there — so the
+  compensation term starts at zero *after* the prefix, where an all-float sum
+  has been accumulating it from the first element. `PyNum` is the discriminated
+  `int`/`float` element the fixture format already carries at the acceptance
+  below, so the mixed shape has a home rather than a criterion with no function
+  to call.
+
+  Measured, over 200,000 random 6-element lists with the first float at a
+  random position, `sum(mixed)` against `sum(float(v) for v in mixed)`:
+
+  | Element magnitudes | Differences |
+  |---|---|
+  | under 1e12, **integral** floats | **0** |
+  | under 1e12, **fractional** floats | **24,142** |
+  | drawn above 2^53 | **42,631** |
+
+  The middle row is why the mixed path is specified rather than dropped: it
+  diverges at **this project's magnitudes**, not only past the ceiling, and
+  `service_exports_usd` is fractional (`2988845686.27002`).
+
+  **Why not drop mixed and assert homogeneity instead.** Every one of the 7
+  columns at `build.py:472-476` is homogeneous today — the 5 integer ones from
+  1-arg `round()` (`build.py:309,317,333,338`), the other two through `num()`,
+  which is `float(x)` at `build.py:24-28`. But that is a property of the data,
+  not of the code: `apply_overrides` assigns the raw JSON value
+  (`row[field] = spec["value"]`, no `num()`) and runs at `run.py:115`, **before**
+  the aggregation at `run.py:119`. An override supplying `population_15_24` as a
+  JSON integer makes that column mixed — and `manual_overrides.json` is exactly
+  the mechanism this project uses to add nationally-sourced figures. It is `{}`
+  today, so this is a latent hazard of the same kind as the 296x headroom row,
+  and the port covers the case rather than assuming it away.
 
   **`pySumInt` returns `bigint`, and the narrowing to `number` happens at the
   pipeline call site** — `Number(pySumInt(fields.map(toBigInt)))` — where the
@@ -106,9 +141,11 @@ spec may introduce a value the Python did not already produce.
   both `number`, and `Number.isInteger(14455.0)` is `true` — so sniffing the
   value takes the BigInt branch for a Python float **by construction, not as an
   edge case**. The 1-arg-`round()` outputs therefore carry a branded `Int` in
-  R7's shared schema, beside `Measured`, and `pySum` dispatches on the declared
-  type of the field it is summing. The Python type distinction that exists
-  today has to survive the port as a schema fact, or it is lost at the boundary.
+  R7's shared schema, beside `Measured`, and **the path is selected at the call
+  site from that declared type** — `Number(pySumInt(col.map(toBigInt)))` for an
+  `Int` column, `pySumFloat(col)` for a float one — not by a helper inspecting
+  what it was handed. The Python type distinction that exists today has to
+  survive the port as a schema fact, or it is lost at the boundary.
 
   **`Int` is a branded `number` in the schema; `bigint` appears only at the
   helper boundary.** `pySumInt` takes `bigint`, and `Int` fields convert
@@ -143,12 +180,14 @@ they can be regenerated if the pin moves.
 
 **Acceptance:**
 - `pyRound` matches **≥20,000 committed fixture cases**, 0 mismatches.
-- `pySum` matches **≥20,000 committed fixture cases**, 0 mismatches. The
-  fixture must span **all three shapes** — all-integer, all-float, and mixed
-  with the first float at varying positions — and must include integer cases
-  **either side of 2^53** and float cases where naive folding diverges. A
-  float-only fixture would exercise only one branch and could not check the
-  requirement it sits under.
+- The summation helpers match **≥20,000 committed fixture cases each — 60,000
+  in total**, 0 mismatches, one block per entry point so a green run cannot
+  mean one path was never exercised:
+  - `pySumInt`: all-integer, including cases **either side of 2^53**;
+  - `pySumFloat`: all-float, including cases where naive folding diverges;
+  - `pySum`: mixed, **with the first float at varying positions**, and
+    including fractional floats at ordinary magnitudes — the regime where the
+    mixed path diverges from an all-float sum without going near the ceiling.
 
   **A JSON array of numbers cannot hold this fixture**, so the format is part
   of the requirement rather than an implementation detail. `JSON.parse("9007199254740993")`
@@ -303,7 +342,8 @@ under `pipeline/raw/` stays byte-compatible so re-runs remain offline and free.
 `Tier` as `'OFFICIAL' | 'DERIVED' | 'PROXY' | 'MODELED'`; `number | null`
 wherever a country may be missing; a per-field vintage type pairing a value with
 its year; and a branded **`Int`** for the 1-arg-`round()` outputs, which R1's
-`pySum` dispatches on. `Int` is not cosmetic: it is the only surviving record
+call sites select a summation path from. `Int` is not cosmetic: it is the only
+surviving record
 that `clerical_employed` was a Python `int` and `population_15_24` a Python
 `float`, a distinction JavaScript's single `number` type erases and
 `Number.isInteger` cannot recover.
@@ -337,9 +377,20 @@ way out, or the byte-identical outputs break.
 1. a value assigned without a tier;
 2. `v ?? 0` assigned to a `Measured<number>` field;
 3. a value read without its year;
-4. **a non-`Int` field routed into the integer sum** —
-   `pySumInt(population_15_24.map(toBigInt))`, where `population_15_24` is a
-   Python float.
+4. **a non-`Int` column routed into the integer sum** —
+
+   ```ts
+   const col: readonly number[] = rows.map(r => r.population_15_24);  // Python float
+   // @ts-expect-error
+   const bad = pySumInt(col.map(toBigInt));
+   ```
+
+   Note the **column**, not the field. `population_15_24` is a scalar on a row
+   — `build.py:472-476` sums it *across* member rows — so a literal
+   `population_15_24.map(...)` would fail with TS2339 (`Property 'map' does not
+   exist on type 'number'`), and fail identically with the brand removed. That
+   is the very failure mode the two-way check below exists to catch, so the
+   snippet has to be committed in this shape to be worth anything.
 
 The requirement is not met by the types existing, only by them rejecting these
 four; each is committed as a `// @ts-expect-error` case so a later refactor

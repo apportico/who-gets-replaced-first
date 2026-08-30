@@ -45,7 +45,7 @@ thresholds it is measured against. Every row below was run on this branch
 | Ramp vs no-data separation | `palette-probe.mjs` §4 | Lightest ramp step vs no-data `#dfe3e8`: **BLUE ΔE00 3.7**, **TEAL ΔE00 7.2** (falling to **3.7 under deuteranopia**), HEAT 11.2; WCAG contrast 1.14–1.17:1. Below any legibility threshold **for normal colour vision**, at marker sizes of 3.5–26px. This is the row R5 rests on, and it is starker than the first draft's ΔE76 figures suggested. |
 | Ramps under dichromacy | `palette-probe.mjs` §3 and §7 | Min adjacent-step ΔE00, **worst case across the four visions** — the worst vision differs per ramp: BLUE **7.5** (protanopia), HEAT **7.7** (*deuteranopia*; its protanopia figure is 10.1), TEAL **4.3** (protanopia). So all three fall under 10 somewhere, not just TEAL — the first draft reported BLUE and HEAT as comfortable, an artefact of ΔE76. At normal vision the figures are BLUE 8.4, TEAL 8.8, HEAT 10.3, so HEAT alone clears a ≥ 10 floor there. **But** §7 shows every ramp stays **strictly monotonic in L\*** under all four visions, min step gap 6.3 — so the ramps still read as *ordered scales*, which is what a sequential ramp is for. R10 is written against that, not against adjacent-step ΔE. |
 | Tier colours under dichromacy | `palette-probe.mjs` §5 | **DERIVED vs MODELED = ΔE00 2.4 under deuteranopia** (9.4 protanopia) — effectively the same colour. The first draft attributed this collapse to protanopia; the reviewer was right that it lands under deuteranopia. **OFFICIAL vs PROXY = ΔE00 10.7** (deuteranopia) / 11.1 (protanopia) — measured vs constructed, the pair that matters most, far closer than the first draft's 17.8. OFFICIAL vs DERIVED = 13.1 under tritanopia. The badges' text labels currently carry these distinctions alone. |
-| axe-core over the **real app** under jsdom | `node scripts/render-probe.mjs`, committed — axe-core 4.13.0 + jsdom 30.0.1, full `App.jsx` tree | The whole tree mounts, map included: 146,996 chars, `.leaflet-container` present, 225 buttons, **0 aria attributes**. Two conditions make it work, both non-obvious: jsdom globals must exist **before** the first import (Leaflet dereferences `window` at module-evaluation time, `leaflet-src.js:230`), and the modules load through `vite.ssrLoadModule` (JSX + CSS + JSON). Results: `region` **23 violations**, `label` **2**, `heading-order` **1**; `button-name`, `link-name`, `image-alt` pass; `aria-allowed-attr` inapplicable (no ARIA exists yet). `color-contrast` → **INCOMPLETE** (no canvas). `target-size` → **reports `pass`, which is false** — jsdom has no layout, so there are no boxes to fail. A fixture returns INAPPLICABLE for that rule; the real tree returns a misleading green, which is worse. R9 disables it explicitly. |
+| axe-core over the **real app** under jsdom | `node scripts/render-probe.mjs`, committed — axe-core 4.13.0 + jsdom 30.0.1, full `App.jsx` tree | The whole tree mounts, map included: 146,996 chars, `.leaflet-container` present, 225 buttons, **0 aria attributes**. Two conditions make it work, both non-obvious: jsdom globals must exist **before** the first import (Leaflet dereferences `window` at module-evaluation time, `leaflet-src.js:230`), and the modules load through `vite.ssrLoadModule` (JSX + CSS + JSON). Results: `region` **23 violations**, `label` **2**, `heading-order` **1**; `button-name`, `link-name`, `image-alt` pass; `aria-allowed-attr` inapplicable (no ARIA exists yet). `color-contrast` → **INCOMPLETE** (no canvas). `target-size` → **reports `pass`, which is false** — jsdom has no layout, so there are no boxes to fail. A fixture returns INAPPLICABLE for that rule; the real tree returns a misleading green, which is worse. R9 disables it explicitly. **The baseline is a placeholder-state tree.** `App` mounts with nothing selected, and `LaborDetailPanel.jsx:251` returns the "Select a country" placeholder whenever `row` is falsy, so `AgeBar` (`:333`) and `OccupationBreakdown` (`:371`) never render — confirmed by `65+ share` being absent from the mounted DOM. The 23/2/1 counts therefore **exclude the populated detail panel entirely**, and R9 has to render the panel separately with a fixture row to cover it. |
 | Node test runner and R9's dependency budget | `node -v`; `node --test --help`; `render-probe.mjs` | Node **v24.19.0**, `node --test` built in. Vite is already a devDependency and its SSR transform loads the app, so R9 adds **only `axe-core` and `jsdom`** — no test runner, no bundler, no browser. The budget the Non-goals argument rests on survives the render finding. |
 | `verify` offline guarantee | Read `scripts/verify.sh`, `.github/workflows/ci.yml` | `verify` is explicitly designed to run in a fresh clone with no network; CI runs the same command and never has `pipeline/raw/`. Any new gate must hold that property — which rules out a Playwright browser download. See *Non-goals*. |
 | Live render at 375×812 | Attempted 2026-08-30 via Chrome extension; dev server up (HTTP 200 on `:5173`) | **BLOCKED — the Claude-in-Chrome extension is not connected.** No requirement below depends on a spec-time browser observation; the browser check is instead an *acceptance criterion* (R11), which is what the issue's definition of done asks for anyway. |
@@ -275,8 +275,26 @@ parent `div` (`:55`, `:128`) while `text-white` is on a child `span` (`:60`,
 the exclusion list then check each other — a fifth `text-white` added later
 fails until it is either fixed or added below with its ratio.
 
-And **every band's percentage is still rendered as text outside its swatch, for
-both bars** — which requires the age legend to change rather than stay as it is.
+And, in the R9 suite's **fixture render of `LaborDetailPanel`** (R9 part 1 —
+nothing else in this spec can reach these bars, since the default mount shows
+the placeholder), **every band surviving the null filter at
+`LaborDetailPanel.jsx:47` has its percentage rendered as text outside its
+swatch, for both bars** — which requires the age legend to change rather than
+stay as it is.
+
+"Every band surviving the null filter", not "every band that shows an in-bar
+label today", because both in-bar labels are **conditional**: `:59` renders the
+age percentage only when `p.pct > 9`, and `:131` the ISCO digit only when
+`g.pct > 7`. So the deletion is not the only way a band's figure can be missing
+from the page. Measured against the shipped data: the 0–14 threshold bites for
+**0 of 217** countries today (the lowest is Korea at 10.2%, 1.2 points clear),
+so this is a latent gap rather than a live one for that band — but 65+ is
+suppressed in **110 of 217** and ISCO 4 in **114 of 177**, and those are only
+harmless because the `65+ share` row at `:338` and the ISCO legend carry them
+independently. The age legend has no such fallback until R7 adds one, which is
+why the criterion is written against the filter rather than against the
+condition.
+
 Two exclusions, named here rather than left to a pattern to drop silently:
 
 - `text-white` on the four `bg-gray-800`/`bg-gray-900` active chips —
@@ -314,7 +332,18 @@ lines the probes actually drew:
    import (Leaflet dereferences `window` at module-evaluation time,
    `leaflet-src.js:230`), and modules loaded through `vite.ssrLoadModule` —
    Vite is already a devDependency, so this adds nothing. The baseline it must
-   drive to zero is `region` 23, `label` 2, `heading-order` 1.
+   drive to zero is `region` 23, `label` 2, `heading-order` 1 — measured with
+   **nothing selected**, so it covers the placeholder detail panel rather than
+   the populated one.
+   **The suite must therefore also render `LaborDetailPanel` directly with a
+   fixture row**, which is the only way anything in this spec reaches `AgeBar`
+   and `OccupationBreakdown` at all: `LaborDetailPanel.jsx:251` returns the
+   placeholder whenever `row` is falsy, and both bars sit in the branch below
+   it. That render is cheap and needs no map — the panel imports only
+   `laborMetrics`, `Sparkline` and `laborPanel` (`:1–5`), so nothing pulls in
+   Leaflet, and reading text content is what jsdom does reliably. The same
+   fixture render carries R7's legend assertion and extends the axe pass to the
+   panel's populated state.
    **`target-size` must be explicitly disabled in the axe config**, with a
    comment saying why: over the real tree it reports `pass`, and that pass is
    false, because jsdom has no layout boxes to fail. A rule that returns a

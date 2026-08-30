@@ -49,6 +49,7 @@ unlike the pilot `verify` skips when the cache is absent.
 """
 import context  # noqa: F401
 import csv
+import io
 import itertools
 import json
 import os
@@ -60,12 +61,27 @@ import fixtures
 import panel as P
 import run
 
-APP_JSON = os.path.join(os.path.dirname(context.PIPELINE),
-                        "src", "data", "global_labor.json")
-APP_TIMESERIES = os.path.join(os.path.dirname(context.PIPELINE),
-                              "src", "data", "global_labor_timeseries.json")
+# Imported, not copied: one definition of "has this tree changed" for the two
+# modules that need it (`test_golden_master.py:67`).
+from test_golden_master import _tree_digest
+
+APP_DATA = os.path.join(os.path.dirname(context.PIPELINE), "src", "data")
+APP_JSON = os.path.join(APP_DATA, "global_labor.json")
+APP_TIMESERIES = os.path.join(APP_DATA, "global_labor_timeseries.json")
 DATASET_CSV = os.path.join(context.PIPELINE, "data", "global_labor_dataset.csv")
 PANEL_CSV = os.path.join(context.PIPELINE, "data", "global_labor_panel.csv")
+
+
+# Captured before any test in this module runs. `unittest` calls setUpModule()
+# ahead of the module's first test, which is the only moment the tree is known
+# not to have been touched by these guards -- see GuardsDoNotWriteWhatTheyCheck
+# for why taking it inside the test is not enough.
+_DIGEST_BEFORE_ANY_GUARD_RAN = None
+
+
+def setUpModule():
+    global _DIGEST_BEFORE_ANY_GUARD_RAN
+    _DIGEST_BEFORE_ANY_GUARD_RAN = _tree_digest(APP_DATA)
 
 
 def _load(path):
@@ -196,8 +212,24 @@ class CommittedTimeseriesMatchesThePanel(unittest.TestCase):
                          set(self.rebuilt["series"]))
 
     def test_every_cell_matches_the_panel_csv(self):
+        """Year sets are compared before cells, in both directions.
+
+        Iterating the committed payload alone visits only the years it already
+        has, so a country-year dropped from it is never reached and every check
+        in this class still passes -- a partially regenerated payload passing
+        the guard that exists to catch one. The inverse is no better: a year the
+        payload has and the CSV lacks would raise KeyError from the rebuild
+        lookup rather than fail with the message below.
+
+        `CommittedRowsMatchTheDataset` never had the gap, because
+        `test_the_same_countries_are_present` compares its key sets both ways
+        first. This restores the same symmetry one level down.
+        """
         disagreed = []
         for iso, years in self.committed["series"].items():
+            if set(years) != set(self.rebuilt["series"][iso]):
+                disagreed.append((iso, "years"))
+                continue
             for year, values in years.items():
                 want = [_num(v) for v in self.rebuilt["series"][iso][year]]
                 got = [_num(v) for v in values]
@@ -270,24 +302,66 @@ class CommittedRowsMatchTheDataset(unittest.TestCase):
             if row["row_type"] != "country":
                 continue
             with self.subTest(iso3=row["iso3"]):
+                # `row_type` is not asserted here -- the loop above already
+                # filtered on it, so it cannot be None at this point.
+                # `test_row_types_are_contiguous_and_in_the_written_order`
+                # covers it for real.
                 self.assertIsNotNone(row["country_name"])
-                self.assertIsNotNone(row["row_type"])
 
 
-class GuardsAreReadOnly(unittest.TestCase):
+class GuardsDoNotWriteWhatTheyCheck(unittest.TestCase):
     """`verify` must not republish what it verifies (`scripts/verify.sh:27-35`).
 
-    Asserted rather than assumed: a guard that rewrote the artifact it checks
-    would pass unconditionally and leave CI with a dirty tree -- the golden
-    master's first recorded near-miss, in `test_golden_master.py`'s docstring.
+    The middle step is the whole test. An earlier version stat-ed the two
+    payloads, called `json.load` on them and stat-ed again -- which asserts that
+    reading a file does not change its mtime, true no matter what the guards in
+    this module do. None of them ran between the two calls, so a class named for
+    the guards certified nothing about them, and it was green against every
+    defect it named: the same reading error this module's docstring documents
+    for `test_tiers.py::AppPayload`, and the one shape not worth shipping here
+    of all places.
+
+    `test_golden_master.py:138-146` is the version with teeth and the fix is
+    taken from it -- digest the tree, do the work, compare. `_tree_digest` is
+    imported from there rather than copied, so the two cannot drift.
     """
 
-    def test_the_committed_payloads_are_opened_read_only(self):
-        before = [os.path.getmtime(p) for p in (APP_JSON, APP_TIMESERIES)]
-        _load(APP_JSON)
-        _load(APP_TIMESERIES)
-        self.assertEqual(before,
-                         [os.path.getmtime(p) for p in (APP_JSON, APP_TIMESERIES)])
+    def test_running_every_guard_leaves_src_data_byte_identical(self):
+        # The baseline comes from setUpModule, not from here. Alphabetical
+        # ordering runs all three guard classes before this one, so a digest
+        # taken at this point has already absorbed whatever they wrote on the
+        # outer pass: a guard writing a deterministic file would be baked into
+        # the baseline, the nested run would recreate it identically, and this
+        # would pass. Found by probe, not by reasoning -- an earlier version
+        # took the digest here and stayed green while a guard's setUp created a
+        # file under src/data/ on every run.
+        before = _DIGEST_BEFORE_ANY_GUARD_RAN
+        self.assertIsNotNone(before, "setUpModule did not run")
+        self.assertEqual(
+            _tree_digest(APP_DATA), before,
+            "a guard wrote to src/data/ during the normal pass")
+
+        # The three classes are named explicitly rather than discovered: this
+        # class lives in the same module, so loading the module's tests would
+        # re-enter here and recurse.
+        suite = unittest.TestSuite()
+        load = unittest.TestLoader().loadTestsFromTestCase
+        for case in (CommittedHeaderMatchesTheGenerator,
+                     CommittedTimeseriesMatchesThePanel,
+                     CommittedRowsMatchTheDataset):
+            suite.addTests(load(case))
+        result = unittest.TextTestRunner(stream=io.StringIO(),
+                                         verbosity=0).run(suite)
+
+        self.assertTrue(
+            result.wasSuccessful(),
+            "the guards must pass before their write behaviour means anything")
+        self.assertEqual(
+            _tree_digest(APP_DATA), before,
+            "running the payload guards modified src/data/. A guard that "
+            "rewrites the artifact it checks passes unconditionally and leaves "
+            "CI with a dirty tree -- verify.sh:27-35 exists to prevent exactly "
+            "that, and this is the check that observes it.")
 
 
 if __name__ == "__main__":

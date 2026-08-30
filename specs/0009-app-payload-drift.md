@@ -206,6 +206,15 @@ shipping an unlabellable field to the app.
 - The test passes in a checkout with `pipeline/raw/` absent and networking
   unavailable.
 - It opens the file read-only; `git status --porcelain` is empty after the run.
+  Observed by `GuardsDoNotWriteWhatTheyCheck`, which digests `src/data/` in
+  `setUpModule`, runs the three guard classes, and compares. **Two vacuous
+  versions preceded it**, both caught rather than reasoned about: the first
+  stat-ed the payloads around a `json.load` and so asserted only that reading
+  does not write; the second took its baseline inside the test, where
+  alphabetical ordering means the guards have already run, so a guard writing a
+  deterministic file was baked into the baseline and recreated identically.
+  A deliberate write into `src/data/` from a guard's `setUp` passes the second
+  and fails the third.
 
 ### R3. [x] The same guard for the timeseries payload
 
@@ -216,7 +225,17 @@ preventive framing. Both negative checks demonstrated:
 ```
 dropped series key ARE      -> test_every_series_key_is_present_and_no_extras FAILS
 changed ARE/2013[4] by 1.0  -> "disagrees with ... global_labor_panel.csv at [('ARE','2013')]"
+dropped ARE's 2013 YEAR     -> "disagrees with ... at [('ARE','years')]"
 ```
+
+**Revised in review.** The first version iterated the committed payload's own
+years, so a country-year *dropped from the payload* was never visited and all
+four tests passed — a partially regenerated payload passing the guard that
+exists to catch one. The requirement's acceptance bullet ("deleting one `iso3`")
+held as written; the requirement's own wider summary ("every cell equal") did
+not. The year sets are now compared both ways before any cell is, which is the
+symmetry `CommittedRowsMatchTheDataset` already had via
+`test_the_same_countries_are_present`. The third probe line above is that case.
 
 `src/data/global_labor_timeseries.json` gets an equivalent check, rebuilt from
 the committed `global_labor_panel.csv` per `panel.py:163-172`: `fields` equal,
@@ -244,8 +263,11 @@ ABW.lat 12.5167 -> 13.5167 : "disagrees with ... global_labor_dataset.csv at [('
 
 Row grouping asserted with `itertools.groupby`, which collapses only adjacent
 runs, so a country row after the aggregates fails rather than passing on a
-count. `row_type` and `country_name` asserted non-null on all 218 country rows,
-the pair `corridorStates.js:42` keys on.
+count. `country_name` asserted non-null on all 218 country rows — half the pair
+`corridorStates.js:42` keys on. The `row_type` half was dropped in review as
+vacuous: the loop filters on `row_type == "country"` before asserting, so it
+could not have been null there, and
+`test_row_types_are_contiguous_and_in_the_written_order` covers it for real.
 
 R2 catches a stale tier map but not a moved number. The payload's 229 rows are
 compared against committed `global_labor_dataset.csv` keyed by `iso3`, under the

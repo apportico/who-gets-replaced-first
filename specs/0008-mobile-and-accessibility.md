@@ -40,7 +40,7 @@ thresholds it is measured against. Every row below was run on this branch
 | Leaflet 1.9.4 keyboard support for vector markers | Read `node_modules/leaflet/dist/leaflet-src.js`; class boundaries via `grep -n` | `keyboard: true` (L7715) and `icon.tabIndex = '0'` (L7915) are inside **`Marker`** (L7701–8108). `CircleMarker` (L8253) extends `Path` (L8108), which sets no tabindex and has no keyboard option. The SVG renderer never makes a path focusable. `Map.Keyboard` (L13970) focuses the *container* — pan and zoom only. **A country marker cannot be tabbed to or activated by Enter. Confirmed, not assumed.** |
 | WCAG contrast of tier badges | `node scripts/palette-probe.mjs` §1 — WCAG 2.x relative luminance, badge bg composited from `${color}1a` over white | At 8–9px bold (WCAG "normal text", needs 4.5:1): OFFICIAL `#2f9e44` **3.08:1 FAIL**, PROXY `#e8590c` **3.16:1 FAIL**, DERIVED `#1971c2` **4.39:1 FAIL**, MODELED `#9c36b5` 5.02:1 pass. Independently reproduced by the reviewer of PR #55. |
 | WCAG contrast of body text | `palette-probe.mjs` §2 | `gray-400 #9ca3af` = **2.54:1 FAIL** (used for most 10px secondary text), `gray-300 #d1d5db` = **1.47:1 FAIL** (disabled play button). `gray-500 #6b7280` = 4.83:1 pass. Independently reproduced. |
-| White labels on data-driven swatches | `contrast()` imported from `palette-probe.mjs`, over `ISCO_GROUPS` (`laborMetrics.js:246`) and `AgeBar`'s segments (`LaborDetailPanel.jsx:43`) | The 9px bold white labels at `LaborDetailPanel.jsx:60` and `:132` sit on inline `style` backgrounds from the data, so no `text-*` grep reaches them. **7 of 9 ISCO labels below AA, 5 below even 3:1**; worst `#f7bd6f` **1.68:1**, below the `gray-300` 1.47:1 the row above already calls a failure. **ISCO 4 — clerical support, this project's subject — is 1.94:1.** Age bar: `#8bcdc2` **1.81:1**. Per-swatch foreground selection was tested as a fix and **cannot reach AA**: `#2f7ec1` is 4.31:1 white / 4.12:1 ink and `#b5651d` is 4.34:1 / 4.09:1, mid-tones where neither pole clears 4.5:1. R7 deletes the labels instead; the legends beneath both bars already carry the number, name and percentage. |
+| White labels on data-driven swatches | `contrast()` imported from `palette-probe.mjs`, over `ISCO_GROUPS` (`laborMetrics.js:246`) and `AgeBar`'s segments (`LaborDetailPanel.jsx:43`) | The 9px bold white labels at `LaborDetailPanel.jsx:60` and `:132` sit on inline `style` backgrounds from the data, so no `text-*` grep reaches them. **7 of 9 ISCO labels below AA, 5 below even 3:1**; worst `#f7bd6f` **1.68:1**, below the `gray-300` 1.47:1 the row above already calls a failure. **ISCO 4 — clerical support, this project's subject — is 1.94:1.** Age bar: `#8bcdc2` **1.81:1**. Per-swatch foreground selection was tested as a fix and **cannot reach AA**: `#2f7ec1` is 4.31:1 white / 4.12:1 ink and `#b5651d` is 4.34:1 / 4.09:1, mid-tones where neither pole clears 4.5:1. R7 deletes the labels instead — but only the ISCO legend (`:141–152`) already carries number, name **and** percentage; the age legend (`:65–72`) carries a swatch and the band name only, so R7 has to add the percentage there before the deletion is lossless. Checked, not assumed: `grep -rn "pop_0_14_pct" src/` returns the metric definition, this bar, and `LaborPage.jsx:114` — which is the **world** row, not the selected country. |
 | Colour-vision **method** | `scripts/palette-probe.mjs`, committed — every free parameter pinned in code | Linear-light sRGB input; D65/2°; **CIEDE2000**; **Machado, Oliveira & Fernandes (2009)** IEEE TVCG 15(6) Table 1, severity-1.0 matrices. The first draft said "CIELAB ΔE76 + Viénot" and pinned none of the input space, white point, or tritanopia matrix — the reviewer of PR #55 re-ran it and got different vision attributions, correctly. Machado is used here because all three deficiencies come from one derivation (Viénot 1999 is validated only for protanopia and deuteranopia; its tritanopia is an extrapolation), and its matrices are published constants. **The numbers in the three rows below are from this pinned method and supersede the first draft's.** |
 | Ramp vs no-data separation | `palette-probe.mjs` §4 | Lightest ramp step vs no-data `#dfe3e8`: **BLUE ΔE00 3.7**, **TEAL ΔE00 7.2** (falling to **3.7 under deuteranopia**), HEAT 11.2; WCAG contrast 1.14–1.17:1. Below any legibility threshold **for normal colour vision**, at marker sizes of 3.5–26px. This is the row R5 rests on, and it is starker than the first draft's ΔE76 figures suggested. |
 | Ramps under dichromacy | `palette-probe.mjs` §3 and §7 | Min adjacent-step ΔE00, **worst case across the four visions** — the worst vision differs per ramp: BLUE **7.5** (protanopia), HEAT **7.7** (*deuteranopia*; its protanopia figure is 10.1), TEAL **4.3** (protanopia). So all three fall under 10 somewhere, not just TEAL — the first draft reported BLUE and HEAT as comfortable, an artefact of ΔE76. At normal vision the figures are BLUE 8.4, TEAL 8.8, HEAT 10.3, so HEAT alone clears a ≥ 10 floor there. **But** §7 shows every ramp stays **strictly monotonic in L\*** under all four visions, min step gap 6.3 — so the ramps still read as *ordered scales*, which is what a sequential ramp is for. R10 is written against that, not against adjacent-step ΔE. |
@@ -235,20 +235,49 @@ foreground from its swatch was tested and **cannot reach AA**: `#2f7ec1` gives
 4.09:1 — mid-tones where neither pole clears 4.5:1, and 9px bold is not large
 text. Making that approach work would mean constraining the swatch palette
 itself to avoid the mid-tone band, a new constraint pulling directly against R4
-and R10. Deletion costs nothing: `LaborDetailPanel.jsx:141–152` already renders
-a legend beneath the bar carrying `{g.n}. {g.label}` and the percentage for
-every group, and the age bar has the same legend beneath it. The digit is
-redundant with the line directly below it.
+and R10.
+
+Deletion is lossless for the ISCO bar but **not** for the age bar, and the
+difference decides the order of work. `LaborDetailPanel.jsx:141–152` renders an
+ISCO legend carrying `{g.n}. {g.label}` and the percentage for every group, so
+the `:132` digit is redundant with the line directly below it. The age legend at
+`:65–72` carries a swatch and the band name only — **no percentage**. Deleting
+`:60` as-is would take a country's 0–14 population share off the rendered page
+altogether: `grep -rn "pop_0_14_pct" src/` returns the metric definition, this
+bar, and `LaborPage.jsx:114`, which is the *world* row rather than the selected
+country. (`pop_65plus_pct` survives via the `65+ share` row at `:338`;
+`pop_15_64_pct` roughly survives via the Funnel at `:81`.) It would fall back to
+the segment's `title` tooltip, which needs a hover — unreachable at the 375px
+viewport R1 exists for, and unreliable on the keyboard path R2 exists for. R3
+does not cover it either, being the *map's* text equivalent rather than the
+panel's.
+
+So an accessibility fix would silently remove an `OFFICIAL` figure from the
+page. **Add the percentage to the age legend first, matching the ISCO legend,
+then delete the in-bar label.** That makes the two bars consistent and the
+deletion lossless in both.
 
 **Acceptance:** a single exported text-palette module exists and the components
 take their text colours from it — asserted by `grep` over **`src/`** (not just
 `src/components/`) finding no remaining `text-[a-z]+-[0-9]+`, `text-black`, or
 arbitrary `text-[#…]` literals. The R9 palette test asserts every entry in that
 export is ≥ 4.5:1 against its declared background, or ≥ 3:1 where it is declared
-large. The in-swatch labels at `LaborDetailPanel.jsx:60` and `:132` are gone,
-asserted by `grep` finding no `text-white` inside an element carrying an inline
-`backgroundColor`, with the legends beneath both bars unchanged. Two exclusions,
-named here rather than left to a pattern to drop silently:
+large.
+
+The in-swatch labels at `LaborDetailPanel.jsx:60` and `:132` are gone, asserted
+by `grep -rn "text-white" src/` returning **exactly the four chip sites listed
+below and nothing else** — today it returns six, those four plus the two labels.
+This replaces an earlier criterion that asked for no `text-white` "inside an
+element carrying an inline `backgroundColor`", which cannot be run: that is a
+nesting relation across lines, and at both sites the `backgroundColor` is on the
+parent `div` (`:55`, `:128`) while `text-white` is on a child `span` (`:60`,
+`:132`). The count is not only runnable but stronger, because the criterion and
+the exclusion list then check each other — a fifth `text-white` added later
+fails until it is either fixed or added below with its ratio.
+
+And **every band's percentage is still rendered as text outside its swatch, for
+both bars** — which requires the age legend to change rather than stay as it is.
+Two exclusions, named here rather than left to a pattern to drop silently:
 
 - `text-white` on the four `bg-gray-800`/`bg-gray-900` active chips —
   `ScenarioPanel.jsx:33`, `LaborSidebar.jsx:34`, `LaborTimeline.jsx:39` and

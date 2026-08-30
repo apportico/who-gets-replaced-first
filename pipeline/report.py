@@ -394,5 +394,37 @@ def write(rows, out_path, sensitivity=None):
     print(f"      wrote {out_path}")
 
 
+def load_sensitivity():
+    """Rebuild the sensitivity summary from committed artifacts.
+
+    `run.py` computes this live and passes it to `write()`; running this module
+    directly used to pass nothing, so `npm run report` silently produced a
+    report missing the AI-exposure-sensitivity paragraph -- a different document
+    from the one the pipeline writes, from the same function. Reconstructing it
+    from `data/ai_exposure_sensitivity.csv` and the weight profiles keeps one
+    report with one content, whichever entry point produces it.
+
+    Deliberately does not import `build` for its `_median`: that would pull in
+    `config` and `fetch` transitively, giving `npm run report` a dependency on
+    the network module it has never needed.
+    """
+    path = os.path.join(HERE, "data", "ai_exposure_sensitivity.csv")
+    if not os.path.exists(path):
+        return None
+    with open(path, newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    if not rows:
+        return None
+    moves = sorted(int(r["max_rank_movement"]) for r in rows)
+    n = len(moves)
+    median = moves[n // 2] if n % 2 else (moves[n // 2 - 1] + moves[n // 2]) / 2
+    worst = max(rows, key=lambda r: int(r["max_rank_movement"]))
+    with open(os.path.join(HERE, "ai_exposure_isco.json"), encoding="utf-8") as fh:
+        profiles = list(json.load(fh).get("profiles", {}))
+    return {"median_rank_movement": median, "max_rank_movement": moves[-1],
+            "worst_country": worst["country_name"], "n": n, "profiles": profiles}
+
+
 if __name__ == "__main__":
-    write(load(), os.path.join(HERE, "summary_report.md"))
+    write(load(), os.path.join(HERE, "summary_report.md"),
+          sensitivity=load_sensitivity())

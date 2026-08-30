@@ -1,6 +1,6 @@
 # Global Labor Structure & AI Exposure — Summary Report
 
-Generated 2026-08-29 from `pipeline/data/global_labor_dataset.csv`.
+Generated 2026-08-30 from `pipeline/data/global_labor_dataset.csv`.
 
 **Read the confidence section at the bottom before quoting any number.** Sections A–C are official statistics. Section D is an official statistic used as a *proxy* for "white collar." Sections E and F are constructed proxies and a modeled overlay respectively — they are not measurements.
 
@@ -168,7 +168,7 @@ Across countries with at least six years of occupation data, clerical employment
 
 ## Entry-level squeeze index
 
-A **derived composite** (not a measurement) of four percentile ranks: youth cohort size, youth white-collar concentration, youth unemployment, and whether youth are more white-collar than the workforce average. All four components stay separately inspectable in the dataset.
+A **modeled composite** (not a measurement) of four percentile ranks, combined with weights we assigned (0.25 / 0.30 / 0.25 / 0.20): youth cohort size, youth white-collar concentration, youth unemployment, and whether youth are more white-collar than the workforce average. All four components stay separately inspectable in the dataset.
 
 | # | Country | Squeeze | Youth cohort % | Youth white collar % | Youth unemployment % |
 |---:|---|---:|---:|---:|---:|
@@ -228,7 +228,7 @@ Shares put Luxembourg at the top. Headcounts put India there. Both are true; the
 | E. Entry-level share | **PROXY — not a measurement** | No global source tracks junior vs. senior seniority within an occupation. Age 15–24 is a stand-in: it misses graduate-entry roles at 25–29 and counts long-tenure young workers as entry-level. |
 | ISCO-88 fallback countries | **Official statistic, older revision** | 10 areas publish ISCO-88 only. Major groups align 1:1 with ISCO-08, so the 1–4 cut carries over; the revision moved some ICT occupations between groups 2 and 3, making `professional_core_pct` slightly less comparable than `white_collar_pct`. |
 | Career-stage shares (25–54, 55–64) | **Official statistic** | Same survey source as the headline occupation split. |
-| Entry-level squeeze index | **DERIVED composite** | Four percentile ranks combined with chosen weights. Not measured; all components separately available. |
+| Entry-level squeeze index | **MODELED composite** | Four percentile ranks combined with weights we assigned (0.25 / 0.30 / 0.25 / 0.20). Not measured; all components separately available. |
 | Exposed wage bill | **MODELED** | A modeled index multiplied by two official statistics. An order of magnitude, never an amount at risk. |
 | Time-series country trends | **Official statistic** | Same source, more years. |
 | Time-series AGGREGATE trends | **Unreliable** | The reporting country set changes year to year, so aggregate movement is partly composition change. Per-year coverage is published so this can be seen. |

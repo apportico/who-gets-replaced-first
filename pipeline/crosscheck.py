@@ -6,6 +6,7 @@ from collections import defaultdict
 import config as C
 import fetch
 import build as B
+import report
 
 # Eurostat's isco08 dimension codes for the major groups, in ISCO order.
 EUROSTAT_ISCO = ["OC1", "OC2", "OC3", "OC4", "OC5", "OC6", "OC7", "OC8", "OC9"]
@@ -142,12 +143,14 @@ def sensitivity(rows_by_iso, profiles, data_dir):
         w = csv.DictWriter(f, fieldnames=list(out[0].keys()))
         w.writeheader()
         w.writerows(out)
-    moves = [r["max_rank_movement"] for r in out]
-    median_move = sorted(moves)[len(moves) // 2]
+    # One definition, shared with report.load_sensitivity(), so `npm run report`
+    # and `npm run pipeline` cannot print different numbers for the same data.
+    # (`report` is imported at module level: it imports no pipeline module, so
+    # there is no cycle, and a bad import should fail at load rather than after
+    # the CSV above has already been written.)
+    summary = report.summarise_sensitivity(out, profiles)
     print(f"      {len(out)} countries scored under {len(profiles)} weight profiles")
-    print(f"      median rank movement {median_move}, worst {max(moves)} "
-          f"({out[0]['country_name']})")
+    print(f"      median rank movement {summary['median_rank_movement']}, "
+          f"worst {summary['max_rank_movement']} ({summary['worst_country']})")
     print(f"      wrote {path}")
-    return {"median_rank_movement": median_move, "max_rank_movement": max(moves),
-            "worst_country": out[0]["country_name"], "n": len(out),
-            "profiles": list(profiles)}
+    return summary

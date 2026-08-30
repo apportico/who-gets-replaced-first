@@ -35,7 +35,7 @@ Run it before claiming a pipeline change worked.
 that looks like a broken suite but is not:
 
 ```bash
-python3 -m unittest discover pipeline/tests          # 107 tests, OK
+python3 -m unittest discover pipeline/tests          # 114 tests, OK
 python3 -m unittest discover -s pipeline/tests -t .  # 9 errors: No module named 'context'
 ```
 
@@ -349,7 +349,7 @@ problem.
 | Field | Tier | Definition |
 |---|---|---|
 | `clerical_employed`, `white_collar_employed`, `professionals_employed`, `young_white_collar_employed` | derived | Headcounts, not shares. Shares put Luxembourg first; headcounts put India first. Both are true, they answer different questions. |
-| `entry_level_squeeze_index` | derived composite | 0–100 from four percentile ranks: youth cohort share (0.25), youth white-collar share (0.30), youth unemployment (0.25), youth-vs-all-ages white-collar gap (0.20). Requires at least 3 of 4 components. **Not a measurement** — every component stays separately inspectable. |
+| `entry_level_squeeze_index` | modeled composite | 0–100 from four percentile ranks: youth cohort share (0.25), youth white-collar share (0.30), youth unemployment (0.25), youth-vs-all-ages white-collar gap (0.20). Requires at least 3 of 4 components. **Not a measurement** — every component stays separately inspectable. |
 | `exposed_wage_bill_ppp` | modeled | `ai_exposure_weighted_score × employed_total × gdp_per_capita_ppp`. An order of magnitude for the economic scale of exposure. **Never an amount at risk.** |
 | `ict_service_exports_usd` | official | Service exports × ICT share — white-collar labor sold abroad. Countries whose exposed jobs are export-facing carry a compounding risk. |
 

@@ -260,7 +260,7 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
   if (!row) {
     return (
       <div
-        className="panel-scroll w-96 bg-gray-50 overflow-y-auto p-6 border-l border-gray-200 flex items-center"
+        className="panel-scroll hidden md:flex w-96 bg-gray-50 overflow-y-auto p-6 border-l border-gray-200 items-center"
         role="region"
         aria-label="Country detail — nothing selected"
       >
@@ -283,16 +283,22 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
     // would be to scope the rule out. Announcing the country name also makes
     // the panel identifiable when several regions are listed.
     <div
-      className="panel-scroll w-96 bg-gray-50 overflow-y-auto border-l border-gray-200 text-[var(--text-primary)]"
+      className="panel-scroll fixed inset-0 z-[1100] w-full md:static md:z-auto md:w-96 bg-gray-50 overflow-y-auto md:border-l border-gray-200 text-[var(--text-primary)]"
       role="region"
       aria-label={`Country detail: ${row.country_name}`}
     >
       <div className="sticky top-0 bg-gray-50 px-4 pt-4 pb-3 border-b border-gray-200 z-10">
+        {/* Spec 0008 R8. axe's button-name rule PASSES on a bare &times; — the
+            glyph is text content — but a screen reader announces it as
+            "multiplication sign". A rule passing is not the same as a usable
+            name, so the name is explicit and the glyph is hidden from the
+            accessibility tree. */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-[var(--text-faint)] hover:text-[var(--text-body)] text-lg leading-none cursor-pointer"
+          aria-label={`Close ${row.country_name} detail`}
+          className="absolute top-3 right-3 text-[var(--text-faint)] hover:text-[var(--text-body)] text-lg leading-none cursor-pointer w-6 h-6 flex items-center justify-center"
         >
-          &times;
+          <span aria-hidden="true">&times;</span>
         </button>
         <div className="flex items-center gap-2 mb-1">
           <span className="font-mono text-[10px] bg-gray-800 text-white px-1.5 py-0.5 rounded">

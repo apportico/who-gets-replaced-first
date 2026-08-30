@@ -23,7 +23,7 @@ export default function LaborTimeline({ years, year, onChange, playing, onToggle
       <button
         onClick={onTogglePlay}
         disabled={isLatest}
-        className={`text-xs w-6 h-6 rounded flex items-center justify-center transition-colors ${
+        className={`text-xs w-6 h-6 min-w-[24px] flex-shrink-0 rounded flex items-center justify-center transition-colors ${
           isLatest
             ? 'text-[var(--text-disabled)] cursor-not-allowed'
             : 'text-[var(--text-body)] hover:bg-gray-100 cursor-pointer'
@@ -35,7 +35,7 @@ export default function LaborTimeline({ years, year, onChange, playing, onToggle
 
       <button
         onClick={() => onChange(null)}
-        className={`text-[11px] px-2 py-0.5 rounded cursor-pointer transition-colors ${
+        className={`text-[11px] px-2.5 py-1 min-h-[24px] rounded cursor-pointer transition-colors ${
           isLatest ? 'bg-gray-900 text-white' : 'text-[var(--text-muted)] hover:bg-gray-100'
         }`}
         title="Most recent year available per country — years differ between countries"
@@ -52,7 +52,7 @@ export default function LaborTimeline({ years, year, onChange, playing, onToggle
         onChange={(e) => onChange(years[Number(e.target.value)])}
         aria-label="Year"
         aria-valuetext={isLatest ? 'Latest available year per country' : String(year)}
-        className="flex-1 cursor-pointer accent-gray-900"
+        className="flex-1 h-6 cursor-pointer accent-gray-900"
       />
 
       <span className="text-xs font-mono font-bold tabular-nums w-24 text-right">

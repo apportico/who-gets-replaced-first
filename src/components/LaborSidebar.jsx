@@ -17,7 +17,7 @@ export default function LaborSidebar({
 
   return (
     <div
-      className="panel-scroll w-72 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0"
+      className="panel-scroll w-full md:w-72 bg-white md:border-r border-gray-200 overflow-y-auto md:flex-shrink-0"
       role="region"
       aria-label="Map controls: metric, aggregates, scenario and filters"
     >
@@ -117,7 +117,7 @@ export default function LaborSidebar({
             <button
               key={a.iso3}
               onClick={() => onSelectRow(a)}
-              className="w-full text-left px-2 py-1 rounded hover:bg-gray-100 cursor-pointer flex items-center gap-2"
+              className="w-full text-left px-2 py-1.5 min-h-[24px] rounded hover:bg-gray-100 cursor-pointer flex items-center gap-2"
             >
               <span className="text-[11px] text-[var(--text-body)] flex-1 truncate">{a.country_name}</span>
               <span className="text-[11px] font-mono tabular-nums font-semibold text-[var(--text-primary)]">
@@ -150,7 +150,7 @@ export default function LaborSidebar({
           <h2 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Filters</h2>
           <button
             onClick={onReset}
-            className="text-[10px] text-[var(--text-faint)] hover:text-[var(--text-body)] cursor-pointer"
+            className="text-[10px] text-[var(--text-faint)] hover:text-[var(--text-body)] cursor-pointer min-h-[24px] px-2 -mx-2"
           >
             reset
           </button>
@@ -160,25 +160,25 @@ export default function LaborSidebar({
           onChange={(e) => onSearch(e.target.value)}
           placeholder="Search country or ISO3…"
           aria-label="Search countries by name or ISO3 code"
-          className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded mb-2 focus:outline-none focus:border-gray-400"
+          className="w-full text-xs px-2 py-1.5 min-h-[24px] border border-gray-200 rounded mb-2"
         />
-        <label className="flex items-center gap-2 mb-2 cursor-pointer">
+        <label className="flex items-center gap-2 mb-2 min-h-[24px] cursor-pointer">
           <input
             type="checkbox"
             checked={showCorridor}
             onChange={onToggleCorridor}
-            className="cursor-pointer"
+            className="w-6 h-6 cursor-pointer"
           />
           <span className="text-[11px] text-[var(--text-body)]">
             Ring the {corridorCount} corridor-board states
           </span>
         </label>
-        <label className="flex items-center gap-2 mb-3 cursor-pointer">
+        <label className="flex items-center gap-2 mb-3 min-h-[24px] cursor-pointer">
           <input
             type="checkbox"
             checked={requireIsco}
             onChange={onToggleRequireIsco}
-            className="cursor-pointer"
+            className="w-6 h-6 cursor-pointer"
           />
           <span className="text-[11px] text-[var(--text-body)]">Only countries with occupation data</span>
         </label>
@@ -190,7 +190,7 @@ export default function LaborSidebar({
               key={r}
               onClick={() => onToggleRegion(r)}
               aria-pressed={activeRegions.has(r)}
-              className={`w-full text-left px-2 py-1 rounded text-[11px] cursor-pointer transition-colors ${
+              className={`w-full text-left px-2 py-1.5 min-h-[24px] rounded text-[11px] cursor-pointer transition-colors ${
                 activeRegions.has(r) ? 'bg-[var(--surface-info)] text-[var(--text-info)] font-medium' : 'text-[var(--text-secondary)] hover:bg-gray-100'
               }`}
             >
@@ -206,7 +206,7 @@ export default function LaborSidebar({
               key={g}
               onClick={() => onToggleIncome(g)}
               aria-pressed={activeIncome.has(g)}
-              className={`w-full text-left px-2 py-1 rounded text-[11px] cursor-pointer transition-colors ${
+              className={`w-full text-left px-2 py-1.5 min-h-[24px] rounded text-[11px] cursor-pointer transition-colors ${
                 activeIncome.has(g) ? 'bg-[var(--surface-info)] text-[var(--text-info)] font-medium' : 'text-[var(--text-secondary)] hover:bg-gray-100'
               }`}
             >

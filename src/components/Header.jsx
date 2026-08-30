@@ -14,7 +14,7 @@ export default function Header() {
         href="https://github.com/apportico/who-gets-replaced-first"
         target="_blank"
         rel="noreferrer"
-        className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
+        className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0 inline-flex items-center min-h-[24px]"
       >
         Source &amp; method →
       </a>

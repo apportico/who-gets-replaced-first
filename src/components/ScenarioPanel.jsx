@@ -30,7 +30,7 @@ export default function ScenarioPanel({ rate, onRate, basis, onBasis, rows, worl
             key={b.key}
             onClick={() => onBasis(b.key)}
             aria-pressed={basis === b.key}
-            className={`w-full text-left px-2 py-1 rounded text-[11px] cursor-pointer transition-colors ${
+            className={`w-full text-left px-2 py-1.5 min-h-[24px] rounded text-[11px] cursor-pointer transition-colors ${
               basis === b.key ? 'bg-gray-900 text-white' : 'text-[var(--text-secondary)] hover:bg-white'
             }`}
           >
@@ -51,7 +51,7 @@ export default function ScenarioPanel({ rate, onRate, basis, onBasis, rows, worl
         onChange={(e) => onRate(Number(e.target.value))}
         aria-label="Share of these jobs automated, for the scenario"
         aria-valuetext={`${rate} percent`}
-        className="w-full cursor-pointer accent-purple-700 mb-2"
+        className="w-full h-6 cursor-pointer accent-purple-700 mb-2"
       />
 
       <div className="bg-white rounded border border-purple-200 p-2 mb-2">

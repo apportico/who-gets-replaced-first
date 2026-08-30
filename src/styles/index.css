@@ -35,7 +35,7 @@
 /* Light popup styling */
 .leaflet-popup-content-wrapper {
   background: #ffffff !important;
-  color: #1f2937 !important;
+  color: var(--text-primary) !important;
   border-radius: 8px !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
   border: 1px solid #e5e7eb !important;
@@ -47,10 +47,10 @@
   border-left: none !important;
 }
 .leaflet-popup-close-button {
-  color: #9ca3af !important;
+  color: var(--text-faint) !important;
 }
 .leaflet-popup-close-button:hover {
-  color: #374151 !important;
+  color: var(--text-body) !important;
 }
 .leaflet-popup-content {
   margin: 10px 14px !important;
@@ -59,7 +59,7 @@
 /* Light tooltip styling */
 .leaflet-tooltip {
   background: #ffffff !important;
-  color: #1f2937 !important;
+  color: var(--text-primary) !important;
   border: 1px solid #e5e7eb !important;
   border-radius: 4px !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
@@ -107,20 +107,36 @@
 }
 .leaflet-control-zoom a {
   background: #ffffff !important;
-  color: #6b7280 !important;
+  color: var(--text-faint) !important;
   border-color: #e5e7eb !important;
 }
 .leaflet-control-zoom a:hover {
   background: #f3f4f6 !important;
-  color: #1f2937 !important;
+  color: var(--text-primary) !important;
 }
 
 /* Leaflet attribution */
+/* Spec 0008 R7. This was #9ca3af — the same 2.54:1 grey the token palette
+   replaced, hiding in raw CSS where no `text-*` grep reaches it. Third place
+   this blind spot has turned up, after the in-swatch labels and qualityTone.
+   Both colours now come from the tokens. */
 .leaflet-control-attribution {
-  background: rgba(255, 255, 255, 0.8) !important;
-  color: #9ca3af !important;
-  font-size: 9px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--text-faint) !important;
+  font-size: 10px !important;
 }
 .leaflet-control-attribution a {
-  color: #2563eb !important;
+  color: var(--text-info) !important;
+}
+
+/* Spec 0008 R2 — a visible focus indicator on every focusable thing.
+   The browser default outline was suppressed on the search input and is easy to
+   lose against this palette, so it is replaced by an explicit ring rather than
+   left to chance. #1a4fa0 on white is 6.76:1, well past the 3:1 that WCAG
+   requires of a focus indicator. :focus-visible rather than :focus so a mouse
+   click does not leave a ring behind. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #1a4fa0;
+  outline-offset: 2px;
+  border-radius: 2px;
 }

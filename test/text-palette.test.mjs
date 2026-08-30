@@ -96,6 +96,19 @@ test('R7 — data-quality badges clear AA on their own badge background', () => 
   }
 });
 
+test('R7 — index.css declares no text colour outside the token block', () => {
+  // The third place this blind spot appeared: `.leaflet-control-attribution`
+  // set `color: #9ca3af` — the same 2.54:1 grey — in raw CSS, where neither the
+  // Tailwind grep nor the exported tables reach. Every `color:` outside the
+  // `:root` token block must therefore be a `var(--…)` reference.
+  const withoutRoot = CSS.replace(/:root\s*\{[^}]*\}/s, '');
+  const offenders = [...withoutRoot.matchAll(/(?<!-)\bcolor:\s*([^;]+);/g)]
+    .map((m) => m[1].trim())
+    .filter((v) => !v.startsWith('var(') && !/^(inherit|transparent|currentColor)$/i.test(v.replace(/\s*!important$/, '')))
+    .filter((v) => !v.replace(/\s*!important$/, '').startsWith('var('));
+  assert.deepEqual(offenders, [], `index.css sets a colour outside the token block:\n  ${offenders.join('\n  ')}`);
+});
+
 test('R7 — text-white appears only on the dark chips it is excluded for', () => {
   // The exclusion is four sites, not "text-white generally". Two others were
   // 9px labels on data-driven swatches, down to 1.68:1 — deleted by R7, and

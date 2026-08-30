@@ -5,6 +5,7 @@ import LaborMap from './LaborMap';
 import LaborSidebar from './LaborSidebar';
 import LaborDetailPanel from './LaborDetailPanel';
 import LaborTimeline from './LaborTimeline';
+import BottomSheet from './BottomSheet';
 import { CORRIDOR_STATES } from '../utils/corridorStates';
 import { mapTextEntries, mapSummary } from '../utils/mapText';
 import { METRICS, TIERS, fmt, fmtCompact, fmtMetric, colorFor, normalise } from '../utils/laborMetrics';
@@ -156,7 +157,8 @@ export default function LaborPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0 relative">
+        <BottomSheet title="Metric, filters and scenario">
         <LaborSidebar
           metric={metric}
           onMetricChange={setMetric}
@@ -187,6 +189,7 @@ export default function LaborPage() {
             rows: filtered, world: worldRow,
           }}
         />
+        </BottomSheet>
 
         <div className="flex-1 flex flex-col min-w-0">
           <LaborTimeline
@@ -208,7 +211,6 @@ export default function LaborPage() {
             className="flex-1 min-h-0 relative"
             role="region"
             aria-label={mapSummary(filtered, metric)}
-            aria-describedby="map-text-equivalent"
           >
             <LaborMap
               rows={filtered}
@@ -218,11 +220,20 @@ export default function LaborPage() {
               flyTarget={flyTarget}
               corridorStates={showCorridor ? CORRIDOR_STATES : null}
             />
-            <ul id="map-text-equivalent" className="sr-only">
-              {mapTextEntries(filtered, metric).map((e) => (
-                <li key={e.iso3}>{e.text}</li>
-              ))}
-            </ul>
+            {/* Its own labelled region, NOT the map's aria-describedby.
+                `describedby` is announced as one continuous description, so
+                pointing it at 218 entries would read the entire dataset aloud
+                before the user could do anything. As a region it is navigable:
+                a screen-reader user reaches it deliberately, and skips it just
+                as deliberately. The map's own name already carries the summary
+                and the coverage count. */}
+            <section className="sr-only" aria-label={`${metric.label} by country — text equivalent`}>
+              <ul>
+                {mapTextEntries(filtered, metric).map((e) => (
+                  <li key={e.iso3}>{e.text}</li>
+                ))}
+              </ul>
+            </section>
           </div>
 
           {/* Ranking strip */}
@@ -235,7 +246,38 @@ export default function LaborPage() {
                 {ranked.length} countries with data · click to inspect
               </span>
             </div>
-            <div className="flex-1 overflow-x-auto overflow-y-hidden">
+            {/* Spec 0008 R2 + R6. This is the keyboard path to a country:
+                Leaflet's CircleMarker is a bare SVG path with no tabindex and no
+                keyboard option (only Marker has those), so the map can never be
+                driven by keyboard and a list has to carry it. One tab stop for
+                the whole strip, arrows to move, Enter or Space to select —
+                which is how a listbox is expected to behave, rather than 218
+                separate tab stops.
+
+                Each option is 24px wide below `md` to meet R6's target size;
+                the strip already scrolls horizontally, so the bars simply get
+                wider rather than the chart losing entries. Above `md` they stay
+                9px, where a mouse is the pointer. */}
+            <div
+              className="flex-1 overflow-x-auto overflow-y-hidden"
+              role="listbox"
+              tabIndex={0}
+              aria-label={`Countries ranked by ${metric.label}, highest first`}
+              aria-activedescendant={selected ? `rank-${selected.iso3}` : undefined}
+              onKeyDown={(e) => {
+                if (!ranked.length) return;
+                const at = ranked.findIndex((r) => r.iso3 === selected?.iso3);
+                let next = null;
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = at < 0 ? 0 : Math.min(at + 1, ranked.length - 1);
+                else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = at < 0 ? 0 : Math.max(at - 1, 0);
+                else if (e.key === 'Home') next = 0;
+                else if (e.key === 'End') next = ranked.length - 1;
+                else if ((e.key === 'Enter' || e.key === ' ') && at >= 0) next = at;
+                if (next === null) return;
+                e.preventDefault();
+                handleSelect(ranked[next]);
+              }}
+            >
               <div className="flex h-full items-end gap-px px-3 pb-2 pt-1">
                 {ranked.map((r, i) => {
                   const h = Math.max(4, normalise(metric, r[metric.key]) * 100);
@@ -243,9 +285,14 @@ export default function LaborPage() {
                   return (
                     <button
                       key={r.iso3}
+                      id={`rank-${r.iso3}`}
+                      role="option"
+                      aria-selected={isSel}
+                      tabIndex={-1}
                       onClick={() => handleSelect(r)}
+                      aria-label={`${i + 1}. ${r.country_name}, ${fmtMetric(metric, r[metric.key])}`}
                       title={`${i + 1}. ${r.country_name} — ${fmtMetric(metric, r[metric.key])}`}
-                      className="group relative flex-shrink-0 w-[9px] cursor-pointer flex flex-col justify-end h-full"
+                      className="group relative flex-shrink-0 w-6 md:w-[9px] cursor-pointer flex flex-col justify-end h-full"
                     >
                       <div
                         style={{

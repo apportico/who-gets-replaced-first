@@ -5,7 +5,9 @@ import LaborMap from './LaborMap';
 import LaborSidebar from './LaborSidebar';
 import LaborDetailPanel from './LaborDetailPanel';
 import LaborTimeline from './LaborTimeline';
+import BottomSheet from './BottomSheet';
 import { CORRIDOR_STATES } from '../utils/corridorStates';
+import { mapTextEntries, mapSummary } from '../utils/mapText';
 import { METRICS, TIERS, fmt, fmtCompact, fmtMetric, colorFor, normalise } from '../utils/laborMetrics';
 
 const ALL_ROWS = laborData.rows;
@@ -27,12 +29,12 @@ function HeadlineStat({ label, value, sub, tier }) {
   return (
     <div className="px-4 py-2 border-r border-gray-200 last:border-0">
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+        <span className="text-[10px] font-semibold tracking-wide text-[var(--text-muted)] uppercase">
           {label}
         </span>
         {t && (
           <span
-            className="text-[8px] font-bold px-1 py-px rounded"
+            className="text-[11px] font-bold px-1.5 py-0.5 rounded"
             style={{ backgroundColor: `${t.color}1a`, color: t.color }}
           >
             {t.label}
@@ -40,7 +42,7 @@ function HeadlineStat({ label, value, sub, tier }) {
         )}
       </div>
       <div className="text-lg font-bold leading-tight tabular-nums">{value}</div>
-      {sub && <div className="text-[10px] text-gray-400 leading-tight">{sub}</div>}
+      {sub && <div className="text-[10px] text-[var(--text-faint)] leading-tight">{sub}</div>}
     </div>
   );
 }
@@ -79,6 +81,12 @@ export default function LaborPage() {
     });
   }, [search, activeRegions, activeIncome, requireIsco, year]);
 
+  // Spec 0008 R2. `ranked` drives the bar heights; `options` drives the listbox.
+  // They used to be the same array, which meant a country with no value for the
+  // active metric had a clickable marker on the map and no keyboard path at all
+  // — against a requirement titled "Every country is reachable". No-data rows
+  // now sort to the end and are still selectable, which is also the only way to
+  // reach the panel that explains WHY they have no data.
   const ranked = useMemo(
     () =>
       filtered
@@ -86,6 +94,26 @@ export default function LaborPage() {
         .sort((a, b) => b[metric.key] - a[metric.key]),
     [filtered, metric],
   );
+
+  const options = useMemo(() => {
+    const withData = ranked;
+    const withoutData = filtered
+      .filter((r) => r[metric.key] == null)
+      .sort((a, b) => a.country_name.localeCompare(b.country_name));
+    return [...withData, ...withoutData];
+  }, [filtered, ranked, metric]);
+
+  // The active option is what the arrow keys move and what
+  // `aria-activedescendant` points at. It is deliberately NOT `selected`:
+  // `selected` can be an aggregate from the sidebar, or a country dropped out of
+  // `options` by a metric change, and pointing the attribute at an id that is
+  // not rendered leaves assistive tech with a dangling reference.
+  const [activeIso, setActiveIso] = useState(null);
+  const activeIndex = useMemo(
+    () => options.findIndex((r) => r.iso3 === activeIso),
+    [options, activeIso],
+  );
+  const activeOption = activeIndex >= 0 ? options[activeIndex] : null;
 
   const worldRow = useMemo(() => rowForYear(WORLD, year), [year]);
   const yearCoverage = coverageForYear(year);
@@ -145,8 +173,8 @@ export default function LaborPage() {
           tier="modeled"
         />
         <div className="flex-1 min-w-[220px] px-4 py-2 flex items-center">
-          <p className="text-[10px] text-gray-500 leading-snug">
-            <strong className="text-gray-700">Read the badges.</strong> OFFICIAL are published
+          <p className="text-[10px] text-[var(--text-muted)] leading-snug">
+            <strong className="text-[var(--text-body)]">Read the badges.</strong> OFFICIAL are published
             statistics. PROXY and MODELED are constructed stand-ins — the entry-level and AI
             exposure figures are not measurements. World occupation figures cover{' '}
             {fmt(worldRow?.isco_coverage_pct_of_employment, 0)}% of global employment; China
@@ -155,7 +183,8 @@ export default function LaborPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0 relative">
+        <BottomSheet title="Metric, filters and scenario">
         <LaborSidebar
           metric={metric}
           onMetricChange={setMetric}
@@ -186,6 +215,7 @@ export default function LaborPage() {
             rows: filtered, world: worldRow,
           }}
         />
+        </BottomSheet>
 
         <div className="flex-1 flex flex-col min-w-0">
           <LaborTimeline
@@ -197,7 +227,17 @@ export default function LaborPage() {
             coverage={yearCoverage}
           />
 
-          <div className="flex-1 min-h-0 relative">
+          {/* Spec 0008 R3. The choropleth conveys nothing to a screen reader,
+              and its colour is unreliable to sighted readers too — the lightest
+              ramp step sits ΔE00 3.7 from the no-data grey. This region names
+              what is plotted and points at a text equivalent carrying every
+              country's value and tier. Built by a pure function so the content
+              is asserted without a DOM. */}
+          <div
+            className="flex-1 min-h-0 relative"
+            role="region"
+            aria-label={mapSummary(filtered, metric)}
+          >
             <LaborMap
               rows={filtered}
               metric={metric}
@@ -206,46 +246,121 @@ export default function LaborPage() {
               flyTarget={flyTarget}
               corridorStates={showCorridor ? CORRIDOR_STATES : null}
             />
+            {/* Its own labelled region, NOT the map's aria-describedby.
+                `describedby` is announced as one continuous description, so
+                pointing it at 218 entries would read the entire dataset aloud
+                before the user could do anything. As a region it is navigable:
+                a screen-reader user reaches it deliberately, and skips it just
+                as deliberately. The map's own name already carries the summary
+                and the coverage count. */}
+            <section className="sr-only" aria-label={`${metric.label} by country — text equivalent`}>
+              <ul>
+                {mapTextEntries(filtered, metric).map((e) => (
+                  <li key={e.iso3}>{e.text}</li>
+                ))}
+              </ul>
+            </section>
           </div>
 
           {/* Ranking strip */}
           <div className="h-36 border-t border-gray-200 bg-white flex flex-col flex-shrink-0">
             <div className="px-3 py-1.5 border-b border-gray-100 flex items-center gap-2">
-              <h3 className="text-[11px] font-bold tracking-wider text-gray-500 uppercase">
+              <h2 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">
                 Ranked by {metric.short}
-              </h3>
-              <span className="text-[10px] text-gray-400">
-                {ranked.length} countries with data · click to inspect
+              </h2>
+              <span className="text-[10px] text-[var(--text-faint)]">
+                {ranked.length} with data · {options.length - ranked.length} without · click or use arrow keys
               </span>
             </div>
-            <div className="flex-1 overflow-x-auto overflow-y-hidden">
+            {/* Spec 0008 R2 + R6. This is the keyboard path to a country:
+                Leaflet's CircleMarker is a bare SVG path with no tabindex and no
+                keyboard option (only Marker has those), so the map can never be
+                driven by keyboard and a list has to carry it. One tab stop for
+                the whole strip, arrows to move, Enter or Space to select —
+                which is how a listbox is expected to behave, rather than 218
+                separate tab stops.
+
+                Each option is 24px wide below `md` to meet R6's target size;
+                the strip already scrolls horizontally, so the bars simply get
+                wider rather than the chart losing entries. Above `md` they stay
+                9px, where a mouse is the pointer. */}
+            <div
+              id="country-ranking"
+              className="flex-1 overflow-x-auto overflow-y-hidden"
+              role="listbox"
+              tabIndex={0}
+              aria-label={`Countries ranked by ${metric.label}, highest first. ${options.length - ranked.length} without data, listed last.`}
+              aria-activedescendant={activeOption ? `rank-${activeOption.iso3}` : undefined}
+              onFocus={() => { if (!activeOption && options.length) setActiveIso(options[0].iso3); }}
+              onKeyDown={(e) => {
+                if (!options.length) return;
+                const at = activeIndex;
+                let next = null;
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = at < 0 ? 0 : Math.min(at + 1, options.length - 1);
+                else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = at < 0 ? 0 : Math.max(at - 1, 0);
+                else if (e.key === 'Home') next = 0;
+                else if (e.key === 'End') next = options.length - 1;
+                else if (e.key === 'Enter' || e.key === ' ') {
+                  // Arrows move; this commits. Previously the arrows called
+                  // handleSelect directly, which made this branch a no-op —
+                  // it re-selected what was already selected.
+                  if (at < 0) return;
+                  e.preventDefault();
+                  handleSelect(options[at]);
+                  return;
+                }
+                if (next === null) return;
+                e.preventDefault();
+                const iso = options[next].iso3;
+                setActiveIso(iso);
+                // The strip is `overflow-x-auto` over 200+ options, so arrowing
+                // past the visible edge moved aria-activedescendant to an option
+                // off screen: a screen-reader user hears the right country while
+                // a sighted keyboard user sees nothing move.
+                requestAnimationFrame(() => {
+                  document.getElementById(`rank-${iso}`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                });
+              }}
+            >
               <div className="flex h-full items-end gap-px px-3 pb-2 pt-1">
-                {ranked.map((r, i) => {
-                  const h = Math.max(4, normalise(metric, r[metric.key]) * 100);
+                {options.map((r, i) => {
+                  const value = r[metric.key];
+                  const hasData = value != null;
+                  const h = hasData ? Math.max(4, normalise(metric, value) * 100) : 6;
                   const isSel = selected?.iso3 === r.iso3;
+                  const isActive = activeOption?.iso3 === r.iso3;
+                  const position = hasData ? `${i + 1}. ` : '';
+                  const spoken = hasData ? fmtMetric(metric, value) : 'no data';
                   return (
                     <button
                       key={r.iso3}
-                      onClick={() => handleSelect(r)}
-                      title={`${i + 1}. ${r.country_name} — ${fmtMetric(metric, r[metric.key])}`}
-                      className="group relative flex-shrink-0 w-[9px] cursor-pointer flex flex-col justify-end h-full"
+                      id={`rank-${r.iso3}`}
+                      role="option"
+                      aria-selected={isSel}
+                      tabIndex={-1}
+                      onClick={() => { setActiveIso(r.iso3); handleSelect(r); }}
+                      aria-label={`${position}${r.country_name}, ${spoken}`}
+                      title={`${position}${r.country_name} — ${spoken}`}
+                      className={`group relative flex-shrink-0 w-6 md:w-[9px] cursor-pointer flex flex-col justify-end h-full ${isActive ? 'outline-2 outline-[var(--text-info)]' : ''}`}
                     >
                       <div
                         style={{
                           height: `${h}%`,
-                          backgroundColor: colorFor(metric, r[metric.key]),
+                          backgroundColor: colorFor(metric, value),
                           outline: isSel ? '2px solid #111827' : 'none',
+                          // Same non-colour channel as the map markers (R5).
+                          borderTop: hasData ? 'none' : '2px dashed #8b929b',
                         }}
                         className="w-full rounded-t-sm transition-all group-hover:brightness-90"
                       />
-                      <span className="absolute -bottom-0 left-1/2 -translate-x-1/2 text-[7px] font-mono text-gray-400 rotate-0">
+                      <span className="absolute -bottom-0 left-1/2 -translate-x-1/2 text-[11px] font-mono text-[var(--text-faint)] rotate-0">
                         {isSel ? '▲' : ''}
                       </span>
                     </button>
                   );
                 })}
                 {!ranked.length && (
-                  <p className="text-xs text-gray-400 self-center">
+                  <p className="text-xs text-[var(--text-faint)] self-center">
                     No countries match the current filters with data for this metric.
                   </p>
                 )}

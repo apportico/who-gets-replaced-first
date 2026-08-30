@@ -22,6 +22,20 @@ echo "==> pipeline tests"
 npm run --silent test:pipeline || fail "pipeline tests"
 
 echo ""
+# Spec 0008's accessibility and palette suite. Unconditional for the same reason
+# the pipeline tests are: it needs no network and no browser, so it runs in a
+# fresh clone. It guards the two things a build cannot — that the tier colours
+# still clear AA and stay separable under colour-vision deficiency, and that the
+# rendered tree carries its landmarks and labels.
+#
+# What it deliberately does NOT check: rendered sizes and rendered contrast.
+# jsdom has no layout engine, so axe's `target-size` rule reports a false pass
+# over a real tree rather than failing. Those live in spec 0008 R11, verified in
+# a browser by hand.
+echo "==> app tests (accessibility + palette)"
+npm run --silent test:app || fail "app tests — a tier colour, a text colour, or a landmark regressed"
+
+echo ""
 if [ -d pipeline/raw ] && [ -n "$(ls -A pipeline/raw 2>/dev/null)" ]; then
   # Write the pilot's output to a temp dir, never pipeline/data/. Verifying the
   # pipeline must not republish its artifacts: otherwise "verify passed" and

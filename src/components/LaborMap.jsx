@@ -1,6 +1,6 @@
 import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from 'react-leaflet';
 import { useEffect } from 'react';
-import { colorFor, radiusFor, fmtCompact, fmtMetric, NO_DATA_COLOR } from '../utils/laborMetrics';
+import { radiusFor, fmtCompact, fmtMetric, markerPropsFor, NO_DATA_COLOR } from '../utils/laborMetrics';
 
 const MAP_CENTER = [22, 12];
 const MAP_ZOOM = 2;
@@ -53,19 +53,33 @@ export default function LaborMap({ rows, metric, selected, onSelect, flyTarget, 
       {rows.map((r) => {
         const value = r[metric.key];
         const isSelected = selected && selected.iso3 === r.iso3;
-        const hasData = value !== null && value !== undefined;
+        // Spec 0008 R5. The dashed stroke on no-data markers is the non-colour
+        // channel: the lightest ramp step is ΔE00 3.7 from the no-data grey, so
+        // colour alone cannot say "no data" rather than "a low value".
+        const { hasData, ...pathStyle } = markerPropsFor(metric, r, isSelected);
         return (
           <CircleMarker
             key={r.iso3}
             center={[r.lat, r.lon]}
             radius={radiusFor(r.employed_total) * (isSelected ? 1.35 : 1)}
-            pathOptions={{
-              fillColor: colorFor(metric, value),
-              color: isSelected ? '#111827' : hasData ? '#ffffff' : '#b6bcc4',
-              weight: isSelected ? 2.5 : 1,
-              fillOpacity: hasData ? 0.88 : 0.55,
+            pathOptions={pathStyle}
+            eventHandlers={{
+              click: () => onSelect(r),
+              // Spec 0008 R2. Chrome puts these SVG paths in the tab order once
+              // Leaflet binds a Tooltip's focus listeners, even with no tabindex
+              // attribute — 206 of them from tab stop 55, which buried the
+              // ranking listbox that is the actual keyboard path. Paths are not
+              // keyboard-operable (only Marker handles Enter), so they are taken
+              // out of it.
+              //
+              // Done here, per marker, at the moment Leaflet adds it: `tabIndex`
+              // is not a Leaflet path option so `pathOptions` silently drops it,
+              // and an effect sweeping the container on `layeradd` re-queried
+              // every path once per marker added — ~24,000 setAttribute calls
+              // before first paint, and blind to any marker added by a path that
+              // fired none of the events it listened for.
+              add: (e) => e.target.getElement()?.setAttribute('tabindex', '-1'),
             }}
-            eventHandlers={{ click: () => onSelect(r) }}
           >
             <Tooltip direction="top" offset={[0, -4]} opacity={1}>
               <div style={{ minWidth: 160 }}>

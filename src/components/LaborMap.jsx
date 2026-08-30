@@ -13,32 +13,6 @@ const LABEL_TILE =
 const ATTRIBUTION =
   'Tiles &copy; <a href="https://www.esri.com/">Esri</a> — data: World Bank Open Data &amp; ILOSTAT';
 
-// Spec 0008 R2. Measured, not assumed: 206 of the marker paths were sitting in
-// the tab order from stop 55, so the ranking listbox — the actual keyboard path
-// to a country — was unreachable within 260 presses. They carry no tabindex;
-// Chrome puts them in sequential navigation anyway once Leaflet binds a Tooltip
-// and its focus/blur listeners (leaflet-src.js:10987).
-//
-// They are not operable by keyboard — Path has no Enter handling, only Marker
-// does — so 206 stops that do nothing but open a tooltip are worse than
-// useless: they bury the control that works. Explicitly removed from the tab
-// order, which leaves the listbox as the keyboard path R2 requires. The markers
-// keep their mouse and tooltip behaviour untouched.
-function MarkersOutOfTabOrder({ rows, metric }) {
-  const map = useMap();
-  useEffect(() => {
-    const strip = () => {
-      for (const el of map.getContainer().querySelectorAll('path.leaflet-interactive')) {
-        el.setAttribute('tabindex', '-1');
-      }
-    };
-    strip();
-    map.on('layeradd zoomend moveend', strip);
-    return () => map.off('layeradd zoomend moveend', strip);
-  }, [map, rows, metric]);
-  return null;
-}
-
 function FlyTo({ target }) {
   const map = useMap();
   useEffect(() => {
@@ -63,7 +37,6 @@ export default function LaborMap({ rows, metric, selected, onSelect, flyTarget, 
     >
       <TileLayer url={BASE_TILE} attribution={ATTRIBUTION} />
       <FlyTo target={flyTarget} />
-      <MarkersOutOfTabOrder rows={rows} metric={metric} />
 
       {/* R16. Corridor-board overlay: rings mark states that appear on the
           geopolitical board, so labor exposure can be read against corridor exposure. */}
@@ -90,7 +63,23 @@ export default function LaborMap({ rows, metric, selected, onSelect, flyTarget, 
             center={[r.lat, r.lon]}
             radius={radiusFor(r.employed_total) * (isSelected ? 1.35 : 1)}
             pathOptions={pathStyle}
-            eventHandlers={{ click: () => onSelect(r) }}
+            eventHandlers={{
+              click: () => onSelect(r),
+              // Spec 0008 R2. Chrome puts these SVG paths in the tab order once
+              // Leaflet binds a Tooltip's focus listeners, even with no tabindex
+              // attribute — 206 of them from tab stop 55, which buried the
+              // ranking listbox that is the actual keyboard path. Paths are not
+              // keyboard-operable (only Marker handles Enter), so they are taken
+              // out of it.
+              //
+              // Done here, per marker, at the moment Leaflet adds it: `tabIndex`
+              // is not a Leaflet path option so `pathOptions` silently drops it,
+              // and an effect sweeping the container on `layeradd` re-queried
+              // every path once per marker added — ~24,000 setAttribute calls
+              // before first paint, and blind to any marker added by a path that
+              // fired none of the events it listened for.
+              add: (e) => e.target.getElement()?.setAttribute('tabindex', '-1'),
+            }}
           >
             <Tooltip direction="top" offset={[0, -4]} opacity={1}>
               <div style={{ minWidth: 160 }}>

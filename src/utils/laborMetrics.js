@@ -278,6 +278,33 @@ export const ISCO_GROUPS = [
 
 export const NO_DATA_COLOR = '#dfe3e8';
 
+// Spec 0008 R5. A country with no data must not look like a country with a low
+// measured value. Colour alone cannot carry that: the lightest BLUE step sits
+// ΔE00 3.7 and 1.14:1 from this grey — indistinguishable for people with normal
+// colour vision, before dichromacy is considered at all. That is this project's
+// central non-negotiable failing at the point of delivery, so the distinction
+// moves to a channel that is not colour: a dashed stroke.
+//
+// A pure function rather than inline ternaries in LaborMap, so R9 can assert it
+// applies to exactly the null rows without rendering Leaflet inside jsdom.
+export const NO_DATA_DASH = '3 2';
+
+export function markerPropsFor(metric, row, isSelected = false) {
+  const value = row[metric.key];
+  const hasData = value !== null && value !== undefined && !Number.isNaN(value);
+  return {
+    hasData,
+    fillColor: colorFor(metric, value),
+    color: isSelected ? '#111827' : hasData ? '#ffffff' : '#8b929b',
+    weight: isSelected ? 2.5 : hasData ? 1 : 1.5,
+    fillOpacity: hasData ? 0.88 : 0.4,
+    // The non-colour channel. Present only on no-data markers, and the thing
+    // R9 asserts over.
+    dashArray: hasData ? null : NO_DATA_DASH,
+    className: hasData ? 'has-data' : 'no-data',
+  };
+}
+
 // Headcount metrics span six orders of magnitude, so they need a log scale or
 // every country below 10M collapses into the lightest bucket.
 export function normalise(metric, value) {

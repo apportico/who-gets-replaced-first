@@ -259,7 +259,11 @@ function Trends({ iso3 }) {
 export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }) {
   if (!row) {
     return (
-      <div className="panel-scroll w-96 bg-gray-50 overflow-y-auto p-6 border-l border-gray-200 flex items-center">
+      <div
+        className="panel-scroll w-96 bg-gray-50 overflow-y-auto p-6 border-l border-gray-200 flex items-center"
+        role="region"
+        aria-label="Country detail — nothing selected"
+      >
         <p className="text-[var(--text-faint)] text-sm text-center leading-relaxed">
           Select a country on the map, or a row in the ranking below, to see its full
           population and occupation breakdown.
@@ -272,7 +276,17 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
   const isAggregate = row.row_type !== 'country';
 
   return (
-    <div className="panel-scroll w-96 bg-gray-50 overflow-y-auto border-l border-gray-200 text-[var(--text-primary)]">
+    // Spec 0008 R8. The landmark lives here, on the panel's own root, in both
+    // this branch and the placeholder above — not on a wrapper in LaborPage.
+    // R9 part 1 renders this component standalone, and a wrapper would not be
+    // in that tree, so `region` could never reach zero there and the escape
+    // would be to scope the rule out. Announcing the country name also makes
+    // the panel identifiable when several regions are listed.
+    <div
+      className="panel-scroll w-96 bg-gray-50 overflow-y-auto border-l border-gray-200 text-[var(--text-primary)]"
+      role="region"
+      aria-label={`Country detail: ${row.country_name}`}
+    >
       <div className="sticky top-0 bg-gray-50 px-4 pt-4 pb-3 border-b border-gray-200 z-10">
         <button
           onClick={onClose}

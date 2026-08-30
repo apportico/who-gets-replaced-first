@@ -50,6 +50,8 @@ export default function LaborTimeline({ years, year, onChange, playing, onToggle
         step={1}
         value={isLatest ? years.length - 1 : years.indexOf(year)}
         onChange={(e) => onChange(years[Number(e.target.value)])}
+        aria-label="Year"
+        aria-valuetext={isLatest ? 'Latest available year per country' : String(year)}
         className="flex-1 cursor-pointer accent-gray-900"
       />
 

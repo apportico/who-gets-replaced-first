@@ -6,6 +6,7 @@ import LaborSidebar from './LaborSidebar';
 import LaborDetailPanel from './LaborDetailPanel';
 import LaborTimeline from './LaborTimeline';
 import { CORRIDOR_STATES } from '../utils/corridorStates';
+import { mapTextEntries, mapSummary } from '../utils/mapText';
 import { METRICS, TIERS, fmt, fmtCompact, fmtMetric, colorFor, normalise } from '../utils/laborMetrics';
 
 const ALL_ROWS = laborData.rows;
@@ -197,7 +198,18 @@ export default function LaborPage() {
             coverage={yearCoverage}
           />
 
-          <div className="flex-1 min-h-0 relative">
+          {/* Spec 0008 R3. The choropleth conveys nothing to a screen reader,
+              and its colour is unreliable to sighted readers too — the lightest
+              ramp step sits ΔE00 3.7 from the no-data grey. This region names
+              what is plotted and points at a text equivalent carrying every
+              country's value and tier. Built by a pure function so the content
+              is asserted without a DOM. */}
+          <div
+            className="flex-1 min-h-0 relative"
+            role="region"
+            aria-label={mapSummary(filtered, metric)}
+            aria-describedby="map-text-equivalent"
+          >
             <LaborMap
               rows={filtered}
               metric={metric}
@@ -206,14 +218,19 @@ export default function LaborPage() {
               flyTarget={flyTarget}
               corridorStates={showCorridor ? CORRIDOR_STATES : null}
             />
+            <ul id="map-text-equivalent" className="sr-only">
+              {mapTextEntries(filtered, metric).map((e) => (
+                <li key={e.iso3}>{e.text}</li>
+              ))}
+            </ul>
           </div>
 
           {/* Ranking strip */}
           <div className="h-36 border-t border-gray-200 bg-white flex flex-col flex-shrink-0">
             <div className="px-3 py-1.5 border-b border-gray-100 flex items-center gap-2">
-              <h3 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">
+              <h2 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">
                 Ranked by {metric.short}
-              </h3>
+              </h2>
               <span className="text-[10px] text-[var(--text-faint)]">
                 {ranked.length} countries with data · click to inspect
               </span>

@@ -18,7 +18,7 @@ export default function ScenarioPanel({ rate, onRate, basis, onBasis, rows, worl
   return (
     <div className="p-3 border-b border-gray-200 bg-[var(--surface-accent)]">
       <div className="flex items-center gap-2 mb-2">
-        <h3 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Scenario</h3>
+        <h2 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Scenario</h2>
         <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-[var(--surface-accent)] text-[var(--text-accent)]">
           SENSITIVITY TOOL
         </span>
@@ -29,6 +29,7 @@ export default function ScenarioPanel({ rate, onRate, basis, onBasis, rows, worl
           <button
             key={b.key}
             onClick={() => onBasis(b.key)}
+            aria-pressed={basis === b.key}
             className={`w-full text-left px-2 py-1 rounded text-[11px] cursor-pointer transition-colors ${
               basis === b.key ? 'bg-gray-900 text-white' : 'text-[var(--text-secondary)] hover:bg-white'
             }`}
@@ -48,6 +49,8 @@ export default function ScenarioPanel({ rate, onRate, basis, onBasis, rows, worl
         step={5}
         value={rate}
         onChange={(e) => onRate(Number(e.target.value))}
+        aria-label="Share of these jobs automated, for the scenario"
+        aria-valuetext={`${rate} percent`}
         className="w-full cursor-pointer accent-purple-700 mb-2"
       />
 

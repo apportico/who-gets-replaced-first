@@ -16,12 +16,16 @@ export default function LaborSidebar({
   const stops = rampStops(metric);
 
   return (
-    <div className="panel-scroll w-72 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0">
+    <div
+      className="panel-scroll w-72 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0"
+      role="region"
+      aria-label="Map controls: metric, aggregates, scenario and filters"
+    >
       {/* Metric picker */}
       <div className="p-3 border-b border-gray-200">
-        <h3 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase mb-2">
+        <h2 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase mb-2">
           Metric
-        </h3>
+        </h2>
         <div className="space-y-0.5">
           {METRICS.map((m) => {
             const active = m.key === metric.key;
@@ -30,6 +34,7 @@ export default function LaborSidebar({
               <button
                 key={m.key}
                 onClick={() => onMetricChange(m)}
+                aria-pressed={active}
                 className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 cursor-pointer transition-colors ${
                   active ? 'bg-gray-900 text-white' : 'text-[var(--text-body)] hover:bg-gray-100'
                 }`}
@@ -100,9 +105,9 @@ export default function LaborSidebar({
 
       {/* Aggregates */}
       <div className="p-3 border-b border-gray-200">
-        <h3 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase mb-2">
+        <h2 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase mb-2">
           Aggregates
-        </h3>
+        </h2>
         <p className="text-[10px] text-[var(--text-faint)] mb-2 leading-snug">
           Employment-weighted, not simple averages. Coverage = share of the group&apos;s
           employment in countries reporting occupation data.
@@ -142,7 +147,7 @@ export default function LaborSidebar({
       {/* Filters */}
       <div className="p-3 border-b border-gray-200">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Filters</h3>
+          <h2 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">Filters</h2>
           <button
             onClick={onReset}
             className="text-[10px] text-[var(--text-faint)] hover:text-[var(--text-body)] cursor-pointer"
@@ -154,6 +159,7 @@ export default function LaborSidebar({
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           placeholder="Search country or ISO3…"
+          aria-label="Search countries by name or ISO3 code"
           className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded mb-2 focus:outline-none focus:border-gray-400"
         />
         <label className="flex items-center gap-2 mb-2 cursor-pointer">
@@ -177,12 +183,13 @@ export default function LaborSidebar({
           <span className="text-[11px] text-[var(--text-body)]">Only countries with occupation data</span>
         </label>
 
-        <h4 className="text-[10px] font-semibold text-[var(--text-muted)] uppercase mb-1">Region</h4>
+        <h3 className="text-[10px] font-semibold text-[var(--text-muted)] uppercase mb-1">Region</h3>
         <div className="space-y-0.5 mb-3">
           {regions.map((r) => (
             <button
               key={r}
               onClick={() => onToggleRegion(r)}
+              aria-pressed={activeRegions.has(r)}
               className={`w-full text-left px-2 py-1 rounded text-[11px] cursor-pointer transition-colors ${
                 activeRegions.has(r) ? 'bg-[var(--surface-info)] text-[var(--text-info)] font-medium' : 'text-[var(--text-secondary)] hover:bg-gray-100'
               }`}
@@ -192,12 +199,13 @@ export default function LaborSidebar({
           ))}
         </div>
 
-        <h4 className="text-[10px] font-semibold text-[var(--text-muted)] uppercase mb-1">Income group</h4>
+        <h3 className="text-[10px] font-semibold text-[var(--text-muted)] uppercase mb-1">Income group</h3>
         <div className="space-y-0.5">
           {incomeGroups.map((g) => (
             <button
               key={g}
               onClick={() => onToggleIncome(g)}
+              aria-pressed={activeIncome.has(g)}
               className={`w-full text-left px-2 py-1 rounded text-[11px] cursor-pointer transition-colors ${
                 activeIncome.has(g) ? 'bg-[var(--surface-info)] text-[var(--text-info)] font-medium' : 'text-[var(--text-secondary)] hover:bg-gray-100'
               }`}

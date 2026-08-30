@@ -12,10 +12,12 @@ favour of a different fix once measurement contradicted the proposed one.
 **Where the risk sits.** R1 was re-specified in six consecutive rounds — fixture
 format, loader type, return type, missing mixed entry point, the transition add,
 and the elements after it — each fix exposing the next layer. The rest of the
-spec has been stable since round 4. Two things the reviewer and I both recommend
-before R1 is built: a second reviewer on R1 specifically, and implementing the
-summation helpers against the real committed columns **first**, so R1 is
-validated by execution rather than by review.
+spec has been stable since round 4. Two things **the author recommends** before
+R1 is built — raised in the round-6 comment on `34622be` and again as
+pre-approval conditions on `76dd949`, and **endorsed by @syymza in the
+re-review of `f07fd01`**: a second reviewer on R1 specifically, and
+implementing the summation helpers against the real committed columns
+**first**, so R1 is validated by execution rather than by review.
 
 **R6 is blocked** on [#54](https://github.com/apportico/who-gets-replaced-first/issues/54)
 — `summary_report.md` labels a `MODELED` composite `DERIVED`, a tier defect on

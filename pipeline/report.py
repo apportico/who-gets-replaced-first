@@ -271,7 +271,8 @@ def write(rows, out_path, sensitivity=None):
     # ------------------------------------------------- squeeze + headcounts
     A("## Entry-level squeeze index")
     A("")
-    A("A **derived composite** (not a measurement) of four percentile ranks: youth "
+    A("A **modeled composite** (not a measurement) of four percentile ranks, "
+      "combined with weights we assigned (0.25 / 0.30 / 0.25 / 0.20): youth "
       "cohort size, youth white-collar concentration, youth unemployment, and "
       "whether youth are more white-collar than the workforce average. All four "
       "components stay separately inspectable in the dataset.")
@@ -394,35 +395,59 @@ def write(rows, out_path, sensitivity=None):
     print(f"      wrote {out_path}")
 
 
+def summarise_sensitivity(rows, profiles):
+    """The one definition of the sensitivity summary, shared by both callers.
+
+    `crosscheck.sensitivity()` calls this with its freshly scored rows;
+    `load_sensitivity()` calls it with the same rows parsed back from the CSV.
+    Having a single expression is the point: two implementations of "the median
+    country moves N places" would agree on odd `n` and diverge on even, and `n`
+    is the count of countries carrying `white_collar_pct`, so its parity flips
+    whenever one country gains or loses occupation data. The report would then
+    read `4 places` out of `npm run pipeline` and `3.5 places` out of
+    `npm run report` -- one report with two contents, which is the defect this
+    function exists to prevent.
+
+    Note this is the **upper-middle** value for even `n`, not a true median.
+    That is the historical definition and it is what the published figures were
+    produced with; changing it here would silently restate them.
+
+    Lives in `report.py` rather than `crosscheck.py` so `report` keeps its
+    independence -- it imports no pipeline module, and importing `crosscheck`
+    would pull in `config`, `fetch` and `build` transitively, giving
+    `npm run report` a dependency on the network module it has never needed.
+    `crosscheck` imports this instead; that direction adds nothing it does not
+    already have.
+    """
+    moves = sorted(int(r["max_rank_movement"]) for r in rows)
+    worst = max(rows, key=lambda r: int(r["max_rank_movement"]))
+    return {"median_rank_movement": moves[len(moves) // 2],
+            "max_rank_movement": moves[-1],
+            "worst_country": worst["country_name"],
+            "n": len(moves), "profiles": list(profiles)}
+
+
 def load_sensitivity():
-    """Rebuild the sensitivity summary from committed artifacts.
+    """Rebuild the sensitivity summary from the committed artifacts.
 
     `run.py` computes this live and passes it to `write()`; running this module
     directly used to pass nothing, so `npm run report` silently produced a
     report missing the AI-exposure-sensitivity paragraph -- a different document
-    from the one the pipeline writes, from the same function. Reconstructing it
-    from `data/ai_exposure_sensitivity.csv` and the weight profiles keeps one
-    report with one content, whichever entry point produces it.
+    from the one the pipeline writes, out of the same function.
 
-    Deliberately does not import `build` for its `_median`: that would pull in
-    `config` and `fetch` transitively, giving `npm run report` a dependency on
-    the network module it has never needed.
+    Both files are committed, so a missing one is a broken checkout rather than
+    a normal state: the opens are left to raise. Returning `None` here would
+    feed `write(sensitivity=None)`, whose `if sensitivity:` gate skips the
+    paragraph -- reinstating exactly the silent drop this change removes, behind
+    a different condition, while still printing `wrote ...` as though nothing
+    were wrong.
     """
-    path = os.path.join(HERE, "data", "ai_exposure_sensitivity.csv")
-    if not os.path.exists(path):
-        return None
-    with open(path, newline="", encoding="utf-8") as fh:
+    with open(os.path.join(HERE, "data", "ai_exposure_sensitivity.csv"),
+              newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))
-    if not rows:
-        return None
-    moves = sorted(int(r["max_rank_movement"]) for r in rows)
-    n = len(moves)
-    median = moves[n // 2] if n % 2 else (moves[n // 2 - 1] + moves[n // 2]) / 2
-    worst = max(rows, key=lambda r: int(r["max_rank_movement"]))
     with open(os.path.join(HERE, "ai_exposure_isco.json"), encoding="utf-8") as fh:
-        profiles = list(json.load(fh).get("profiles", {}))
-    return {"median_rank_movement": median, "max_rank_movement": moves[-1],
-            "worst_country": worst["country_name"], "n": n, "profiles": profiles}
+        profiles = json.load(fh)["profiles"]
+    return summarise_sensitivity(rows, profiles)
 
 
 if __name__ == "__main__":

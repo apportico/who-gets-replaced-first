@@ -168,7 +168,7 @@ Across countries with at least six years of occupation data, clerical employment
 
 ## Entry-level squeeze index
 
-A **derived composite** (not a measurement) of four percentile ranks: youth cohort size, youth white-collar concentration, youth unemployment, and whether youth are more white-collar than the workforce average. All four components stay separately inspectable in the dataset.
+A **modeled composite** (not a measurement) of four percentile ranks, combined with weights we assigned (0.25 / 0.30 / 0.25 / 0.20): youth cohort size, youth white-collar concentration, youth unemployment, and whether youth are more white-collar than the workforce average. All four components stay separately inspectable in the dataset.
 
 | # | Country | Squeeze | Youth cohort % | Youth white collar % | Youth unemployment % |
 |---:|---|---:|---:|---:|---:|

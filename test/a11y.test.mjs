@@ -124,36 +124,14 @@ test('R7 — every band renders its percentage as text outside its swatch', asyn
   }
 });
 
-test('R4 — no MODELED or PROXY figure sits under a stronger tier badge', async () => {
-  // The gap this closes: the old assertion checked that badges carry text, never
-  // that a badge matches the number beneath it. Three figures were mislabelled —
-  // the AI exposure score and the exposed wage bill (both MODELED) under DERIVED
-  // and OFFICIAL headings, and the entry-level share (PROXY) under DERIVED —
-  // with their real tier only in lowercase hint text. A badge stronger than the
-  // figure is worse than a missing one: it is an overstatement of provenance,
-  // which is the blurring of measured and constructed this project refuses.
-  const host = await renderInto(React.createElement(LaborDetailPanel, {
-    row: FIXTURE_ROW, year: null, onCorridorBoard: false, onClose: () => {},
-  }));
-
-  // Field -> the tier it genuinely is, per METRICS in laborMetrics.js.
-  const CONSTRUCTED = [
-    { label: 'AI task-exposure score', tier: 'MODELED' },
-    { label: 'Exposed wage bill (PPP)', tier: 'MODELED' },
-    { label: 'Entry-level white collar (15–24)', tier: 'PROXY' },
-  ];
-
-  for (const { label, tier } of CONSTRUCTED) {
-    const row = [...host.querySelectorAll('div')]
-      .find((el) => el.children.length === 2 && el.textContent.trim().startsWith(label));
-    if (!row) continue; // not rendered for this fixture
-    assert.ok(
-      row.textContent.includes(tier),
-      `"${label}" is rendered without its ${tier} badge — it would be announced under whatever tier its section carries`,
-    );
-  }
-});
-
+// Deleted: 'R4 — no MODELED or PROXY figure sits under a stronger tier badge'.
+// It kept a second hand-written field-to-tier list sourced from a comment
+// rather than the payload registry — the duplication spec 0009 exists to
+// prevent — and its `if (!row) continue` turned a renamed label into a silent
+// pass. `test/field-tiers.test.mjs` checks the same property over every
+// annotated figure with nothing to maintain, and its structural guard now
+// covers the figures no annotation reaches. The weaker test could only ever
+// agree with the stronger one.
 test('R4 — every section heading carries a tier badge', async () => {
   // The assertion this replaces was tautological: it selected spans whose
   // trimmed text already matched /^(OFFICIAL|DERIVED|PROXY|MODELED)$/, then

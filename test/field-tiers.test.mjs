@@ -48,6 +48,40 @@ after(async () => {
   if (dom) dom.window.close();
 });
 
+async function renderPanel(row = FIXTURE_ROW) {
+  const host = dom.window.document.createElement('div');
+  dom.window.document.body.appendChild(host);
+  const root = createRoot(host);
+  await React.act(async () => {
+    root.render(React.createElement(LaborDetailPanel, {
+      row, year: null, onCorridorBoard: false, onClose: () => {},
+    }));
+  });
+  return host;
+}
+
+// Every figure inside a Section must be reachable from a provenance statement.
+// A `[data-field]` the registry calls NOT_A_MEASUREMENT counts: the registry
+// itself is saying the number carries no tier, which is a declaration rather
+// than an omission. An unknown field does not count, so this is not a way to
+// silence the check.
+function figuresWithoutProvenance(host) {
+  const missing = [];
+  for (const section of host.querySelectorAll('[data-section]')) {
+    for (const el of section.querySelectorAll('*')) {
+      if (el.children.length > 0) continue;               // leaves only, no double counting
+      if (el.closest('[data-section-heading]')) continue;  // the heading and its own badge
+      const text = el.textContent.trim();
+      if (!/\d/.test(text)) continue;                      // not a figure
+      if (el.closest('[data-tier]')) continue;             // tier stated
+      const declared = el.closest('[data-field]');
+      if (declared && FIELD_TIERS[declared.getAttribute('data-field')] === 'NOT_A_MEASUREMENT') continue;
+      missing.push(`${section.getAttribute('data-section')}: "${text.slice(0, 60)}"`);
+    }
+  }
+  return missing;
+}
+
 test('R4 — the payload carries the tier registry the panel reads', () => {
   // If spec 0009's export ever stops emitting this, the panel would silently
   // fall back to section tiers — the exact state this requirement fixed.
@@ -96,15 +130,7 @@ test('R3 — the text equivalent carries the registry tier, not a declared one',
 });
 
 test('R4 — every rendered figure is announced under its own tier', async () => {
-  const host = dom.window.document.createElement('div');
-  dom.window.document.body.appendChild(host);
-  const root = createRoot(host);
-  await React.act(async () => {
-    root.render(React.createElement(LaborDetailPanel, {
-      row: FIXTURE_ROW, year: null, onCorridorBoard: false, onClose: () => {},
-    }));
-  });
-
+  const host = await renderPanel();
   const rows = [...host.querySelectorAll('[data-field]')];
   assert.ok(rows.length >= 20, `expected the panel's rows to render, found ${rows.length}`);
 
@@ -121,19 +147,48 @@ test('R4 — every rendered figure is announced under its own tier', async () =>
   assert.deepEqual(wrong, [], `figures announced under the wrong tier:\n  ${wrong.join('\n  ')}`);
 });
 
+test('R4 — no figure inside a section escapes the annotation', async () => {
+  // The guard over the guard, and the reason this round exists. The two tests
+  // above walk `[data-field]`, so they can only ever see figures someone
+  // remembered to annotate — the hand-maintained-list problem one level up.
+  // `Trends` and `OccupationBreakdown` rendered their own markup with no
+  // `data-field` on it, so fifteen DERIVED and PROXY figures sat under
+  // `tier="official"` headings and both assertions passed over them.
+  //
+  // This one is framed over the rendered tree instead: every leaf carrying a
+  // digit, anywhere inside a Section, must descend from something that states
+  // provenance. A new component that renders its own figures fails here rather
+  // than being skipped, which is the property the `[data-field]` walk lacks.
+  const host = await renderPanel();
+  const missing = figuresWithoutProvenance(host);
+  assert.deepEqual(missing, [], `figures rendered with no provenance a listener could reach:\n  ${missing.join('\n  ')}`);
+});
+
+test('R4 — the partial-coverage caveats state provenance too', async () => {
+  // The base fixture is a complete country: `isco_groups_reported: 9` and
+  // `isco_classified_share_pct: 100`, so BOTH caveat paragraphs in
+  // `OccupationBreakdown` are branches the guard above never renders. Loading
+  // the real page found the gap — Luxembourg reports 8 of 9 groups, and the
+  // resulting paragraph was the one figure on the page with no provenance.
+  // A guard whose fixture cannot reach a branch does not cover that branch.
+  const host = await renderPanel({
+    ...FIXTURE_ROW, isco_groups_reported: 8, isco_classified_share_pct: 62.4,
+  });
+
+  const text = host.textContent;
+  assert.match(text, /8 of 9 major groups/, 'the reported-groups caveat did not render, so this asserts nothing');
+  assert.match(text, /62% of employment is classified/, 'the classified-share caveat did not render, so this asserts nothing');
+
+  const missing = figuresWithoutProvenance(host);
+  assert.deepEqual(missing, [], `figures rendered with no provenance a listener could reach:\n  ${missing.join('\n  ')}`);
+});
+
 test('R4 — no constructed figure is announced as measured', async () => {
   // The direction that matters. Announcing OFFICIAL data under DERIVED
   // understates it; announcing a MODELED index under DERIVED or OFFICIAL
   // overstates its provenance, which is the blurring this project refuses.
   const STRENGTH = { MODELED: 0, PROXY: 1, DERIVED: 2, OFFICIAL: 3 };
-  const host = dom.window.document.createElement('div');
-  dom.window.document.body.appendChild(host);
-  const root = createRoot(host);
-  await React.act(async () => {
-    root.render(React.createElement(LaborDetailPanel, {
-      row: FIXTURE_ROW, year: null, onCorridorBoard: false, onClose: () => {},
-    }));
-  });
+  const host = await renderPanel();
 
   const overstated = [];
   for (const el of host.querySelectorAll('[data-field]')) {

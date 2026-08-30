@@ -22,20 +22,46 @@ const FIELD_TIERS = laborData.field_tiers;
 // differs from the section around it.
 const SectionTier = createContext(null);
 
-function Section({ title, tier, children }) {
+const REAL_TIERS = ['OFFICIAL', 'DERIVED', 'PROXY', 'MODELED'];
+
+// The tier the pipeline's registry gives a field, lowercased for `TIERS`.
+// `NOT_A_MEASUREMENT` fields (a classification label, a count of reported
+// groups) carry no tier and get no badge.
+function tierOf(field) {
+  const t = field ? FIELD_TIERS[field] : undefined;
+  return t && REAL_TIERS.includes(t) ? t.toLowerCase() : undefined;
+}
+
+function TierBadge({ tier, className = 'ml-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded align-middle' }) {
   const t = tier ? TIERS[tier] : null;
+  if (!t) return null;
   return (
-    <div className="mb-5">
-      <div className="flex items-center gap-2 mb-2">
+    <span className={className} style={{ backgroundColor: `${t.color}1a`, color: t.color }}>
+      {t.label}
+    </span>
+  );
+}
+
+// Badges a figure whenever its own tier differs from the heading's claim.
+// Every component that renders its own markup uses this instead of repeating
+// the badge: a fourth hand-written copy is how `Trends` and
+// `OccupationBreakdown` came to announce fifteen constructed figures as
+// OFFICIAL while `CareerStages`, fixed by hand in `0c7a59e`, was correct.
+function FieldBadge({ field }) {
+  const sectionTier = useContext(SectionTier);
+  const tier = tierOf(field);
+  return tier && tier !== sectionTier ? <TierBadge tier={tier} /> : null;
+}
+
+function Section({ title, tier, children }) {
+  return (
+    // `data-section-tier` is what lets the R4 guard scope itself to a section
+    // and check the figures inside it, rather than trusting that whoever added
+    // a figure remembered to annotate it.
+    <div className="mb-5" data-section={title} data-section-tier={tier || undefined}>
+      <div className="flex items-center gap-2 mb-2" data-section-heading="">
         <h3 className="text-[11px] font-bold tracking-wider text-[var(--text-muted)] uppercase">{title}</h3>
-        {t && (
-          <span
-            className="text-[11px] font-bold px-1.5 py-0.5 rounded"
-            style={{ backgroundColor: `${t.color}1a`, color: t.color }}
-          >
-            {t.label}
-          </span>
-        )}
+        <TierBadge tier={tier} className="text-[11px] font-bold px-1.5 py-0.5 rounded" />
       </div>
       <SectionTier.Provider value={tier ?? null}>{children}</SectionTier.Provider>
     </div>
@@ -56,14 +82,8 @@ function Section({ title, tier, children }) {
 function Row({ label, value, strong, hint, tier, field }) {
   const sectionTier = useContext(SectionTier);
   // Explicit `tier` still wins; otherwise the field's own tier is used, and the
-  // badge appears only when it differs from the section's. `NOT_A_MEASUREMENT`
-  // fields carry no tier and get none.
-  const fieldTier = field ? FIELD_TIERS[field] : undefined;
-  const derived = fieldTier && ['OFFICIAL', 'DERIVED', 'PROXY', 'MODELED'].includes(fieldTier)
-    ? fieldTier.toLowerCase()
-    : undefined;
-  const effective = tier ?? (derived && derived !== sectionTier ? derived : undefined);
-  const t = effective ? TIERS[effective] : null;
+  // badge appears only when it differs from the section's.
+  const effective = tier ?? tierOf(field);
   return (
     <div
       className="flex items-baseline justify-between py-1 border-b border-gray-100 last:border-0"
@@ -72,14 +92,7 @@ function Row({ label, value, strong, hint, tier, field }) {
     >
       <span className={`text-xs ${strong ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
         {label}
-        {t && (
-          <span
-            className="ml-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded align-middle"
-            style={{ backgroundColor: `${t.color}1a`, color: t.color }}
-          >
-            {t.label}
-          </span>
-        )}
+        {effective && effective !== sectionTier && <TierBadge tier={effective} />}
         {hint && <span className="block text-[10px] text-[var(--text-faint)] leading-tight">{hint}</span>}
       </span>
       <span className={`text-xs font-mono tabular-nums ml-3 ${strong ? 'font-bold text-[var(--text-primary)]' : 'text-[var(--text-body)]'}`}>
@@ -92,9 +105,9 @@ function Row({ label, value, strong, hint, tier, field }) {
 /** Population split into children / working age / 65+ */
 function AgeBar({ row }) {
   const parts = [
-    { pct: row.pop_0_14_pct, color: '#8bcdc2', label: '0–14' },
-    { pct: row.pop_15_64_pct, color: '#2f7ec1', label: '15–64' },
-    { pct: row.pop_65plus_pct, color: '#b5651d', label: '65+' },
+    { pct: row.pop_0_14_pct, color: '#8bcdc2', label: '0–14', field: 'pop_0_14_pct' },
+    { pct: row.pop_15_64_pct, color: '#2f7ec1', label: '15–64', field: 'pop_15_64_pct' },
+    { pct: row.pop_65plus_pct, color: '#b5651d', label: '65+', field: 'pop_65plus_pct' },
   ].filter((p) => p.pct != null);
   if (!parts.length) return <p className="text-xs text-[var(--text-faint)]">No age structure data.</p>;
   return (
@@ -119,12 +132,18 @@ function AgeBar({ row }) {
       </div>
       <div className="flex gap-3 text-[10px] text-[var(--text-muted)]">
         {parts.map((p) => (
-          <span key={p.label} className="flex items-center gap-1">
+          <span
+            key={p.label}
+            className="flex items-center gap-1"
+            data-field={p.field}
+            data-tier={tierOf(p.field)}
+          >
             <i className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: p.color }} />
             {p.label}
             <span className="font-mono tabular-nums text-[var(--text-secondary)]">
               {p.pct.toFixed(1)}%
             </span>
+            <FieldBadge field={p.field} />
           </span>
         ))}
       </div>
@@ -138,18 +157,25 @@ function Funnel({ row }) {
   if (!pop) return <p className="text-xs text-[var(--text-faint)]">No population data.</p>;
   const workingAge = row.pop_15_64_pct != null ? (pop * row.pop_15_64_pct) / 100 : null;
   const steps = [
-    { label: 'Total population', v: pop, color: '#cbd5e1' },
-    { label: 'Working age (15–64)', v: workingAge, color: '#8bcdc2' },
-    { label: 'In the labor force', v: row.labor_force_total, color: '#5a9ed6' },
-    { label: 'Employed', v: row.employed_total, color: '#2f7ec1' },
-    { label: 'White collar (ISCO 1–4)', v: row.white_collar_employed, color: '#1a5490' },
+    { label: 'Total population', v: pop, color: '#cbd5e1', field: 'population_total' },
+    // A headcount computed here from `population_total × pop_15_64_pct`, so it
+    // is nobody's registry field. It carries its tier directly rather than
+    // borrowing `pop_15_64_pct`'s OFFICIAL, which would announce this
+    // pipeline's arithmetic as a published figure.
+    { label: 'Working age (15–64)', v: workingAge, color: '#8bcdc2', tier: 'derived' },
+    { label: 'In the labor force', v: row.labor_force_total, color: '#5a9ed6', field: 'labor_force_total' },
+    { label: 'Employed', v: row.employed_total, color: '#2f7ec1', field: 'employed_total' },
+    { label: 'White collar (ISCO 1–4)', v: row.white_collar_employed, color: '#1a5490', field: 'white_collar_employed' },
   ];
   return (
     <div className="space-y-1">
       {steps.map((s) => (
-        <div key={s.label}>
+        <div key={s.label} data-field={s.field} data-tier={s.field ? tierOf(s.field) : s.tier}>
           <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mb-0.5">
-            <span>{s.label}</span>
+            <span>
+              {s.label}
+              {s.field && <FieldBadge field={s.field} />}
+            </span>
             <span className="font-mono tabular-nums">
               {fmtCompact(s.v)}
               {s.v != null && <span className="text-[var(--text-faint)]"> · {((s.v / pop) * 100).toFixed(1)}%</span>}
@@ -195,12 +221,23 @@ function OccupationBreakdown({ row }) {
         ))}
       </div>
       <div className="flex justify-between text-[10px] text-[var(--text-muted)] mb-2">
-        <span>&larr; ISCO 1–4 white collar ({fmt(row.white_collar_pct)}%)</span>
-        <span>ISCO 5–9 ({fmt(row.blue_collar_service_pct)}%) &rarr;</span>
+        <span data-field="white_collar_pct" data-tier={tierOf('white_collar_pct')}>
+          &larr; ISCO 1–4 white collar ({fmt(row.white_collar_pct)}%)
+          <FieldBadge field="white_collar_pct" />
+        </span>
+        <span data-field="blue_collar_service_pct" data-tier={tierOf('blue_collar_service_pct')}>
+          ISCO 5–9 ({fmt(row.blue_collar_service_pct)}%) &rarr;
+          <FieldBadge field="blue_collar_service_pct" />
+        </span>
       </div>
       <div className="space-y-0.5">
         {groups.map((g) => (
-          <div key={g.key} className="flex items-center gap-2">
+          <div
+            key={g.key}
+            className="flex items-center gap-2"
+            data-field={g.key}
+            data-tier={tierOf(g.key)}
+          >
             <i className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: g.color }} />
             <span className="text-[11px] text-[var(--text-secondary)] flex-1 truncate" title={g.label}>
               {g.n}. {g.label}
@@ -208,19 +245,28 @@ function OccupationBreakdown({ row }) {
             <span className="text-[11px] font-mono tabular-nums text-[var(--text-primary)]">
               {g.pct.toFixed(1)}%
             </span>
+            <FieldBadge field={g.key} />
           </div>
         ))}
       </div>
       {row.isco_groups_reported != null && row.isco_groups_reported < 9 && (
-        <p className="mt-2 text-[10px] text-[var(--text-warn)] bg-[var(--surface-warn)] border border-amber-200 rounded p-1.5">
+        <p
+          className="mt-2 text-[10px] text-[var(--text-warn)] bg-[var(--surface-warn)] border border-amber-200 rounded p-1.5"
+          data-field="isco_groups_reported"
+        >
           Source reports only {row.isco_groups_reported} of 9 major groups — the national
           classification folds the missing group into another one.
         </p>
       )}
       {row.isco_classified_share_pct != null && row.isco_classified_share_pct < 90 && (
-        <p className="mt-2 text-[10px] text-[var(--text-warn)] bg-[var(--surface-warn)] border border-amber-200 rounded p-1.5">
+        <p
+          className="mt-2 text-[10px] text-[var(--text-warn)] bg-[var(--surface-warn)] border border-amber-200 rounded p-1.5"
+          data-field="isco_classified_share_pct"
+          data-tier={tierOf('isco_classified_share_pct')}
+        >
           Only {row.isco_classified_share_pct.toFixed(0)}% of employment is classified by
           occupation. Shares above describe the classified portion only.
+          <FieldBadge field="isco_classified_share_pct" />
         </p>
       )}
     </>
@@ -246,22 +292,12 @@ function CareerStages({ row }) {
   }
   return (
     <div className="space-y-1">
-      {stages.map((s) => {
-        const tierWord = FIELD_TIERS[s.field];
-        const t = tierWord ? TIERS[tierWord.toLowerCase()] : null;
-        return (
-        <div key={s.label} data-field={s.field} data-tier={tierWord ? tierWord.toLowerCase() : undefined}>
+      {stages.map((s) => (
+        <div key={s.label} data-field={s.field} data-tier={tierOf(s.field)}>
           <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mb-0.5">
             <span>
               {s.label}
-              {t && (
-                <span
-                  className="ml-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded align-middle"
-                  style={{ backgroundColor: `${t.color}1a`, color: t.color }}
-                >
-                  {t.label}
-                </span>
-              )}
+              <FieldBadge field={s.field} />
             </span>
             <span className="font-mono tabular-nums">{fmt(s.v)}%</span>
           </div>
@@ -272,10 +308,11 @@ function CareerStages({ row }) {
             />
           </div>
         </div>
-        );
-      })}
+      ))}
       {row.young_white_collar_pct != null && row.prime_white_collar_pct != null && (
-        <p className="text-[10px] text-[var(--text-muted)] pt-1 leading-snug">
+        // The gap is arithmetic on two PROXY series, so it is PROXY: it can be
+        // no stronger than the weaker of its inputs.
+        <p className="text-[10px] text-[var(--text-muted)] pt-1 leading-snug" data-tier="proxy">
           Youth are{' '}
           <strong>
             {fmt(Math.abs(row.prime_white_collar_pct - row.young_white_collar_pct))}pp{' '}
@@ -313,8 +350,11 @@ function Trends({ iso3 }) {
         const points = seriesFor(iso3, c.field);
         if (points.length < 2) return null;
         return (
-          <div key={c.field}>
-            <div className="text-[10px] text-[var(--text-secondary)] mb-0.5">{c.label}</div>
+          <div key={c.field} data-field={c.field} data-tier={tierOf(c.field)}>
+            <div className="text-[10px] text-[var(--text-secondary)] mb-0.5">
+              {c.label}
+              <FieldBadge field={c.field} />
+            </div>
             <Sparkline points={points} color={c.color} />
           </div>
         );
@@ -332,6 +372,7 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
   // rendering a row, and React requires the same hook order on every render.
   const panelRef = useRef(null);
   const restoreFocusTo = useRef(null);
+  const wasOpen = useRef(false);
   const iso3 = row?.iso3 ?? null;
 
   // `matchMedia().matches` is a snapshot. Read once, it decided `role` and
@@ -355,18 +396,33 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
   useEffect(() => {
     // Move focus into the panel when it opens as an overlay, and remember where
     // it came from. Without the first the keyboard user selects a country and
-    // focus stays behind the sheet; without the second, closing drops focus to
-    // <body> and the next Tab restarts at the top of the document — which
-    // `aria-modal="true"` makes worse, since assistive tech has been told the
-    // rest of the page is inert.
-    if (!isOverlay || !iso3) return undefined;
-    restoreFocusTo.current = document.activeElement;
+    // focus stays behind the sheet.
+    //
+    // The opener is captured only on a real open. Re-capturing on every run
+    // pointed it at whatever was focused mid-sheet, so a later close handed
+    // focus to a control inside the panel that no longer exists.
+    if (!isOverlay || !iso3) return;
+    if (!restoreFocusTo.current) restoreFocusTo.current = document.activeElement;
     panelRef.current?.focus();
-    return () => {
-      const target = restoreFocusTo.current;
-      if (target && target.isConnected && typeof target.focus === 'function') target.focus();
-    };
   }, [isOverlay, iso3]);
+
+  useEffect(() => {
+    // Hand focus back on a real close, and only then. This was a cleanup on the
+    // effect above, which React runs on every change to `isOverlay` or `iso3` —
+    // so selecting a second country threw focus to the previous opener before
+    // the body pulled it back in (two moves a screen reader announces for one
+    // selection), and crossing 768px with a country open took focus out of the
+    // panel entirely. Neither is a close.
+    //
+    // The panel is always mounted (`LaborPage.jsx:372` renders it with a null
+    // row), so closing is `iso3` going null, not unmounting.
+    if (iso3) { wasOpen.current = true; return; }
+    if (!wasOpen.current) return;
+    wasOpen.current = false;
+    const target = restoreFocusTo.current;
+    restoreFocusTo.current = null;
+    if (target && target.isConnected && typeof target.focus === 'function') target.focus();
+  }, [iso3]);
 
   if (!row) {
     return (
@@ -544,13 +600,26 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
           <CareerStages row={row} />
         </Section>
 
+        {/* Spec 0008 R4. Both of these read `tier="official"` while announcing
+            fifteen constructed figures between them.
+
+            "Trend over time" spans three tiers (DERIVED, PROXY and OFFICIAL),
+            so no heading claim can be right for all four series: it carries
+            none, and each series badges itself.
+
+            "Occupation" is uniformly DERIVED — ILOSTAT publishes the
+            headcounts, every share here is this pipeline's `100 * group / base`
+            — so the heading states that once rather than repeating a chip on
+            all twelve rows. The per-figure annotation is still there, so if any
+            ISCO field ever stops being DERIVED its badge reappears on its own
+            row without anyone noticing the heading went stale. */}
         {!isAggregate && (
-          <Section title="Trend over time" tier="official">
+          <Section title="Trend over time">
             <Trends iso3={row.iso3} />
           </Section>
         )}
 
-        <Section title="Occupation — ISCO major groups" tier="official">
+        <Section title="Occupation — ISCO major groups" tier="derived">
           <OccupationBreakdown row={row} />
         </Section>
 
@@ -586,7 +655,10 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
               )} pp`}
             />
           )}
-          <p className="mt-2 text-[10px] text-[var(--text-caution)] bg-[var(--surface-caution)] border border-orange-200 rounded p-1.5 leading-snug">
+          <p
+            className="mt-2 text-[10px] text-[var(--text-caution)] bg-[var(--surface-caution)] border border-orange-200 rounded p-1.5 leading-snug"
+            data-tier="proxy"
+          >
             Seniority is not tracked globally. This is age 15–24 crossed with occupation —
             a stand-in, not a measurement of junior roles.
           </p>

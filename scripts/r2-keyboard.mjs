@@ -102,18 +102,31 @@ record(
   (noRing.length ? `\n        first: <${noRing[0].tag}> "${noRing[0].name}"` : ''),
 );
 
+// A transparent ring is not an indicator, and it used to pass this check twice.
+// `outline: 2px solid transparent` (Tailwind v4's `outline-hidden`) computes to
+// a 2px width, so it clears the noRing test above; `parseRgb` then returns null
+// on alpha 0 and the element was dropped from the population entirely, so it
+// was never measured against 3:1 either. It scores 1:1 now, which is what a
+// ring you cannot see is worth.
 const ringRatios = unique
   .map((s) => {
-    const fg = parseRgb(s.outlineColor);
     const bg = parseRgb(s.bg);
-    return fg && bg ? { name: s.name, ratio: contrast(fg, bg) } : null;
+    if (!bg) return null; // background genuinely unreadable, not a transparent ring
+    const fg = parseRgb(s.outlineColor);
+    if (!fg) return { name: s.name, ratio: 1 };
+    return { name: s.name, ratio: contrast(fg, bg) };
   })
   .filter(Boolean);
+const unmeasured = unique.length - ringRatios.length;
 const weakRing = ringRatios.filter((r) => r.ratio < 3);
 record(
   'focus indicator is at least 3:1 against its background',
   weakRing.length === 0,
-  `measured ${ringRatios.length} rings; min ${Math.min(...ringRatios.map((r) => r.ratio)).toFixed(2)}:1` +
+  `measured ${ringRatios.length} of ${unique.length} rings` +
+  // Report the exclusions rather than letting them show up only as a smaller
+  // count than the stop total, which is how the transparent case stayed hidden.
+  (unmeasured ? ` (${unmeasured} excluded: background colour unreadable)` : '') +
+  `; min ${Math.min(...ringRatios.map((r) => r.ratio)).toFixed(2)}:1` +
   (weakRing.length ? `\n        weakest: "${weakRing[0].name}" ${weakRing[0].ratio.toFixed(2)}:1` : ''),
 );
 

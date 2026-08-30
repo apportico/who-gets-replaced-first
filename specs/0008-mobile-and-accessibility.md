@@ -183,16 +183,17 @@ only a `border-gray-400` change, which does not meet that.
 
 ### R3. [x] The map has a text equivalent that carries the numbers and their tiers
 
-> **Mark reverted 2026-08-30 (round-11 review). Half the acceptance — "the rendered tree wires it to the map container via `aria-describedby` (or an equivalent association), asserted in the R9 render test" — was never executed. `grep -rn "describedby" test/` returns nothing. The association was later changed to a labelled region, which is the better design, but the acceptance still names a check no test performs.**
-
 **Done (2026-08-30, `e5e04d6`).** `src/utils/mapText.js` builds it as a pure
 function; `test/pure.test.mjs` asserts one entry per row carrying name, value or
 the literal "no data", and the tier word — including that a MODELED figure is
 never announced without "MODELED", and that a no-data row carries no digits at
 all. The summary naming the map publishes coverage (`N plotted, M with data, K
 without`), so a reader who cannot see the grey circles still learns what is
-missing. Wired via `aria-describedby`; the browser run reports ARIA attributes
-0 to 40.
+missing. Wired as its own labelled region, **not** the map's `aria-describedby`:
+a description is flattened into one string, so pointing it at 218 entries
+announced the whole dataset in the slot meant for a sentence.
+`test/a11y.test.mjs` asserts both halves — the labelled region carries the
+entries, and the map's `aria-describedby` is `null`.
 
 A choropleth conveys nothing to a screen reader. Provide a programmatically
 associated text equivalent listing each rendered country with its value for the
@@ -266,6 +267,7 @@ regex then asserted their text was non-empty, which nothing could fail.
 ✔ R4 — every tier badge clears WCAG AA on its own background
 ✔ R4 — every section heading carries a tier badge
 ✔ R4 — every rendered figure is announced under its own tier
+✔ R4 — no figure inside a section escapes the annotation
 ✔ R4 — no constructed figure is announced as measured
 ✔ R4 — the payload carries the tier registry the panel reads
 ```
@@ -275,6 +277,23 @@ Rendered size measured separately: all 26 badges at 11px, both viewports.
 Figures now derive their tier from the payload's `field_tiers` registry rather
 than inheriting the section's, which is what caught the four mislabelled cases
 beyond the three a single accessibility-tree dump had surfaced.
+
+**Corrected after round-16 review.** The `[x]` above was first taken while
+fifteen figures still rendered under a stronger tier than their own: twelve
+DERIVED in `OccupationBreakdown` and two DERIVED plus one PROXY in `Trends`,
+both sections headed `tier="official"`. The mark was wrong rather than
+premature, and the reason it survived is the point: the two assertions cited
+above walk `[data-field]`, and both components render their own markup carrying
+no `data-field`, so the checks passed by not seeing them.
+
+Both sections now carry no tier and every figure badges itself from the
+registry, `AgeBar` and `Funnel` are annotated too (they were correct only
+because each sat under a tier no stronger than its contents), and the fourth
+assertion above is new: it walks the **rendered tree** rather than the
+annotations, failing on any digit-bearing leaf inside a section that cannot
+reach a `data-tier`. Verified by reverting the fix — the older assertion still
+passes over the twelve mislabelled ISCO figures, the new one fails — which is
+the difference between the two populations, demonstrated rather than asserted.
 
 **Acceptance:** three checks, each attached to something that can actually run
 it. (1) The R9 **palette** test asserts every tier's foreground on its own badge
@@ -1004,13 +1023,13 @@ lands.
 |---|---|---|---|
 | R1 | Bottom sheet over a full-bleed map below `md`; three-column arrangement above it | `BottomSheet.jsx`, `LaborPage.jsx` | Browser at 375×812: `.leaflet-container` ≥ 320px, `scrollWidth <= innerWidth`; at 1440×900 all three present, in order, map no narrower than the step-0 baseline |
 | R2 | Ranking strip becomes a listbox — arrow keys, `Enter`/`Space`, focus moved to the panel and restored on close | `LaborPage.jsx` | Keyboard-only walkthrough recorded in R11 |
-| R3 | Pure builder, wired to the map container via `aria-describedby` | `mapText.js`, `LaborMap.jsx` | `test/pure.test.mjs` asserts one entry per row with name, value or "no data", and tier word; screen reader in R11 |
+| R3 | Pure builder, rendered as its own labelled region (not the map's `aria-describedby`) | `mapText.js`, `LaborMap.jsx` | `test/pure.test.mjs` asserts one entry per row with name, value or "no data", and tier word; `test/a11y.test.mjs` asserts the rendered association |
 | R4 | Recolour `TIERS`, raise badge text to ≥ 11px, accessible text on every badge | `laborMetrics.js` + three components | `palette.test.mjs` (≥ 4.5:1), `a11y.test.mjs` (badge has accessible text), R11 (rendered px) |
 | R5 | `dashArray` or distinct class on no-data markers, decided by a pure function | `laborMetrics.js`, `LaborMap.jsx` | `pure.test.mjs` — encoding applied to exactly the rows whose active-metric value is null |
 | R6 | Every interactive target ≥ 24×24, spacing where the bar must stay thin | Timeline, Scenario, ranking strip | Measured in the browser in R11; axe's rule stays disabled |
 | R7 | Text-palette export consumed by the components; delete both in-swatch labels; age legend gains the percentage | `textPalette.js`, `LaborDetailPanel.jsx` | `grep` over `src/` finds no **text-colour** literals (`text-[a-z]+-[0-9]+`, `text-black`, `text-[#…]`) and exactly four `text-white`; `a11y.test.mjs` fixture render asserts every surviving band's percentage renders outside its swatch |
 | R8 | `main`, labelled sidebar region, panel landmark **on `LaborDetailPanel`'s own root in both branches**, `aria-pressed` on toggles | all components | `a11y.test.mjs` drives `region` 23 / `label` 2 / `heading-order` 1 to zero on both the full-app and the standalone-panel surface |
-| R9 | `node --test` suite wired into `verify.sh` and CI; `target-size` disabled with the reason in a comment | `test/`, `verify.sh`, `ci.yml` | Revert one tier colour to `#2f9e44` and watch `npm run verify` exit non-zero; passes in a fresh clone with no network; `npm ls --depth=0` shows exactly two new devDependencies |
+| R9 | `node --test` suite wired into `verify.sh` and CI; `target-size` disabled with the reason in a comment | `test/`, `verify.sh`, `ci.yml`, **`eslint.config.js`** | Revert one tier colour to `#2f9e44` and watch `npm run verify` exit non-zero; **delete the `scripts/**/*.mjs` + `test/**/*.mjs` block from `eslint.config.js` and watch `test/lint-config.test.mjs` fail while `npm run lint` stays clean**; passes in a fresh clone with no network; `npm ls --depth=0` shows exactly two new devDependencies |
 | R10 | Tier pairwise ΔE00 ≥ 15 under four visions; ramp L\* strictly monotonic, min gap ≥ 5 | `laborMetrics.js` | `palette.test.mjs`, using the algorithm pinned in `scripts/palette-probe.mjs` |
 | R11 | Browser verification at both viewports, console clean | — | Written record appended to this spec, covering every item its acceptance lists |
 

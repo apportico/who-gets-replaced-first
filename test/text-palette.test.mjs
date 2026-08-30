@@ -118,6 +118,7 @@ test('R7 — index.css declares no raw colour outside the token block', () => {
   // (1.47:1) with it. Non-text properties may carry raw chrome colours; any
   // property that paints TEXT must use a token.
   const TEXT_PROPS = /^(color|-webkit-text-fill-color)$/;
+  const CHROME_PROPS = /^(border|box-shadow|background|fill|stroke)/;
   const offenders = [];
   for (const m of withoutRoot.matchAll(/([a-z-]+)\s*:\s*([^;{}]*#[0-9a-fA-F]{3,8}[^;{}]*)/g)) {
     const [, prop, value] = m;
@@ -125,8 +126,13 @@ test('R7 — index.css declares no raw colour outside the token block', () => {
       offenders.push(`${prop}: ${value.trim()}`);
       continue;
     }
-    // Shorthands that can set a text colour, e.g. `outline`, still count.
-    if (/^(outline|border|box-shadow|background|fill|stroke|text-decoration)/.test(prop)) continue;
+    // Only genuinely non-text properties are skipped. `outline` and
+    // `text-decoration` were on this list while the comment above claimed they
+    // counted, and the code won: `outline: 2px solid #1a4fa0` is the exact
+    // declaration recorded at :104-107 as the reason the scan was widened past
+    // `color:` in the first place, and it passed again. `text-decoration:
+    // underline #9ca3af` paints a text colour the same way.
+    if (CHROME_PROPS.test(prop)) continue;
     offenders.push(`${prop}: ${value.trim()}`);
   }
   assert.deepEqual(offenders, [], `index.css paints text with a raw colour instead of a token:\n  ${offenders.join('\n  ')}`);

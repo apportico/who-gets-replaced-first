@@ -24,11 +24,31 @@ function Section({ title, tier, children }) {
   );
 }
 
-function Row({ label, value, strong, hint }) {
+// Spec 0008 R4. `tier` here is not decoration: a row whose tier differs from its
+// Section's must say so on the row itself. Two figures were being presented
+// under a badge stronger than their own — the AI exposure score (MODELED) under
+// a DERIVED heading, and the exposed wage bill (MODELED) under an OFFICIAL one —
+// with the real tier only in lowercase hint text. Announcing a constructed index
+// under a DERIVED badge overstates it, which is exactly the blurring of measured
+// and constructed this project refuses.
+//
+// Found by reading the accessibility tree (scripts/r11-announce.mjs), not by any
+// test: the suite checked that badges carry text, never that a badge matches the
+// number beneath it.
+function Row({ label, value, strong, hint, tier }) {
+  const t = tier ? TIERS[tier] : null;
   return (
     <div className="flex items-baseline justify-between py-1 border-b border-gray-100 last:border-0">
       <span className={`text-xs ${strong ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
         {label}
+        {t && (
+          <span
+            className="ml-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded align-middle"
+            style={{ backgroundColor: `${t.color}1a`, color: t.color }}
+          >
+            {t.label}
+          </span>
+        )}
         {hint && <span className="block text-[10px] text-[var(--text-faint)] leading-tight">{hint}</span>}
       </span>
       <span className={`text-xs font-mono tabular-nums ml-3 ${strong ? 'font-bold text-[var(--text-primary)]' : 'text-[var(--text-body)]'}`}>
@@ -349,12 +369,14 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
           <Row
             label="Entry-level white collar (15–24)"
             value={`${fmt(row.young_white_collar_pct)}%`}
-            hint="proxy"
+            tier="proxy"
+            hint="age 15–24 is a stand-in; no source tracks seniority"
           />
           <Row
             label="AI task-exposure score"
             value={fmt(row.ai_exposure_weighted_score, 3)}
-            hint="modeled index, 0–1"
+            tier="modeled"
+            hint="index 0–1, rank order only — not a probability"
           />
         </Section>
 
@@ -467,7 +489,8 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
           <Row
             label="Exposed wage bill (PPP)"
             value={row.exposed_wage_bill_ppp ? `$${fmtCompact(row.exposed_wage_bill_ppp)}` : '—'}
-            hint="MODELED scale — not an amount at risk"
+            tier="modeled"
+            hint="order-of-magnitude scale — not an amount at risk"
           />
         </Section>
 

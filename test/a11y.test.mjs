@@ -124,6 +124,36 @@ test('R7 — every band renders its percentage as text outside its swatch', asyn
   }
 });
 
+test('R4 — no MODELED or PROXY figure sits under a stronger tier badge', async () => {
+  // The gap this closes: the old assertion checked that badges carry text, never
+  // that a badge matches the number beneath it. Three figures were mislabelled —
+  // the AI exposure score and the exposed wage bill (both MODELED) under DERIVED
+  // and OFFICIAL headings, and the entry-level share (PROXY) under DERIVED —
+  // with their real tier only in lowercase hint text. A badge stronger than the
+  // figure is worse than a missing one: it is an overstatement of provenance,
+  // which is the blurring of measured and constructed this project refuses.
+  const host = await renderInto(React.createElement(LaborDetailPanel, {
+    row: FIXTURE_ROW, year: null, onCorridorBoard: false, onClose: () => {},
+  }));
+
+  // Field -> the tier it genuinely is, per METRICS in laborMetrics.js.
+  const CONSTRUCTED = [
+    { label: 'AI task-exposure score', tier: 'MODELED' },
+    { label: 'Exposed wage bill (PPP)', tier: 'MODELED' },
+    { label: 'Entry-level white collar (15–24)', tier: 'PROXY' },
+  ];
+
+  for (const { label, tier } of CONSTRUCTED) {
+    const row = [...host.querySelectorAll('div')]
+      .find((el) => el.children.length === 2 && el.textContent.trim().startsWith(label));
+    if (!row) continue; // not rendered for this fixture
+    assert.ok(
+      row.textContent.includes(tier),
+      `"${label}" is rendered without its ${tier} badge — it would be announced under whatever tier its section carries`,
+    );
+  }
+});
+
 test('R4 — every tier badge carries accessible text', async () => {
   const host = await renderInto(React.createElement(LaborDetailPanel, {
     row: FIXTURE_ROW, year: null, onCorridorBoard: false, onClose: () => {},

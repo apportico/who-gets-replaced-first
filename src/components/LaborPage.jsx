@@ -259,6 +259,7 @@ export default function LaborPage() {
                 wider rather than the chart losing entries. Above `md` they stay
                 9px, where a mouse is the pointer. */}
             <div
+              id="country-ranking"
               className="flex-1 overflow-x-auto overflow-y-hidden"
               role="listbox"
               tabIndex={0}

@@ -35,7 +35,7 @@ Run it before claiming a pipeline change worked.
 that looks like a broken suite but is not:
 
 ```bash
-python3 -m unittest discover pipeline/tests          # 114 tests, OK
+python3 -m unittest discover pipeline/tests          # 126 tests, OK
 python3 -m unittest discover -s pipeline/tests -t .  # 9 errors: No module named 'context'
 ```
 
@@ -61,6 +61,23 @@ other flat (`import config as C`), which is what `context.py` exists to support.
 | `pipeline/summary_report.md` | human-readable findings + confidence section |
 | `src/data/global_labor.json` | snapshot payload consumed by the app's Labor page |
 | `src/data/global_labor_timeseries.json` | compact panel driving the year scrubber and sparklines |
+
+**The two `src/data/` payloads are generated. Never hand-edit them.** Both are
+written by `npm run pipeline` -- `global_labor.json` at `run.py:277`,
+`global_labor_timeseries.json` at `panel.py:172` -- and the app imports them
+directly, so an edit here is an edit to what every reader sees, with no source
+behind it. Regenerate instead; if a figure looks wrong, the fix belongs upstream
+in the pipeline or in `manual_overrides.json`, which requires a citation.
+
+`pipeline/tests/test_app_payloads.py` enforces this on every `npm run verify`
+and in CI, offline and without the response cache: it compares the committed
+`global_labor.json` header against what `export_app_json` writes, its rows
+against `global_labor_dataset.csv`, and `global_labor_timeseries.json` against
+`global_labor_panel.csv`. `global_labor.json` went unregenerated from the
+initial commit until spec 0009 and so never carried the `field_tiers` block
+described below (#57) -- the guard exists because the drift was silent for that
+long, and because the generator-side tests in `test_tiers.py` stayed green
+throughout.
 
 ## Sources
 

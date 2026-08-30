@@ -35,14 +35,16 @@ Python 3.13.1. CI pins `node-version: 24` and `python-version: '3.13'`
 | `node:sqlite` on Node 24 | `new DatabaseSync(':memory:')`, create/insert/select | **Works unflagged**, no warning, exit 0. Confirms the issue's "no dependency" assumption. |
 | CSV dialect | `grep` + `head` of the committed CSVs | Default dialect, `newline=""` → **CRLF (`\r\n`) line endings in all 6 CSVs**. `csv.field_size_limit(10_000_000)` is set in `build.py:10`. |
 | Float repr, Python vs JS | Parsed **all 78,257 numeric values** from the 6 committed CSVs, compared `str()` to `String()` | **6,286 differ**: 6,256 integral floats (`79.0` → `79`) and **30 negative zeros** (`-0.0` → `0`). **Zero other disagreements** — shortest-round-trip repr agrees on the remaining 71,971. |
-| `round()` semantics | 8 hand-picked cases in both languages | Python `round` matches **neither** `Math.round(x*10**n)/10**n` **nor** `toFixed(n)`. `round(2.675,2)=2.67` (naive JS: 2.68); `round(2.5)=2` (naive: 3); `round(-2.5)=-2` (`toFixed`: -3). 36 `round()` call sites in `build.py`. |
+| `round()` semantics | 8 hand-picked cases in both languages | Python `round` matches **neither** `Math.round(x*10**n)/10**n` **nor** `toFixed(n)`. `round(2.675,2)=2.67` (naive JS: 2.68); `round(2.5)=2` (naive: 3); `round(-2.5)=-2` (`toFixed`: -3). **37 call sites: 33 in `build.py`, 4 in `crosscheck.py:69,71,73,134`** — the latter inside R6's scope. |
 | A Python-compatible `pyRound` in JS | Implemented via `toFixed(20)` + decimal-string half-to-even; **20,000 randomised differential cases against Python** | **0 mismatches.** The algorithm is proven before being specified. |
+| `sum()` over floats | 20,000 random 6-element sums, `sum()` vs naive left fold, Python 3.13.1 | **33.1% differ.** Python 3.12 moved `sum()` to **Neumaier compensated summation**; a JS `reduce((a,b) => a+b)` is a naive fold. `build.py:476` sums **7 fields on every aggregate row** — `clerical_employed`, `professionals_employed`, `young_white_collar_employed`, `population_15_24`, `exposed_wage_bill_ppp`, `ict_service_exports_usd`, `service_exports_usd`. |
+| Interpreter vintage of the committed outputs | `python3.11 -m unittest discover pipeline/tests` against `python3.13`, this checkout | **The golden master is interpreter-specific.** Under **3.11.16** the suite fails `test_output_matches_the_golden_master_byte_for_byte` on the WLD row: `service_exports_usd` = `5554959302720.801` against the committed `5554959302720.8`. Under **3.13.1** all 107 pass. So the committed outputs were produced by **3.12 or later**, and CI's `python-version: '3.13'` pin is load-bearing, not incidental. |
 | SQLite byte-reproducibility | Built the same table+index in `sqlite3` and `node:sqlite`, `cmp -l` | **Exactly 4 bytes differ, all in the 100-byte header**: change counter (offset 24), version-valid-for (92), and **`SQLITE_VERSION_NUMBER` (96) — 3048000 vs 3053003**. Page data byte-identical. Byte-identical SQLite is **impossible**: the runtimes bundle SQLite 3.48.0 and 3.53.3. |
-| App JSON | `JSON.parse` → `JSON.stringify` round-trip of the tracked `src/data/global_labor.json` | **Not byte-identical**: 604,736 → 602,610 bytes. 779 `.0` values lose their decimal. `run.py:278` writes it with `separators=(",", ":")`. This output is **not mentioned in issue #21's scope**. |
+| App JSON | `JSON.parse` → `JSON.stringify` round-trip of the tracked `src/data/global_labor.json` | **Not byte-identical**: 604,736 → **602,826 bytes, a loss of 1,910**. (602,610 is the UTF-16 code-unit count, a loss of 2,126 — on a spec claiming byte identity the two must not be conflated.) 779 `.0` values lose their decimal. `run.py:278` **and `panel.py:173`** both write with `separators=(",", ":")` and the default `ensure_ascii=True`, so both committed files are **pure ASCII — 108 `\uXXXX` escapes, zero bytes above 0x7f** — which `JSON.stringify` emits raw as UTF-8. That accounts for the 216-unit gap between the two loss figures. Neither output is **mentioned in issue #21's scope**. |
 | The test suite | `pipeline/tests/context.py`, import graph, `python3 -m unittest discover` | **107 tests, 1,512 lines, pass in 0.292s.** They `import build` / `import config` through a `sys.path` shim — they bind to the **Python modules** and die with them. **Not mentioned in issue #21's scope.** |
-| Response cache | `du -sh pipeline/raw` | **80MB present** (`eurostat`, `ilostat`, `worldbank`) — the golden-master comparison can run offline. |
+| Response cache | `du -sh pipeline/raw` | **80MB present on the probing machine** (`eurostat`, `ilostat`, `worldbank`). But `pipeline/raw` is **gitignored and absent in a fresh clone** — so this row is machine-local, CI can never re-run R3/R4, and `CLAUDE.md` documents `verify` skipping the pilot when it is missing. R3 names the durable evidence and R8 the repeatable guard. |
 | CLI surface | `grep add_argument pipeline/run.py` | **Three flags**: `--pilot`, `--no-app-json`, `--out-dir`. Issue #21 names only `--pilot`. |
-| Golden-master surface | `git ls-files pipeline/data/ src/data/` | **9 tracked outputs**: 6 CSVs, `global_labor_dataset.sqlite`, `validation_report.txt`, plus `src/data/global_labor.json` and `global_labor_timeseries.json`. |
+| Golden-master surface | `git ls-files pipeline/data/ src/data/` | **10 tracked outputs**: 6 CSVs, `global_labor_dataset.sqlite`, `validation_report.txt`, `src/data/global_labor.json` and `global_labor_timeseries.json`. (`port_data.json` and `sanctions_regimes.json` are also returned but are the corridor-wars static snapshot `CLAUDE.md` records — out of scope.) The count matters: R3–R5 cover **9 of the 10**, and `validation_report.txt` is the one a miscount would have hidden. |
 
 **Note on tiers.** This spec produces **no new figures**. Every number it emits
 already exists and carries a tier; the port's whole obligation is to reproduce
@@ -55,19 +57,34 @@ spec may introduce a value the Python did not already produce.
 
 ### R1. [ ] A number layer that reproduces Python's arithmetic and formatting
 
-Two helpers, with the port using them everywhere the Python uses `round()` or
-writes a float:
+**Three** helpers, with the port using them everywhere the Python uses
+`round()`, `sum()`, or writes a float:
 
 - `pyRound(x, n)` — half-to-even on the double's exact decimal value.
 - `pyStr(x)` — Python's `repr`: `.0` on integral floats, `-0.0` preserved.
+- `pySum(values)` — **Neumaier compensated summation**, matching CPython 3.12+
+  `sum()`. A naive `reduce((a,b) => a+b)` disagrees on **33.1%** of random
+  6-element sums, and `build.py:476` sums 7 fields on every aggregate row.
+  Without this, R3 cannot pass on a single aggregate row, and the failure
+  presents as a mystery one-ulp diff rather than a known divergence.
+
+**The differential cases are committed as fixtures, not generated at test time.**
+R10 deletes the Python and R11 removes the interpreter from CI, so a test that
+shells out to `python3` to compare has nothing left to compare against — and R8
+requires the suite to run offline. Each helper's cases are frozen as
+`(input, args, expected)` triples under `pipeline/tests/fixtures/`, generated
+once from the pinned interpreter, with the generator committed alongside so
+they can be regenerated if the pin moves.
 
 **Acceptance:**
-- `pyRound` matches Python on **≥20,000 randomised differential cases**, 0
-  mismatches. (Verified above for the draft implementation; the check moves
-  into the test suite.)
+- `pyRound` matches **≥20,000 committed fixture cases**, 0 mismatches.
+- `pySum` matches **≥20,000 committed fixture cases** of multi-element float
+  sums, 0 mismatches — the fixture must include cases where naive folding
+  diverges, or it proves nothing.
 - `pyStr` reproduces all **78,257** numeric strings in the committed CSVs from
-  their parsed doubles, including the **6,256** `.0` values and the **30**
-  `-0.0` values, 0 mismatches.
+  their parsed doubles, including the **6,256** `.0` and **30** `-0.0` values,
+  0 mismatches. (Already fixture-backed: it reads the committed CSVs.)
+- All three run **offline**, with no Python present.
 
 ### R2. [ ] A hand-rolled CSV reader/writer, zero runtime dependencies
 
@@ -78,22 +95,46 @@ ceiling matching `csv.field_size_limit(10_000_000)`.
 byte** — read then write reproduces the input exactly, `cmp` clean, including
 quoted fields and the CRLF terminators.
 
-### R3. [ ] The 6 CSV outputs are byte-identical
+### R3. [ ] The 6 CSV outputs and `validation_report.txt` are byte-identical
 
 Run against the same cached `pipeline/raw/`, the TypeScript pipeline reproduces
 `global_labor_dataset.csv`, `global_labor_panel.csv`, `ai_exposure_sensitivity.csv`,
-`crosscheck_eurostat.csv`, `outliers_for_review.csv` and `pilot_labor_dataset.csv`.
+`crosscheck_eurostat.csv`, `outliers_for_review.csv`, `pilot_labor_dataset.csv`
+and **`validation_report.txt`** — the last is tracked, regenerated by the run,
+and is the human-readable record of the `[validate]` block, so letting it drift
+silently would be the worst option available.
 
-**Acceptance:** `cmp` exits 0 for each of the 6 files against the committed
+**A golden master is only golden relative to a runtime.** The committed outputs
+were produced by Python **3.12 or later** (3.11 fails byte identity on the WLD
+row — see Source verification), so the comparison is run against the pinned
+`3.13` and that pin is recorded with the result.
+
+**Acceptance:** `cmp` exits 0 for each of the 7 files against the committed
 version. Not "diffs explained" — **zero bytes differ.** Any difference is
 treated as a defect in the port until proven otherwise.
 
+**Evidence, and its limits.** `pipeline/raw/` is gitignored and absent in a
+fresh clone, so this check cannot run in CI and a reviewer cannot reproduce it
+on demand. The durable artifact is therefore the **`cmp` transcript for all
+tracked outputs, pasted into the implementation PR**, recorded alongside the
+cache's provenance (when it was fetched, from which sources) and the
+interpreter pin. The repeatable guard that outlives it is named in R8.
+
 ### R4. [ ] The app JSON outputs are byte-identical
 
-`src/data/global_labor.json` and `global_labor_timeseries.json` are consumed by
-the app and tracked in git. A stock `JSON.stringify` **loses 2,126 bytes** on
-the first one, so the port needs a serialiser using `pyStr` for numbers and
-Python's `separators=(",", ":")` spacing.
+`src/data/global_labor.json` (written by `run.py:278`) and
+`global_labor_timeseries.json` (written by `panel.py:173`, through the same
+`json.dump` path) are consumed by the app and tracked in git. A stock
+`JSON.stringify` **loses 1,910 bytes** on the first one, so the port needs a
+serialiser reproducing three things, not one:
+
+- **numbers** via `pyStr`, so `79.0` does not become `79`;
+- **`separators=(",", ":")`** spacing, no space after `,` or `:`;
+- **`ensure_ascii=True` escaping** — the committed files are pure ASCII with
+  108 `\uXXXX` escapes and zero bytes above 0x7f, which `JSON.stringify` emits
+  raw as UTF-8. Python's escape set is **not** JavaScript's, so the port must
+  specify it rather than assume it: which code points escape, `\uXXXX` casing,
+  and surrogate-pair handling above the BMP.
 
 **Acceptance:** `cmp` exits 0 for both files. The app builds and the page
 renders with no console error — per `CLAUDE.md`, a green build is not evidence
@@ -131,10 +172,36 @@ anchor exits non-zero, as spec 0003 established.
 wherever a country may be missing; a per-field vintage type pairing a value with
 its year.
 
-**Acceptance:** a value assigned without a tier, a null coerced to `0`, and a
-value used without its year each **fail `tsc --noEmit`**. Demonstrated by three
-deliberately broken snippets that must not compile — the requirement is not met
-by the types existing, only by them rejecting these three.
+**`strictNullChecks` alone does not reach the rule that matters.** It rejects
+`const x: number = maybeNull`, but every shape this project actually forbids
+compiles clean — verified with `tsc --strict`, where only the bare assignment
+errored:
+
+```ts
+const v: number | null = null;
+const a: number = v ?? 0;      // compiles
+const b: number = v || 0;      // compiles
+const c: number = Number(v);   // compiles
+```
+
+Those are precisely the imputation shapes `CLAUDE.md`'s "never impute a missing
+country" exists to stop. So the null half of this requirement is met by a
+**branded `Measured<number>`**: `v ?? 0` yields a plain `number` that is not
+assignable to a branded field, forcing the author through an explicit
+constructor that has to say what it is doing.
+
+**The vintage type is a change of shape, not an annotation.** A value is only
+inaccessible without its year if the two are a **pair type**; the pipeline's
+current shape is sibling `data_year_*` columns, which cannot enforce anything.
+R4's serialiser must therefore flatten the pair back to sibling columns on the
+way out, or the byte-identical outputs break.
+
+**Acceptance:** three deliberately broken snippets **fail `tsc --noEmit`** — a
+value assigned without a tier, `v ?? 0` assigned to a `Measured<number>` field,
+and a value read without its year. The requirement is not met by the types
+existing, only by them rejecting these three; each is committed as a
+`// @ts-expect-error` case so a later refactor that weakens them fails the
+build.
 
 ### R8. [ ] The 107 tests ported, still passing
 
@@ -146,6 +213,15 @@ ports in this spec rather than a later one.
 in **under 2s** (Python: 0.292s). `npm run test:pipeline` runs them. No test is
 dropped without being recorded here as `[~]` with its reason.
 
+**This carries the only re-runnable evidence in the spec.** R3's `cmp`
+transcript needs the gitignored 80MB cache; spec 0004's in-tree fixture golden
+master — `pipeline/tests/fixtures/expected/pilot_labor_dataset.csv`, with its
+committed `fixtures/raw/` — does not. `test_output_matches_the_golden_master_byte_for_byte`
+must stay green against the TypeScript build and keep running in CI, because it
+is the one part of this evidence a future contributor can reproduce. It is also
+the test that already caught the interpreter divergence, which is the argument
+for it in one sentence.
+
 ### R9. [ ] The dependency policy is written down
 
 `CLAUDE.md`'s "stdlib only, no pip installs" describes a Python pipeline that
@@ -153,8 +229,17 @@ will no longer exist. It is replaced by an explicit Node policy: **zero runtime
 dependencies** — `node:sqlite`, `fetch`, `node:zlib` and `node:util`'s
 `parseArgs` are native on Node 24, and CSV is hand-rolled per R2.
 
-**Acceptance:** `package.json` gains **no new runtime dependency**. `CLAUDE.md`'s
-stdlib rule, layout section and command list reflect the ported pipeline.
+**Acceptance:** `package.json` gains **no new runtime dependency**, and every
+place the Python is described is updated — named here so a reviewer is not left
+finding stragglers after R10 lands:
+
+| File | What |
+|---|---|
+| `CLAUDE.md` | the stdlib rule, the layout section, the command list |
+| `package.json:11-16` | five scripts shelling to `python3` — `pipeline`, `pipeline:pilot`, `test:pipeline`, `report`, and `verify:data` via the pilot |
+| `pipeline/README.md:13-16` | the four documented `python3` commands |
+| `pipeline/README.md:31,38-39` | the stdlib `unittest` description and its invocation gotcha |
+| `.github/workflows/ci.yml:36` | the comment explaining the pipeline is stdlib-only, next to the `python-version: '3.13'` pin at `:41` that R11 removes |
 
 ### R10. [ ] The Python is deleted, and only at the end
 

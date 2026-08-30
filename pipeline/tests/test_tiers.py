@@ -135,6 +135,25 @@ class ProseAgreesWithRegistry(unittest.TestCase):
 
 
 class AppPayload(unittest.TestCase):
+    """R3 -- what `export_app_json` writes. NOT what `src/data/global_labor.json`
+    contains.
+
+    Read that distinction before trusting this class. Every test below asserts
+    on a payload regenerated from two fixture rows into a temp file by `setUp`.
+    None of them opens the committed artifact, so all six passed for the whole
+    life of #57, while the file the app actually imports had no `field_tiers`
+    key at all -- green against precisely the defect they appear to cover.
+
+    That is not a flaw in these tests: they are correct about the generator, and
+    a generator-side check is worth having. It is a flaw in reading them as
+    coverage of the shipped payload, which is what happened.
+
+    The artifact is covered by
+    `test_app_payloads.CommittedHeaderMatchesTheGenerator` (spec 0009 R2), which
+    opens `src/data/global_labor.json` and compares its whole non-`rows` header
+    against `export_app_json([], tmp)`. Add generator-side assertions here;
+    add artifact-side ones there.
+    """
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

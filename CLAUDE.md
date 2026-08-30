@@ -128,7 +128,7 @@ npm run build            # production build (base path /who-gets-replaced-first/
 npm run pipeline:pilot   # 6-area validation batch, prints regression checks
 npm run pipeline         # full run: 218 countries + 11 aggregates
 npm run lint
-npm run test:pipeline    # 114-test regression suite, offline, <1s
+npm run test:pipeline    # 125-test regression suite, offline, <1s
 ```
 
 The pipeline caches every API response under `pipeline/raw/`, so re-runs are

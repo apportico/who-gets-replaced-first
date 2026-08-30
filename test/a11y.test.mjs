@@ -170,14 +170,25 @@ test('R4 — every section heading carries a tier badge', async () => {
   const headings = [...host.querySelectorAll('h3')];
   assert.ok(headings.length >= 10, `expected the panel's sections to render, found ${headings.length} headings`);
 
+  // A section may legitimately carry no badge of its own — "Career stage" holds
+  // three PROXY figures and one DERIVED, so a single heading badge would have to
+  // be wrong about three of them. What must hold is that provenance is stated
+  // somewhere a listener meets it: either on the heading, or on every figure
+  // beneath it. Requiring a heading badge unconditionally is what pushed the
+  // wrong one onto that section in the first place.
   const unbadged = headings
     .filter((h) => {
-      const siblings = [...(h.parentElement?.children || [])];
-      return !siblings.some((el) => el !== h && TIER.test(el.textContent.trim()));
+      const headingRow = [...(h.parentElement?.children || [])];
+      if (headingRow.some((el) => el !== h && TIER.test(el.textContent.trim()))) return false;
+
+      // No heading badge: every figure in the section must badge itself.
+      const section = h.closest('div')?.parentElement;
+      const fields = [...(section?.querySelectorAll('[data-field]') || [])];
+      return fields.length === 0 || !fields.every((el) => el.getAttribute('data-tier'));
     })
     .map((h) => h.textContent.trim());
 
-  assert.deepEqual(unbadged, [], `section headings with no tier badge beside them:\n  ${unbadged.join('\n  ')}`);
+  assert.deepEqual(unbadged, [], `sections stating provenance neither on the heading nor on every figure:\n  ${unbadged.join('\n  ')}`);
 });
 
 test('R3 — the map text equivalent is a labelled region, not a description', async () => {

@@ -1,6 +1,6 @@
 # 0009 — The app payloads cannot drift from the code that writes them
 
-**Status:** approved
+**Status:** done
 **Depends on:** 0004 (the regression suite this extends, and whose `ff507b0`
 introduced the drift); none blocking — the fix is additive and moves no figure.
 **Issue:** [#57](https://github.com/apportico/who-gets-replaced-first/issues/57)
@@ -80,7 +80,21 @@ Every row below is a command that was run, not an expectation.
 
 ## Requirements
 
-### R1. [ ] The committed app payload is what `run.py` writes today
+### R1. [x] The committed app payload is what `run.py` writes today
+
+**Done (2026-08-30):** `npm run pipeline` regenerated the payload; 4 anchors on
+target, 0 validation problems. Every criterion run:
+
+```
+field_tiers entries: 84
+bytes:              607739
+keys added: ['field_tiers'] | removed: []
+sources equal: True   ai_exposure_weights equal: True
+all 229 rows equal: True | n: 229
+```
+
+The cache-gated bullet holds too: the run left every other tracked artifact
+byte-identical, so `git status --porcelain` showed only this file.
 
 `src/data/global_labor.json` is regenerated from a full `npm run pipeline` and
 committed, so the file carries the `field_tiers` block.
@@ -105,7 +119,28 @@ so no field's tier changes.
   `verify` skips the pilot for the same reason. A full run is inherently
   what R1 is; the two bullets above are the ones that survive a fresh clone.
 
-### R2. [ ] A test opens the committed payload and fails when it is stale
+### R2. [x] A test opens the committed payload and fails when it is stale
+
+**Done (2026-08-30):** `test_app_payloads.CommittedHeaderMatchesTheGenerator`.
+All three failure bullets demonstrated by making the edit, not by inspection:
+
+```
+pre-R1 payload   -> missing=['field_tiers'] ... "A missing `field_tiers` is #57"
+weight edited    -> changed=['ai_exposure_weights']
+sources edited   -> changed=['sources']          (the ONLY failure in the suite)
+```
+
+That third run is the load-bearing one: nothing else in 125 tests catches a
+stale `sources` literal, which is exactly the half a transcribed expected value
+would have left green.
+
+**Caveat found while running these, worth recording because this requirement
+prescribes the edit-run-revert cycle that triggers it:** reverting `run.py` with
+`git checkout --` after an edit of the *same byte length* can leave a stale
+`__pycache__/run.cpython-313.pyc` in play, so the suite keeps reporting
+`changed=['sources']` against a reverted file. `find pipeline -name __pycache__
+-exec rm -rf {} +` clears it. Not a defect in the guard or the data — but it
+looks exactly like one, and it cost a diagnosis here.
 
 A new test reads `src/data/global_labor.json` **from disk** and compares its
 **whole non-`rows` header** — `generated_from`, `field_tiers`, `sources` and
@@ -171,8 +206,84 @@ shipping an unlabellable field to the app.
 - The test passes in a checkout with `pipeline/raw/` absent and networking
   unavailable.
 - It opens the file read-only; `git status --porcelain` is empty after the run.
+  Observed by `GuardsDoNotWriteWhatTheyCheck`, which digests `src/data/` in
+  `setUpModule`, runs the three guard classes, and compares. **Two vacuous
+  versions preceded it**, both caught rather than reasoned about: the first
+  stat-ed the payloads around a `json.load` and so asserted only that reading
+  does not write; the second took its baseline inside the test, where
+  alphabetical ordering means the guards have already run, so a guard writing a
+  deterministic file was baked into the baseline and recreated identically.
+  A deliberate write into `src/data/` from a guard's `setUp` passes the second
+  and fails the third. The **fourth** version watches `pipeline/data/` as well
+  and carries mtimes, not just content — see below.
+- The clean-tree criterion is observed by that guard **and nothing else**:
+  `git status --porcelain` appears nowhere in `scripts/verify.sh` or in CI, and
+  `test_golden_master`'s own `run.DATA` guard takes its baseline in
+  `setUpClass`, after discovery has already run `test_app_payloads` first. So
+  the criterion is exactly as strong as this one class, which is why it watches
+  both trees: `CommittedTimeseriesMatchesThePanel` drives `panel.export`, and
+  `panel.py:154` writes `global_labor_panel.csv` unconditionally — a real write
+  of the CSV another guard compares against, kept out of the tracked tree only
+  by the `tmp` argument.
+- **A content digest does not observe that write.** Handing `panel.export`
+  `run.DATA` rewrites the panel CSV from rows read out of that same file, and
+  the round-trip is byte-perfect — `_read_csv` maps `""` to None and the
+  DictWriter writes None back as `""` — so the digest is unchanged and
+  `git status` is clean. Probed: the digest-only version stayed **green**
+  against exactly that defect. The guard therefore records mtimes too. The
+  write's harmlessness is accidental and holds only while the CSV round-trips
+  byte-perfectly, which is a property of today's values rather than a guarantee;
+  the float-repr divergences spec 0007 catalogued are the obvious way to lose
+  it.
+- The three guard classes build their fixtures in `setUpClass`, not `setUp`.
+  Nothing in them mutates what it reads, and per-method setup meant a full
+  `panel.export` four times per class and eight per suite run — 0.598s for
+  eleven tests, making this module 58% of the suite for 9% of its tests and
+  pushing the total past the "offline, <1s" that `CLAUDE.md` and
+  `pipeline/README.md` both promise. Now 0.228s, suite 1.038s -> 0.682s. The
+  duplicate-`iso3` check became its own named test in the process: as a `setUp`
+  assertion it failed every test in the class with the same message.
+- `test_field_tiers_covers_every_key_a_row_ships` unions all 229 rows rather
+  than reading `rows[0]`. One row suffices against the generator, which builds
+  every row from the same `keep` list, but this class opens the artifact and the
+  threat model R6's README paragraph names is a hand-edit, which can add a key
+  to any row. Probe: a key added to row 5 was invisible before and now fails
+  with `'hand_edited_extra'`.
 
-### R3. [ ] The same guard for the timeseries payload
+### R3. [x] The same guard for the timeseries payload
+
+**Done (2026-08-30):** `test_app_payloads.CommittedTimeseriesMatchesThePanel`,
+four tests. Passes unmodified against the committed file, confirming the
+preventive framing. Both negative checks demonstrated:
+
+```
+dropped series key ARE      -> test_every_series_key_is_present_and_no_extras FAILS
+changed ARE/2013[4] by 1.0  -> "disagrees with ... global_labor_panel.csv at [('ARE','2013')]"
+dropped ARE's 2013 YEAR     -> "disagrees with ... at [('ARE','years')]"
+```
+
+**Revised twice in review, and the second revision is the one that matters.**
+
+The first version iterated the committed payload's own years, so a country-year
+*dropped from the payload* was never visited and all four tests passed — a
+partially regenerated payload passing the guard that exists to catch one. R3's
+acceptance bullet ("deleting one `iso3`") held as written; R3's own wider summary
+("every cell equal") did not, and the summary is the claim a reader believes.
+
+The deeper problem was that the rebuild **transcribed** `panel.export`'s
+assembly by hand — precisely what R2's prose forbids for the header, for
+precisely the reason it gives. Change how `panel.export` builds the payload
+without regenerating, and the transcribed copy still agrees with the committed
+file while both disagree with the code. So R3 now drives `P.export(rows, [],
+tmp, app_path)`, which takes both output paths and so writes only under the temp
+dir. That transcribes nothing and subsumes the year gap: comparing two real
+payloads catches a dropped country-year in both directions, and fails with a
+message instead of raising `KeyError` on the inverse case. Verified it
+reproduces the committed payload exactly under `_num` before adopting it.
+
+R3's class docstring now also carries the payload-versus-CSV caveat R4 had and
+it did not — the rows still come from the committed panel CSV, so the input side
+has the same edge. The asymmetry was an omission, not a decision.
 
 `src/data/global_labor_timeseries.json` gets an equivalent check, rebuilt from
 the committed `global_labor_panel.csv` per `panel.py:163-172`: `fields` equal,
@@ -189,7 +300,28 @@ implying a second defect was found.
   `npm run test:pipeline` fail.
 - Runs offline; writes nothing.
 
-### R4. [ ] The row values are checked, not just the shape
+### R4. [x] The row values are checked, not just the shape
+
+**Done (2026-08-30):** `test_app_payloads.CommittedRowsMatchTheDataset`, four
+tests. 0 disagreeing cells over 229 x 84. Negative check demonstrated:
+
+```
+ABW.lat 12.5167 -> 13.5167 : "disagrees with ... global_labor_dataset.csv at [('ABW','lat')] (1 cells)"
+```
+
+Row grouping asserted with `itertools.groupby`, which collapses only adjacent
+runs, so a country row after the aggregates fails rather than passing on a
+count. `country_name` asserted non-null on all 218 country rows — half the pair
+`corridorStates.js:42` keys on. The `row_type` half was dropped in review as
+vacuous: the loop filters on `row_type == "country"` before asserting, so it
+could not have been null there, and
+`test_row_types_are_contiguous_and_in_the_written_order` covers it for real.
+
+Also added in review: `setUp` asserts the dataset CSV has no duplicate `iso3`.
+Keying by `iso3` collapses one silently, and `test_the_same_countries_are_present`
+compares sets, which is invariant to that — so a dropped row would have left the
+229 x 84 comparison without failing anything. Clean today (229 rows, 229 unique),
+so preventive. Probe: `230 != 229 : duplicate iso3 in global_labor_dataset.csv`.
 
 R2 catches a stale tier map but not a moved number. The payload's 229 rows are
 compared against committed `global_labor_dataset.csv` keyed by `iso3`, under the
@@ -223,7 +355,14 @@ of what they name, and that discipline applies to its own requirements.
   board's names to `iso3`, so the guard covers what the second consumer
   depends on rather than only what the first one renders.
 
-### R5. [ ] The existing `AppPayload` tests say what they actually cover
+### R5. [x] The existing `AppPayload` tests say what they actually cover
+
+**Done (2026-08-30):** `AppPayload`'s docstring now opens by saying it covers
+what `export_app_json` writes and **not** what `src/data/global_labor.json`
+contains, records that all six passed for the life of #57, and names
+`test_app_payloads.CommittedHeaderMatchesTheGenerator` as the class that opens
+the artifact. `grep -c "CommittedHeaderMatchesTheGenerator" test_tiers.py`
+returns `1`; `grep -c "src/data/global_labor.json"` returns `2`.
 
 `test_tiers.py::AppPayload` keeps its six generator-side tests — they are
 correct about `export_app_json` — but its docstring records that it asserts on
@@ -235,7 +374,18 @@ the artifact was covered.
 not open it, and names the test class that does. `grep -c` for the R2 test
 class name in `test_tiers.py` returns ≥ 1.
 
-### R6. [ ] `pipeline/README.md` stops describing a payload that does not exist
+### R6. [x] `pipeline/README.md` stops describing a payload that does not exist
+
+**Done (2026-08-30):** a paragraph after the outputs table states both payloads
+are written by `npm run pipeline` (`run.py:277`, `panel.py:172` — both line
+numbers checked against the actual `open(...)` calls), must never be
+hand-edited, that a wrong figure is fixed upstream or in `manual_overrides.json`
+with a citation, and that `pipeline/tests/test_app_payloads.py` enforces it
+offline on every `verify` and in CI. R1 makes the pre-existing line 139 sentence
+true.
+
+Also corrected the suite's test count where the repo states it: `CLAUDE.md:131`
+and `pipeline/README.md:38`, 114 -> 125.
 
 The README is **not silent** here, which is the problem: lines 139-141 already
 tell the reader the tiers "ship to the app in `global_labor.json` under
@@ -264,6 +414,97 @@ them. Add that, and name the guard from R2-R4 so a reader knows what enforces it
   R6's own artifact. It would have let R6 pass or fail for reasons entirely
   outside its scope, and made R6 the only home for that assertion if R2 ever
   narrowed.
+
+## Implementation Plan
+
+**Planned:** 2026-08-30
+
+### Ordering — the one thing that cannot be resequenced
+
+**R2 is built before R1.** R2's first acceptance bullet requires that the guard
+fails against `src/data/global_labor.json`'s pre-R1 content. That content is the
+file on `main` today, so writing the test first makes the demonstration free and
+exact. Regenerating first would leave that criterion checkable only by reverting
+a file the same commit just fixed — the weaker evidence, and the one this spec
+argues against everywhere else. Steps 1 and 2 are therefore in this order on
+purpose.
+
+### Files to create
+
+| Path | Purpose | Requirements |
+|---|---|---|
+| `pipeline/tests/test_app_payloads.py` | The guards that open the committed artifacts: header vs. generator, timeseries vs. panel CSV, rows vs. dataset CSV | R2, R3, R4 |
+
+### Files to modify
+
+| Path | Change | Requirements |
+|---|---|---|
+| `src/data/global_labor.json` | Regenerated from a full `npm run pipeline` — gains `field_tiers`, +3,003 bytes, no row value changes | R1 |
+| `pipeline/tests/test_tiers.py` | `AppPayload` docstring records that it asserts on a regenerated fixture payload, not the committed artifact, and names the class that does | R5 |
+| `pipeline/README.md` | States the two app payloads are generated by `npm run pipeline`, must not be hand-edited, and names the enforcing test module | R6 |
+
+### Sequence
+
+1. **R2, R3, R4** — write `test_app_payloads.py`. Run it against the *current*
+   committed payload and record R2 failing on `field_tiers`, R3 and R4 passing.
+   R3/R4 passing here is expected and is itself evidence: the timeseries has no
+   drift and the rows agree with the CSV, so only the header guard is corrective.
+2. **R1** — `npm run pipeline`, commit `src/data/global_labor.json`. Suite goes
+   green. Confirm the diff adds `field_tiers` and touches nothing else.
+3. **R2 bullets 2-3** — edit one weight in `ai_exposure_isco.json`, run the
+   suite, record the failure, revert. Repeat for the `sources` literal in
+   `run.py`. Both by making the edit, per the requirement.
+4. **R3/R4 negative checks** — delete an `iso3` from the timeseries `series` and
+   change one payload row value; record both failures; revert.
+5. **R5** — `test_tiers.py` docstring.
+6. **R6** — `pipeline/README.md`.
+7. `npm run verify`, then mark each requirement from the output actually seen.
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | Full offline run regenerates the payload | `src/data/global_labor.json` | `len(d["field_tiers"])` prints `84`; file is 607,739 bytes; `sources`, `ai_exposure_weights` and all 229 rows compare equal to the pre-change file |
+| R2 | `CommittedHeaderMatchesTheGenerator` compares the committed non-`rows` keys to `export_app_json([], tmp)` | `pipeline/tests/test_app_payloads.py` | Suite fails against the pre-R1 payload naming `field_tiers` and #57; fails again on a weight edit and on a `sources` edit, each demonstrated |
+| R3 | `CommittedTimeseriesMatchesThePanel` rebuilds `fields`/`years`/`series` from `global_labor_panel.csv` | same | Passes unmodified today; fails when an `iso3` is dropped or a value changed |
+| R4 | `CommittedRowsMatchTheDataset` compares 229 × 84 keyed by `iso3` under numeric normalisation, plus the `row_type` grouping and the `row_type`/`country_name` non-null pair | same | 0 disagreeing cells; fails on one edited value; grouping asserted contiguous |
+| R5 | Docstring rewrite | `pipeline/tests/test_tiers.py` | Docstring names the committed file, says it does not open it, names the R2 class; `grep -c` for that class name ≥ 1 |
+| R6 | New paragraph in the outputs section | `pipeline/README.md` | `grep` finds the generated / do-not-hand-edit / test-module sentences |
+
+### Tier and vintage handling
+
+**This plan produces no new figure, and no field's tier or vintage changes.**
+`field_tiers` is a metadata map whose 84 values are read from
+`config.FIELD_TIERS`, the registry of record; the map is provenance, not a
+measurement. R1's regeneration was probed to leave all 229 rows equal, so every
+per-field `data_year_*` column is untouched. The guards are read-only and assert
+on existing values, adding none.
+
+### Validation
+
+The new tests join spec 0004's suite under `pipeline/tests/`, which
+`scripts/verify.sh` runs **unconditionally** — no cache, no network — so they
+run in a fresh clone and in CI. They compare and never write, per
+`verify.sh:27-35`'s rule that verifying must not republish. No new `[validate]`,
+`[crosscheck]` or `[outliers]` check is needed: R1 moves no number, so the four
+regression anchors and the 27-member Eurostat cross-check are unaffected, and a
+full run confirming them is R1's own cache-gated criterion.
+
+### Risks
+
+1. **R2's failure message must name `field_tiers` and #57**, or its first
+   acceptance bullet is unmet even with a red suite. The assertion carries the
+   text rather than relying on a diff.
+2. **R4 compares two artifacts from the same run.** Recorded in the requirement;
+   the guard cannot catch both being stale together, and nothing in this plan
+   pretends otherwise.
+3. **The R3/R4 negative checks edit tracked data files.** Each is reverted
+   immediately and `git status --porcelain` is checked empty before moving on;
+   an unreverted edit would silently republish a figure, which is the one thing
+   this spec must not do.
+4. **`export_app_json([], tmp)` is load-bearing for R2.** Probed working, but if
+   a future change makes the header depend on rows, R2's design needs revisiting
+   rather than patching — it would become an ingredient list again.
 
 ## Non-goals
 

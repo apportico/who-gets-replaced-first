@@ -48,7 +48,7 @@ build-first-document-later approach.
 | [0006](0006-eslint-worktree-ignores.md) | ESLint ignores worktrees and nested build output | done — 3 done |
 | [0007](0007-pipeline-typescript-port.md) | Port the pipeline Python → TypeScript, verified byte-identical against the committed outputs | approved — 11 requirements, none implemented |
 | [0008](0008-mobile-and-accessibility.md) | Mobile layout, keyboard access, screen-reader equivalents, contrast and colour-vision | in-progress — 6 done · 5 reopened after review |
-| [0009](0009-app-payload-drift.md) | The app payloads cannot drift from the code that writes them — regenerate `global_labor.json`, guard both | approved — 6 requirements, none implemented |
+| [0009](0009-app-payload-drift.md) | The app payloads cannot drift from the code that writes them — regenerate `global_labor.json`, guard both | done — 6 done |
 
 ## Starting a new spec
 

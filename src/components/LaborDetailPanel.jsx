@@ -1,9 +1,26 @@
 import {
   ISCO_GROUPS, TIERS, fmt, fmtInt, fmtCompact, qualityTone,
 } from '../utils/laborMetrics';
-import { useEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useRef } from 'react';
 import Sparkline from './Sparkline';
 import { seriesFor } from '../utils/laborPanel';
+import laborData from '../data/global_labor.json';
+
+// Spec 0008 R4 + spec 0009. The tier of a field is NOT decided here: the
+// pipeline writes it into the payload (`field_tiers`, 84 entries) from
+// pipeline/config.py's registry, and spec 0009 guards the two against drift.
+// Reading it from the payload rather than keeping a copy is the point — a
+// second copy is exactly what 0009 exists to prevent.
+const FIELD_TIERS = laborData.field_tiers;
+
+// Spec 0008 R4. A Section's tier is the heading's claim; a Row's field decides
+// the figure's. They are not always the same, and when they diverge the Section
+// wins visually while being wrong — which is how `entry_level_squeeze_index`
+// (MODELED in pipeline/config.py:290) came to sit under a DERIVED badge, and
+// three PROXY career-stage figures under an OFFICIAL one. The Row now looks its
+// own tier up in the pipeline's authoritative map and badges itself whenever it
+// differs from the section around it.
+const SectionTier = createContext(null);
 
 function Section({ title, tier, children }) {
   const t = tier ? TIERS[tier] : null;
@@ -20,7 +37,7 @@ function Section({ title, tier, children }) {
           </span>
         )}
       </div>
-      {children}
+      <SectionTier.Provider value={tier ?? null}>{children}</SectionTier.Provider>
     </div>
   );
 }
@@ -36,10 +53,23 @@ function Section({ title, tier, children }) {
 // Found by reading the accessibility tree (scripts/r11-announce.mjs), not by any
 // test: the suite checked that badges carry text, never that a badge matches the
 // number beneath it.
-function Row({ label, value, strong, hint, tier }) {
-  const t = tier ? TIERS[tier] : null;
+function Row({ label, value, strong, hint, tier, field }) {
+  const sectionTier = useContext(SectionTier);
+  // Explicit `tier` still wins; otherwise the field's own tier is used, and the
+  // badge appears only when it differs from the section's. `NOT_A_MEASUREMENT`
+  // fields carry no tier and get none.
+  const fieldTier = field ? FIELD_TIERS[field] : undefined;
+  const derived = fieldTier && ['OFFICIAL', 'DERIVED', 'PROXY', 'MODELED'].includes(fieldTier)
+    ? fieldTier.toLowerCase()
+    : undefined;
+  const effective = tier ?? (derived && derived !== sectionTier ? derived : undefined);
+  const t = effective ? TIERS[effective] : null;
   return (
-    <div className="flex items-baseline justify-between py-1 border-b border-gray-100 last:border-0">
+    <div
+      className="flex items-baseline justify-between py-1 border-b border-gray-100 last:border-0"
+      data-field={field || undefined}
+      data-tier={(effective ?? sectionTier) || undefined}
+    >
       <span className={`text-xs ${strong ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
         {label}
         {t && (
@@ -198,22 +228,41 @@ function OccupationBreakdown({ row }) {
 }
 
 /** R11. White-collar share at each career stage — where the office jobs sit by age. */
+// Spec 0008 R4. This section's heading was `tier="official"` and not one of the
+// four figures under it is OFFICIAL: three are PROXY and one DERIVED, per the
+// payload's `field_tiers`. It renders its own markup rather than using `Row`, so
+// the per-row badge did not reach it and the automatic check could not see it
+// either — the two failures had the same cause. Each stage now carries its
+// field, badges itself from the registry, and is visible to the test.
 function CareerStages({ row }) {
   const stages = [
-    { label: 'Youth 15–24', v: row.young_white_collar_pct, color: '#f7bd6f' },
-    { label: 'Prime 25–54', v: row.prime_white_collar_pct, color: '#2f7ec1' },
-    { label: 'Late 55–64', v: row.late_career_white_collar_pct, color: '#5a9ed6' },
-    { label: 'All ages', v: row.white_collar_pct, color: '#1a5490' },
+    { label: 'Youth 15–24', field: 'young_white_collar_pct', v: row.young_white_collar_pct, color: '#f7bd6f' },
+    { label: 'Prime 25–54', field: 'prime_white_collar_pct', v: row.prime_white_collar_pct, color: '#2f7ec1' },
+    { label: 'Late 55–64', field: 'late_career_white_collar_pct', v: row.late_career_white_collar_pct, color: '#5a9ed6' },
+    { label: 'All ages', field: 'white_collar_pct', v: row.white_collar_pct, color: '#1a5490' },
   ];
   if (!stages.some((s) => s.v != null)) {
     return <p className="text-xs text-[var(--text-faint)]">No career-stage breakdown published.</p>;
   }
   return (
     <div className="space-y-1">
-      {stages.map((s) => (
-        <div key={s.label}>
+      {stages.map((s) => {
+        const tierWord = FIELD_TIERS[s.field];
+        const t = tierWord ? TIERS[tierWord.toLowerCase()] : null;
+        return (
+        <div key={s.label} data-field={s.field} data-tier={tierWord ? tierWord.toLowerCase() : undefined}>
           <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mb-0.5">
-            <span>{s.label}</span>
+            <span>
+              {s.label}
+              {t && (
+                <span
+                  className="ml-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded align-middle"
+                  style={{ backgroundColor: `${t.color}1a`, color: t.color }}
+                >
+                  {t.label}
+                </span>
+              )}
+            </span>
             <span className="font-mono tabular-nums">{fmt(s.v)}%</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-sm overflow-hidden">
@@ -223,7 +272,8 @@ function CareerStages({ row }) {
             />
           </div>
         </div>
-      ))}
+        );
+      })}
       {row.young_white_collar_pct != null && row.prime_white_collar_pct != null && (
         <p className="text-[10px] text-[var(--text-muted)] pt-1 leading-snug">
           Youth are{' '}
@@ -383,22 +433,26 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
       <div className="p-4">
         <Section title="Headline" tier="derived">
           <Row
+            field="employed_share_of_population_pct"
             label="Share of population that works at all"
             value={`${fmt(row.employed_share_of_population_pct)}%`}
             strong
           />
           <Row
+            field="white_collar_pct"
             label="Of those who work, white collar"
             value={`${fmt(row.white_collar_pct)}%`}
             strong
           />
           <Row
+            field="young_white_collar_pct"
             label="Entry-level white collar (15–24)"
             value={`${fmt(row.young_white_collar_pct)}%`}
             tier="proxy"
             hint="age 15–24 is a stand-in; no source tracks seniority"
           />
           <Row
+            field="ai_exposure_weighted_score"
             label="AI task-exposure score"
             value={fmt(row.ai_exposure_weighted_score, 3)}
             tier="modeled"
@@ -409,9 +463,12 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
         <Section title="Population structure" tier="official">
           <AgeBar row={row} />
           <div className="mt-2">
-            <Row label="Total population" value={fmtInt(row.population_total)} />
-            <Row label="Age dependency ratio" value={fmt(row.age_dependency_ratio)} />
             <Row
+            field="population_total" label="Total population" value={fmtInt(row.population_total)} />
+            <Row
+            field="age_dependency_ratio" label="Age dependency ratio" value={fmt(row.age_dependency_ratio)} />
+            <Row
+            field="pop_65plus_pct"
               label="65+ share"
               value={`${fmt(row.pop_65plus_pct)}%`}
               hint="age proxy for retirees — not pension receipt"
@@ -424,17 +481,27 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
         </Section>
 
         <Section title="Labor force participation" tier="official">
-          <Row label="LFP, 15+" value={`${fmt(row.lfp_rate_total)}%`} />
-          <Row label="LFP, 15–24" value={`${fmt(row.lfp_rate_15_24)}%`} />
-          <Row label="LFP, 25–54" value={`${fmt(row.lfp_rate_25_54)}%`} />
-          <Row label="LFP, 55–64" value={`${fmt(row.lfp_rate_55_64)}%`} />
-          <Row label="Employment-to-population, 15+" value={`${fmt(row.emp_to_pop_ratio_15plus)}%`} />
-          <Row label="Unemployment" value={`${fmt(row.unemployment_rate_total)}%`} />
-          <Row label="Youth unemployment (15–24)" value={`${fmt(row.unemployment_rate_15_24)}%`} />
-          <Row label="Employed (headcount)" value={fmtInt(row.employed_total)} />
+          <Row
+            field="lfp_rate_total" label="LFP, 15+" value={`${fmt(row.lfp_rate_total)}%`} />
+          <Row
+            field="lfp_rate_15_24" label="LFP, 15–24" value={`${fmt(row.lfp_rate_15_24)}%`} />
+          <Row
+            field="lfp_rate_25_54" label="LFP, 25–54" value={`${fmt(row.lfp_rate_25_54)}%`} />
+          <Row
+            field="lfp_rate_55_64" label="LFP, 55–64" value={`${fmt(row.lfp_rate_55_64)}%`} />
+          <Row
+            field="emp_to_pop_ratio_15plus" label="Employment-to-population, 15+" value={`${fmt(row.emp_to_pop_ratio_15plus)}%`} />
+          <Row
+            field="unemployment_rate_total" label="Unemployment" value={`${fmt(row.unemployment_rate_total)}%`} />
+          <Row
+            field="unemployment_rate_15_24" label="Youth unemployment (15–24)" value={`${fmt(row.unemployment_rate_15_24)}%`} />
+          <Row
+            field="employed_total" label="Employed (headcount)" value={fmtInt(row.employed_total)} />
         </Section>
 
-        <Section title="Career stage" tier="official">
+        {/* Spec 0008 R4: the section carries no tier of its own — every figure in it
+            badges itself from the payload registry, because they are not all one tier. */}
+        <Section title="Career stage">
           <CareerStages row={row} />
         </Section>
 
@@ -449,9 +516,12 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
         </Section>
 
         <Section title="Broad sector" tier="official">
-          <Row label="Agriculture" value={`${fmt(row.emp_agriculture_pct)}%`} />
-          <Row label="Industry" value={`${fmt(row.emp_industry_pct)}%`} />
           <Row
+            field="emp_agriculture_pct" label="Agriculture" value={`${fmt(row.emp_agriculture_pct)}%`} />
+          <Row
+            field="emp_industry_pct" label="Industry" value={`${fmt(row.emp_industry_pct)}%`} />
+          <Row
+            field="emp_services_pct"
             label="Services"
             value={`${fmt(row.emp_services_pct)}%`}
             hint="weak white-collar proxy — includes retail, hospitality, transport"
@@ -460,12 +530,15 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
 
         <Section title="Entry-level proxy" tier="proxy">
           <Row
+            field="young_white_collar_pct"
             label="Employed 15–24 in ISCO 1–4"
             value={`${fmt(row.young_white_collar_pct)}%`}
             strong
           />
-          <Row label="Age band used" value={row.youth_age_band_used || '—'} />
-          <Row label="Proxy status" value={row.entry_level_data_quality || '—'} />
+          <Row
+            field="youth_age_band_used" label="Age band used" value={row.youth_age_band_used || '—'} />
+          <Row
+            field="entry_level_data_quality" label="Proxy status" value={row.entry_level_data_quality || '—'} />
           {row.young_white_collar_pct != null && row.white_collar_pct != null && (
             <Row
               label="Gap vs. all-ages white collar"
@@ -482,13 +555,17 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
 
         <Section title="Entry-level squeeze index" tier="derived">
           <Row
+            field="entry_level_squeeze_index"
             label="Squeeze index (0–100)"
             value={fmt(row.entry_level_squeeze_index, 1)}
             strong
           />
-          <Row label="Youth 15–24 as share of population" value={`${fmt(row.youth_cohort_share)}%`} />
-          <Row label="Youth white-collar share" value={`${fmt(row.young_white_collar_pct)}%`} />
-          <Row label="Youth unemployment" value={`${fmt(row.unemployment_rate_15_24)}%`} />
+          <Row
+            field="youth_cohort_share" label="Youth 15–24 as share of population" value={`${fmt(row.youth_cohort_share)}%`} />
+          <Row
+            field="young_white_collar_pct" label="Youth white-collar share" value={`${fmt(row.young_white_collar_pct)}%`} />
+          <Row
+            field="unemployment_rate_15_24" label="Youth unemployment" value={`${fmt(row.unemployment_rate_15_24)}%`} />
           <Row
             label="Youth vs all-ages white collar"
             value={row.youth_wc_gap != null ? `${row.youth_wc_gap >= 0 ? '+' : ''}${fmt(row.youth_wc_gap)} pp` : '—'}
@@ -500,19 +577,24 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
         </Section>
 
         <Section title="Economic context" tier="official">
-          <Row label="GDP per capita (PPP)" value={row.gdp_per_capita_ppp ? `$${fmtInt(row.gdp_per_capita_ppp)}` : '—'} />
           <Row
+            field="gdp_per_capita_ppp" label="GDP per capita (PPP)" value={row.gdp_per_capita_ppp ? `$${fmtInt(row.gdp_per_capita_ppp)}` : '—'} />
+          <Row
+            field="labor_force_advanced_edu_pct"
             label="Labor force with advanced education"
             value={`${fmt(row.labor_force_advanced_edu_pct)}%`}
             hint="feeder stock for white-collar work"
           />
-          <Row label="ICT share of service exports" value={`${fmt(row.ict_service_exports_pct)}%`} />
           <Row
+            field="ict_service_exports_pct" label="ICT share of service exports" value={`${fmt(row.ict_service_exports_pct)}%`} />
+          <Row
+            field="ict_service_exports_usd"
             label="ICT service exports"
             value={row.ict_service_exports_usd ? `$${fmtCompact(row.ict_service_exports_usd)}` : '—'}
             hint="white-collar labor sold abroad"
           />
           <Row
+            field="exposed_wage_bill_ppp"
             label="Exposed wage bill (PPP)"
             value={row.exposed_wage_bill_ppp ? `$${fmtCompact(row.exposed_wage_bill_ppp)}` : '—'}
             tier="modeled"
@@ -521,20 +603,31 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
         </Section>
 
         <Section title="Headcounts" tier="derived">
-          <Row label="Employed" value={fmtInt(row.employed_total)} />
-          <Row label="White collar (ISCO 1–4)" value={fmtInt(row.white_collar_employed)} />
-          <Row label="Professionals (ISCO 2)" value={fmtInt(row.professionals_employed)} />
-          <Row label="Clerical support (ISCO 4)" value={fmtInt(row.clerical_employed)} strong />
-          <Row label="Employed 15–24 in white collar" value={fmtInt(row.young_white_collar_employed)} />
+          <Row
+            field="employed_total" label="Employed" value={fmtInt(row.employed_total)} />
+          <Row
+            field="white_collar_employed" label="White collar (ISCO 1–4)" value={fmtInt(row.white_collar_employed)} />
+          <Row
+            field="professionals_employed" label="Professionals (ISCO 2)" value={fmtInt(row.professionals_employed)} />
+          <Row
+            field="clerical_employed" label="Clerical support (ISCO 4)" value={fmtInt(row.clerical_employed)} strong />
+          <Row
+            field="young_white_collar_employed" label="Employed 15–24 in white collar" value={fmtInt(row.young_white_collar_employed)} />
         </Section>
 
         <Section title="Data vintage" tier="derived">
-          <Row label="Population data" value={row.data_year_population || '—'} />
-          <Row label="Labor data" value={row.data_year_labor || '—'} />
-          <Row label="Sector data" value={row.data_year_sector || '—'} />
-          <Row label="Occupation data" value={row.data_year_occupation || '—'} />
-          <Row label="Youth × occupation" value={row.data_year_youth_occupation || '—'} />
           <Row
+            field="data_year_population" label="Population data" value={row.data_year_population || '—'} />
+          <Row
+            field="data_year_labor" label="Labor data" value={row.data_year_labor || '—'} />
+          <Row
+            field="data_year_sector" label="Sector data" value={row.data_year_sector || '—'} />
+          <Row
+            field="data_year_occupation" label="Occupation data" value={row.data_year_occupation || '—'} />
+          <Row
+            field="data_year_youth_occupation" label="Youth × occupation" value={row.data_year_youth_occupation || '—'} />
+          <Row
+            field="isco_classification"
             label="Occupation classification"
             value={row.isco_classification || '—'}
             hint={row.isco_classification === 'ISCO-88'
@@ -542,10 +635,12 @@ export default function LaborDetailPanel({ row, year, onCorridorBoard, onClose }
               : undefined}
           />
           {row.data_source_override && (
-            <Row label="Manual override applied" value={row.data_source_override} />
+            <Row
+            field="data_source_override" label="Manual override applied" value={row.data_source_override} />
           )}
           {isAggregate && (
             <Row
+            field="isco_coverage_pct_of_employment"
               label="ISCO coverage of employment"
               value={`${fmt(row.isco_coverage_pct_of_employment)}%`}
               hint="share of this group's employment in countries reporting occupation data"

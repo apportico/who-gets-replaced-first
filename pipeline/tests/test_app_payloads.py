@@ -55,7 +55,6 @@ import json
 import os
 import tempfile
 import unittest
-from collections import defaultdict
 
 import fixtures
 import panel as P
@@ -172,33 +171,64 @@ class CommittedHeaderMatchesTheGenerator(unittest.TestCase):
         """
         rows = self.committed["rows"]
         self.assertTrue(rows, "the committed payload has no rows")
+        # Union over all 229 rows, not `set(rows[0])`. Against the generator one
+        # row would do -- `export_app_json` builds every row from the same
+        # `keep` list -- but this class opens the committed artifact, and the
+        # threat model the README names is a hand-edit, which can add a key to
+        # any row. Verified they agree today, so this is preventive.
+        #
+        # `self.committed["field_tiers"]` rather than `.get(..., {})`: a payload
+        # missing the block entirely should surface through
+        # test_the_committed_header_is_what_export_app_json_writes, whose
+        # message carries "#57" and "run `npm run pipeline`", not through a bare
+        # set comparison here.
         self.assertEqual(
-            set(rows[0]), set(self.committed.get("field_tiers", {})),
+            set().union(*rows), set(self.committed["field_tiers"]),
             "every field the app can render must carry a tier")
 
 
 class CommittedTimeseriesMatchesThePanel(unittest.TestCase):
     """R3 -- preventive. This file has no drift; it is byte-identical today.
 
-    Recorded as preventive on purpose: the issue listed it as unexamined, a
-    full run showed it unchanged at 326,519 bytes, and a guard whose framing
-    implies a second defect would misreport the state of the repo.
+    Recorded as preventive on purpose: the issue listed it as unexamined, a full
+    run showed it unchanged at 326,519 bytes, and a guard whose framing implies a
+    second defect would misreport the state of the repo.
+
+    **The rebuild drives `panel.export`, it does not reimplement it.** An earlier
+    version assembled `fields` / `years` / `series` here by hand from
+    `panel.py:163-172` -- the exact thing this module's docstring rules out for
+    the header, for the exact reason it gives. Change how `panel.export` builds
+    the payload (drop all-null series, key years differently, reslice
+    `APP_PANEL_FIELDS`) without regenerating, and a transcribed copy still agrees
+    with the committed file while both disagree with the code. Importing
+    `APP_PANEL_FIELDS` would have covered the field list and not the assembly
+    around it.
+
+    Driving it also subsumes a second defect that version had: it iterated only
+    the years the committed payload already carried, so a country-year *dropped
+    from the payload* was never visited and every test here passed. Comparing
+    two real payloads catches that in both directions, and fails with a message
+    instead of raising `KeyError` on the inverse case.
+
+    **Same caveat as R4, stated rather than left as an asymmetry.** The rows fed
+    to `panel.export` come from the committed `global_labor_panel.csv`, so this
+    is payload-versus-CSV on the input side: it catches a hand-edited payload and
+    one not regenerated when the CSV was, and cannot catch the two being stale
+    together. The assembly itself is now checked against the code.
     """
 
     def setUp(self):
         self.committed = _load(APP_TIMESERIES)
         rows = _read_csv(PANEL_CSV)
-        series = defaultdict(dict)
-        for row in rows:
-            series[row["iso3"]][row["year"]] = [row.get(k)
-                                                for k in P.APP_PANEL_FIELDS[2:]]
-        self.rebuilt = {
-            "fields": P.APP_PANEL_FIELDS[2:],
-            "years": sorted({row["year"] for row in rows}),
-            "series": {iso: {str(year): values
-                             for year, values in sorted(vals.items())}
-                       for iso, vals in series.items()},
-        }
+        # `panel.export` takes both output paths, so both its writes land under
+        # the temp dir -- the panel CSV included, never pipeline/data/.
+        # Aggregates are passed empty because the committed CSV already holds
+        # them: `export` does `panel = rows + aggregates`.
+        with tempfile.TemporaryDirectory() as tmp:
+            app_path = os.path.join(tmp, "timeseries.json")
+            with fixtures.quiet():
+                P.export(rows, [], tmp, app_path)
+            self.rebuilt = _load(app_path)
 
     def test_fields_match(self):
         self.assertEqual(self.committed["fields"], self.rebuilt["fields"])
@@ -212,33 +242,23 @@ class CommittedTimeseriesMatchesThePanel(unittest.TestCase):
                          set(self.rebuilt["series"]))
 
     def test_every_cell_matches_the_panel_csv(self):
-        """Year sets are compared before cells, in both directions.
+        """Whole `series` dicts, so a dropped country-year fails either way."""
+        def normalise(series):
+            return {iso: {year: [_num(v) for v in values]
+                          for year, values in years.items()}
+                    for iso, years in series.items()}
 
-        Iterating the committed payload alone visits only the years it already
-        has, so a country-year dropped from it is never reached and every check
-        in this class still passes -- a partially regenerated payload passing
-        the guard that exists to catch one. The inverse is no better: a year the
-        payload has and the CSV lacks would raise KeyError from the rebuild
-        lookup rather than fail with the message below.
-
-        `CommittedRowsMatchTheDataset` never had the gap, because
-        `test_the_same_countries_are_present` compares its key sets both ways
-        first. This restores the same symmetry one level down.
-        """
-        disagreed = []
-        for iso, years in self.committed["series"].items():
-            if set(years) != set(self.rebuilt["series"][iso]):
-                disagreed.append((iso, "years"))
-                continue
-            for year, values in years.items():
-                want = [_num(v) for v in self.rebuilt["series"][iso][year]]
-                got = [_num(v) for v in values]
-                if want != got:
-                    disagreed.append((iso, year))
+        want = normalise(self.rebuilt["series"])
+        got = normalise(self.committed["series"])
+        disagreed = sorted(
+            (iso, year)
+            for iso in set(want) | set(got)
+            for year in set(want.get(iso, {})) | set(got.get(iso, {}))
+            if want.get(iso, {}).get(year) != got.get(iso, {}).get(year))
         self.assertEqual(
             disagreed, [],
-            "src/data/global_labor_timeseries.json disagrees with "
-            "pipeline/data/global_labor_panel.csv at "
+            "src/data/global_labor_timeseries.json disagrees with what "
+            "panel.export writes from pipeline/data/global_labor_panel.csv at "
             f"{disagreed[:5]} ({len(disagreed)} cells) -- regenerate with "
             "`npm run pipeline` rather than editing either by hand.")
 
@@ -253,7 +273,16 @@ class CommittedRowsMatchTheDataset(unittest.TestCase):
     def setUp(self):
         self.payload = _load(APP_JSON)
         self.rows = self.payload["rows"]
-        self.by_iso = {r["iso3"]: r for r in _read_csv(DATASET_CSV)}
+        csv_rows = _read_csv(DATASET_CSV)
+        self.by_iso = {r["iso3"]: r for r in csv_rows}
+        # Keying by iso3 collapses a duplicate, and
+        # test_the_same_countries_are_present compares sets, which is invariant
+        # to that -- so a dropped row would leave the 229 x 84 comparison below
+        # without failing anything. Clean today (229 rows, 229 unique), so
+        # preventive. The panel CSV needs no equivalent: since setUp there
+        # drives panel.export, both sides collapse a duplicate identically.
+        self.assertEqual(len(csv_rows), len(self.by_iso),
+                         "duplicate iso3 in global_labor_dataset.csv")
 
     def test_the_same_countries_are_present(self):
         self.assertEqual({r["iso3"] for r in self.rows}, set(self.by_iso))

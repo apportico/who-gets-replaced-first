@@ -215,6 +215,12 @@ shipping an unlabellable field to the app.
   deterministic file was baked into the baseline and recreated identically.
   A deliberate write into `src/data/` from a guard's `setUp` passes the second
   and fails the third.
+- `test_field_tiers_covers_every_key_a_row_ships` unions all 229 rows rather
+  than reading `rows[0]`. One row suffices against the generator, which builds
+  every row from the same `keep` list, but this class opens the artifact and the
+  threat model R6's README paragraph names is a hand-edit, which can add a key
+  to any row. Probe: a key added to row 5 was invisible before and now fails
+  with `'hand_edited_extra'`.
 
 ### R3. [x] The same guard for the timeseries payload
 
@@ -228,14 +234,28 @@ changed ARE/2013[4] by 1.0  -> "disagrees with ... global_labor_panel.csv at [('
 dropped ARE's 2013 YEAR     -> "disagrees with ... at [('ARE','years')]"
 ```
 
-**Revised in review.** The first version iterated the committed payload's own
-years, so a country-year *dropped from the payload* was never visited and all
-four tests passed — a partially regenerated payload passing the guard that
-exists to catch one. The requirement's acceptance bullet ("deleting one `iso3`")
-held as written; the requirement's own wider summary ("every cell equal") did
-not. The year sets are now compared both ways before any cell is, which is the
-symmetry `CommittedRowsMatchTheDataset` already had via
-`test_the_same_countries_are_present`. The third probe line above is that case.
+**Revised twice in review, and the second revision is the one that matters.**
+
+The first version iterated the committed payload's own years, so a country-year
+*dropped from the payload* was never visited and all four tests passed — a
+partially regenerated payload passing the guard that exists to catch one. R3's
+acceptance bullet ("deleting one `iso3`") held as written; R3's own wider summary
+("every cell equal") did not, and the summary is the claim a reader believes.
+
+The deeper problem was that the rebuild **transcribed** `panel.export`'s
+assembly by hand — precisely what R2's prose forbids for the header, for
+precisely the reason it gives. Change how `panel.export` builds the payload
+without regenerating, and the transcribed copy still agrees with the committed
+file while both disagree with the code. So R3 now drives `P.export(rows, [],
+tmp, app_path)`, which takes both output paths and so writes only under the temp
+dir. That transcribes nothing and subsumes the year gap: comparing two real
+payloads catches a dropped country-year in both directions, and fails with a
+message instead of raising `KeyError` on the inverse case. Verified it
+reproduces the committed payload exactly under `_num` before adopting it.
+
+R3's class docstring now also carries the payload-versus-CSV caveat R4 had and
+it did not — the rows still come from the committed panel CSV, so the input side
+has the same edge. The asymmetry was an omission, not a decision.
 
 `src/data/global_labor_timeseries.json` gets an equivalent check, rebuilt from
 the committed `global_labor_panel.csv` per `panel.py:163-172`: `fields` equal,
@@ -268,6 +288,12 @@ count. `country_name` asserted non-null on all 218 country rows — half the pai
 vacuous: the loop filters on `row_type == "country"` before asserting, so it
 could not have been null there, and
 `test_row_types_are_contiguous_and_in_the_written_order` covers it for real.
+
+Also added in review: `setUp` asserts the dataset CSV has no duplicate `iso3`.
+Keying by `iso3` collapses one silently, and `test_the_same_countries_are_present`
+compares sets, which is invariant to that — so a dropped row would have left the
+229 x 84 comparison without failing anything. Clean today (229 rows, 229 unique),
+so preventive. Probe: `230 != 229 : duplicate iso3 in global_labor_dataset.csv`.
 
 R2 catches a stale tier map but not a moved number. The payload's 229 rows are
 compared against committed `global_labor_dataset.csv` keyed by `iso3`, under the

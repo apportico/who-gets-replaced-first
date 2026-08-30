@@ -23,9 +23,11 @@ exact content they existed to reject.
 import context  # noqa: F401
 import csv
 import os
+import re
 import tempfile
 import unittest
 
+import config as C
 import fixtures
 import report
 
@@ -115,14 +117,55 @@ class CommittedReportMatchesTheCode(unittest.TestCase):
         self.assertEqual(sens["profiles"],
                          ["balanced", "clerical_heavy", "cognitive_uniform"])
 
-    def test_both_entry_points_share_one_summariser(self):
-        """`crosscheck.sensitivity` and `load_sensitivity` must not diverge.
+    def test_crosscheck_delegates_to_the_shared_summariser(self):
+        """`crosscheck.sensitivity` must not grow its own median back.
 
-        The invariant is structural rather than numeric: both go through
-        `report.summarise_sensitivity`, so there is one expression and no way
-        for `npm run report` and `npm run pipeline` to disagree. Checked by
-        feeding the same rows through both shapes they see -- the live rows
-        carry ints, the CSV parse carries strings.
+        This is the invariant that keeps the two entry points in step, and it
+        is a property of the *call site*, not of the summariser. An earlier
+        version of this test called `summarise_sensitivity` twice and asserted
+        the results matched -- which stays green if `crosscheck` reverts to its
+        own `sorted(moves)[len // 2]`, i.e. green against precisely the change
+        that reintroduces the divergence. Verified: with the delegation
+        reverted, that version passed.
+
+        So the delegation itself is asserted, by replacing the summariser with
+        a sentinel and checking `sensitivity()` returns it. The patch must go on
+        the `report` module rather than a local alias, because `crosscheck`
+        resolves the attribute at call time.
+        """
+        import crosscheck
+
+        rows_by_iso = {
+            iso: {"iso3": iso, "country_name": f"Country {iso}",
+                  "row_type": "country", "white_collar_pct": pct}
+            for iso, pct in (("AAA", 40.0), ("BBB", 20.0))
+        }
+        fields = [f for f, _ in C.ISCO_GROUPS.values()]
+        profiles = {"p1": {f: 0.5 for f in fields}, "p2": {f: 0.9 for f in fields}}
+        sentinel = {"median_rank_movement": -1, "max_rank_movement": -1,
+                    "worst_country": "SENTINEL", "n": -1, "profiles": []}
+
+        original = report.summarise_sensitivity
+        report.summarise_sensitivity = lambda *a, **k: sentinel
+        try:
+            with tempfile.TemporaryDirectory() as tmp, fixtures.quiet():
+                got = crosscheck.sensitivity(rows_by_iso, profiles, tmp)
+        finally:
+            report.summarise_sensitivity = original
+
+        self.assertEqual(
+            got, sentinel,
+            "crosscheck.sensitivity stopped delegating to "
+            "report.summarise_sensitivity, so `npm run pipeline` and "
+            "`npm run report` can print different numbers again.")
+
+    def test_the_summariser_is_indifferent_to_int_or_str_input(self):
+        """A real property of the shared summariser, named for what it checks.
+
+        The live path hands it `max_rank_movement` as `int`; the CSV parse hands
+        it `str`. Both callers must get the same answer. Worth pinning on its
+        own, but it is not the delegation invariant above -- conflating the two
+        is what made the previous version of that test vacuous.
         """
         with open(os.path.join(context.PIPELINE, "data",
                                "ai_exposure_sensitivity.csv"),
@@ -168,8 +211,6 @@ class CommittedReportMatchesTheCode(unittest.TestCase):
         a *different* tier word. Independent of the byte comparison, and it
         stays meaningful after a legitimate regeneration.
         """
-        import config as C
-
         # The prose names fields in words, not column names; map the ones the
         # report actually describes with a tier adjective.
         described = {
@@ -200,13 +241,20 @@ class CommittedReportMatchesTheCode(unittest.TestCase):
                 for word, tier in other_tiers.items():
                     if tier == expected:
                         continue
-                    self.assertNotIn(
-                        f"**{word} composite**", low,
-                        f"summary_report.md:{i} describes {field} as a "
-                        f"{word!r} composite, but config.FIELD_TIERS says "
-                        f"{expected}. One field cannot carry two tiers -- this "
-                        f"is #54, and the confidence table alone is not the "
-                        f"whole document.")
+                    # Match the tier word inside any bold run, not the literal
+                    # "<word> composite". The noun was load-bearing before:
+                    # only the squeeze index is ever called a composite, so the
+                    # other two fields never reached an assertion, and a reword
+                    # to "**derived measure**" or a bare "**derived**" would
+                    # have passed -- close to how the original drift survived.
+                    hit = re.search(rf"\*\*{word}\b[^*]*\*\*", low)
+                    if hit:
+                        self.fail(
+                            f"summary_report.md:{i} describes {field} as "
+                            f"{hit.group(0)!r}, but config.FIELD_TIERS says "
+                            f"{expected}. One field cannot carry two tiers -- "
+                            f"this is #54, and the confidence table alone is "
+                            f"not the whole document.")
 
 
 if __name__ == "__main__":

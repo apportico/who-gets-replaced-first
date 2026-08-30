@@ -6,6 +6,7 @@ from collections import defaultdict
 import config as C
 import fetch
 import build as B
+import report
 
 # Eurostat's isco08 dimension codes for the major groups, in ISCO order.
 EUROSTAT_ISCO = ["OC1", "OC2", "OC3", "OC4", "OC5", "OC6", "OC7", "OC8", "OC9"]
@@ -144,7 +145,9 @@ def sensitivity(rows_by_iso, profiles, data_dir):
         w.writerows(out)
     # One definition, shared with report.load_sensitivity(), so `npm run report`
     # and `npm run pipeline` cannot print different numbers for the same data.
-    import report
+    # (`report` is imported at module level: it imports no pipeline module, so
+    # there is no cycle, and a bad import should fail at load rather than after
+    # the CSV above has already been written.)
     summary = report.summarise_sensitivity(out, profiles)
     print(f"      {len(out)} countries scored under {len(profiles)} weight profiles")
     print(f"      median rank movement {summary['median_rank_movement']}, "

@@ -20,6 +20,7 @@ import context  # noqa: F401
 import csv
 import json
 import os
+import tempfile
 import unittest
 
 import config as C
@@ -194,10 +195,30 @@ class CrosstabsAreExcludedFromTheAppPayload(unittest.TestCase):
     """
 
     def test_export_app_json_sheds_exactly_the_crosstab_columns(self):
-        keep = [c for c in run.COLUMNS if not c.endswith("_range")]
-        app_keep = [c for c in keep if c not in set(C.CROSSTAB_COLUMNS)]
-        self.assertEqual(len(keep) - len(app_keep), len(C.CROSSTAB_COLUMNS))
+        """Calls the generator rather than re-implementing it.
+
+        An earlier version rebuilt `keep` and the exclusion here and compared
+        lengths, which asserts that this test's arithmetic matches this test's
+        arithmetic -- the class docstring claims it reaches the generator, and
+        it did not. Now it runs `export_app_json` into a temp file and reads
+        what actually came out.
+        """
+        rows = [{c: None for c in run.COLUMNS} | {"iso3": "AAA",
+                                                  "country_name": "Aland",
+                                                  "row_type": "country"}]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "payload.json")
+            run.export_app_json(rows, out)
+            with open(out, encoding="utf-8") as f:
+                payload = json.load(f)
+        leaked = [c for c in C.CROSSTAB_COLUMNS
+                  if c in payload["field_tiers"] or c in payload["rows"][0]]
+        self.assertEqual(leaked, [], "export_app_json emitted cross-tab columns")
         self.assertEqual(len(C.CROSSTAB_COLUMNS), 90)
+        # And it shed only those: everything else survived.
+        expected = [c for c in run.COLUMNS
+                    if not c.endswith("_range") and c not in set(C.CROSSTAB_COLUMNS)]
+        self.assertEqual(set(payload["field_tiers"]), set(expected))
 
     def test_the_tier_gate_still_covers_the_excluded_columns(self):
         """The ordering R20 specifies, asserted rather than described.

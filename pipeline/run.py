@@ -330,7 +330,13 @@ def export_crosstabs(rows, dirpath):
             "generated_from": "pipeline/run.py",
             "iso3": r["iso3"],
             "country_name": r.get("country_name"),
-            "isco_classification": r.get("isco_classification"),
+            # Deliberately NOT isco_classification. That field records the
+            # family the OCCUPATION flow chose for this country, and the age and
+            # education loaders resolve their own family per group against a
+            # different flow -- so copying it here would label these numbers
+            # with a classification they may not have come from. The app reads
+            # it from the main payload for R18's notice, which is about the
+            # occupation share, so nothing needs it here.
             "field_tiers": {c: C.FIELD_TIERS[c] for c in C.CROSSTAB_COLUMNS},
             "values": values,
         }

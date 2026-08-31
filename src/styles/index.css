@@ -59,6 +59,21 @@
   --font-body:    'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono:    'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  /* -- type scale --------------------------------------------------------
+     R2 names four things to define as custom properties: the palette, the
+     radii, the type scale and the keyframes. The scale was the one defined only
+     as .wz-* rules, which R2's hex grep cannot catch — a hand-typed font-size
+     in a screen would have drifted silently. Named here so a call site can only
+     reach for a step that exists. */
+  --step-h1:      66px;   --lh-h1:    0.9;    --tr-h1:  -0.025em;
+  --step-h2:      46px;   --lh-h2:    0.98;   --tr-h2:  -0.02em;
+  --step-stat:    38px;   --lh-stat:  0.95;
+  --step-lede:    17.5px; --lh-lede:  1.45;
+  --step-body:    15px;   --lh-body:  1.5;
+  --step-note:    12.5px; --lh-note:  1.4;
+  --step-meta:    9.5px;  --tr-meta:  0.18em;
+  --step-eyebrow: 10px;   --tr-eyebrow: 0.2em;
+
   /* -- layout ------------------------------------------------------------ */
   --column: 480px;
   --gutter: 22px;
@@ -200,29 +215,29 @@ button[class*="inline-flex"],
 
 /* Small + uppercase = mono. A sentence is not. */
 .wz-meta {
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.18em;
+  font-family: var(--font-mono); font-size: var(--step-meta); letter-spacing: var(--tr-meta);
   text-transform: uppercase; color: var(--muted-strong); white-space: nowrap;
 }
 .wz-eyebrow {
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em;
+  font-family: var(--font-mono); font-size: var(--step-eyebrow); letter-spacing: var(--tr-eyebrow);
   text-transform: uppercase; color: var(--muted); margin: 0 0 16px;
 }
 
 .wz-h1 {
-  font-family: var(--font-display); font-weight: 400; font-size: 66px;
-  line-height: 0.9; letter-spacing: -0.025em; color: var(--fg-strong); margin: 0;
+  font-family: var(--font-display); font-weight: 400; font-size: var(--step-h1);
+  line-height: var(--lh-h1); letter-spacing: var(--tr-h1); color: var(--fg-strong); margin: 0;
 }
 .wz-h2 {
-  font-family: var(--font-display); font-weight: 400; font-size: 46px;
-  line-height: 0.98; letter-spacing: -0.02em; color: var(--fg-strong); margin: 0;
+  font-family: var(--font-display); font-weight: 400; font-size: var(--step-h2);
+  line-height: var(--lh-h2); letter-spacing: var(--tr-h2); color: var(--fg-strong); margin: 0;
 }
 .wz-stat {
-  font-family: var(--font-display); font-size: 38px; line-height: 0.95;
+  font-family: var(--font-display); font-size: var(--step-stat); line-height: var(--lh-stat);
   color: var(--fg-strong); font-variant-numeric: tabular-nums; margin: 10px 0 0;
 }
-.wz-lede { font-size: 17.5px; line-height: 1.45; color: var(--muted-strong); text-wrap: pretty; }
-.wz-body { font-size: 15px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
-.wz-note { font-size: 12.5px; line-height: 1.4; color: var(--muted); text-wrap: pretty; }
+.wz-lede { font-size: var(--step-lede); line-height: var(--lh-lede); color: var(--muted-strong); text-wrap: pretty; }
+.wz-body { font-size: var(--step-body); line-height: var(--lh-body); color: var(--muted); text-wrap: pretty; }
+.wz-note { font-size: var(--step-note); line-height: var(--lh-note); color: var(--muted); text-wrap: pretty; }
 
 .wz-cta {
   width: 100%; padding: 20px; min-height: var(--tap-primary);

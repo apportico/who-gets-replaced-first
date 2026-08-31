@@ -32,6 +32,22 @@ describe('R2 — the canvas tokens are declared, with the canvas values', () => 
     expect(css).toMatch(new RegExp(`${name}:\\s*${value}`))
   })
 
+  it('declares the type scale as tokens, not only as rules', () => {
+    // R2 names the type scale alongside the palette, radii and keyframes. It
+    // was the one defined only inside .wz-* rules, and R2's hex grep cannot
+    // catch a hand-typed font-size, so it was the half that drifts silently.
+    for (const [name, value] of [
+      ['--step-h1', '66px'], ['--step-h2', '46px'], ['--step-stat', '38px'],
+      ['--step-lede', '17.5px'], ['--step-body', '15px'], ['--step-note', '12.5px'],
+      ['--step-meta', '9.5px'], ['--step-eyebrow', '10px'],
+    ]) {
+      expect(css).toMatch(new RegExp(`${name}:\\s*${value.replace('.', '\\.')}`))
+    }
+    // And the rules reach for the tokens rather than repeating the numbers.
+    expect(css).toMatch(/\.wz-h1[\s\S]{0,120}font-size:\s*var\(--step-h1\)/)
+    expect(css).toMatch(/\.wz-body\s*{[^}]*font-size:\s*var\(--step-body\)/)
+  })
+
   it('declares the three radii and the three touch targets', () => {
     for (const [name, value] of [
       ['--radius-control', '14px'], ['--radius-card', '18px'], ['--radius-pill', '99px'],

@@ -165,7 +165,19 @@ AGE_GROUP_COLUMNS = (
     + [f"isco{n}_age_year" for n in ISCO_GROUP_NUMBERS])
 EDU_GROUP_COLUMNS = (
     [f"isco{n}_edu_{b}_pct" for n in ISCO_GROUP_NUMBERS for b in EDU_GROUP_BANDS.values()]
-    + [f"isco{n}_edu_year" for n in ISCO_GROUP_NUMBERS])
+    + [f"isco{n}_edu_year" for n in ISCO_GROUP_NUMBERS]
+    # Why a flag and not just a null: "withheld below the floor" and "the source
+    # publishes nothing here" are different facts, and the app has to say which.
+    # Nulled identically they are indistinguishable downstream, so the screen
+    # would tell a reader that published bands describe too little of the
+    # workforce for a country that publishes no bands at all -- an absence the
+    # app invented. CLAUDE.md's rule is that nulls stay null AND carry a flag;
+    # this is that rule at group granularity.
+    + [f"isco{n}_edu_flag" for n in ISCO_GROUP_NUMBERS])
+
+EDU_FLAG_PRESENT = "present"
+EDU_FLAG_WITHHELD = "withheld_below_coverage_floor"
+EDU_FLAG_NOT_PUBLISHED = "not_published"
 # 27 + 9 + 36 + 9 = 81. These reach global_labor_dataset.csv and the SQLite like
 # every other column; only export_app_json sheds them, and only after the tier
 # gate has run (0010 R20).
@@ -397,4 +409,5 @@ FIELD_TIERS = {
 # our division of one by another. The `_year` companions are provenance rather
 # than measurement, like every other data_year_* field.
 FIELD_TIERS.update({c: "DERIVED" for c in CROSSTAB_COLUMNS if c.endswith("_pct")})
-FIELD_TIERS.update({c: NOT_A_MEASUREMENT for c in CROSSTAB_COLUMNS if c.endswith("_year")})
+FIELD_TIERS.update({c: NOT_A_MEASUREMENT for c in CROSSTAB_COLUMNS
+                    if c.endswith("_year") or c.endswith("_flag")})

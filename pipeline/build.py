@@ -329,7 +329,7 @@ def load_edu_occupation(rows_by_iso):
                           key=lambda f: f["name"] != (row.get("isco_classification") or "ISCO-08"))
         for n in C.ISCO_GROUP_NUMBERS:
             canon = f"OCU_ISCO08_{n}"
-            shares, chosen_year = {}, None
+            shares, chosen_year, coverage = {}, None, None
             for family in families:
                 src = {c: s for s, c in family["groups"].items()}.get(canon)
                 if src is None:
@@ -354,15 +354,36 @@ def load_edu_occupation(rows_by_iso):
                         rendered += v
                     if cells is None:
                         continue
-                    if 100.0 * rendered / base < C.EDU_COVERAGE_FLOOR:
-                        continue    # withheld: the chips describe too little
+                    # The year is chosen on AVAILABILITY ALONE, exactly as
+                    # _age_by_group does, and the floor is applied to that year
+                    # and no other. An earlier version tested the floor inside
+                    # this loop and used `continue`, which did not withhold at
+                    # all: it walked back to whichever older survey happened to
+                    # pass. CMR shipped four chips from 2014 beside an age
+                    # profile from 2021, and DOM was ten years behind. Nothing
+                    # authorised that gap, and the countries it rescued were
+                    # precisely the ones the floor exists to withhold.
                     shares, chosen_year = cells, year
+                    coverage = 100.0 * rendered / base
                     break
                 if chosen_year is not None:
                     break
+
+            if chosen_year is None:
+                flag = C.EDU_FLAG_NOT_PUBLISHED
+            elif coverage < C.EDU_COVERAGE_FLOOR:
+                # Withheld AT the reconciled year, rather than reaching past it.
+                shares, flag = {}, C.EDU_FLAG_WITHHELD
+            else:
+                flag = C.EDU_FLAG_PRESENT
+
             for suffix in C.EDU_GROUP_BANDS.values():
                 row[f"isco{n}_edu_{suffix}_pct"] = shares.get(suffix)
+            # The year survives a withholding: it says which survey was judged,
+            # which is what makes the withholding checkable rather than a bare
+            # null. Only the shares go.
             row[f"isco{n}_edu_year"] = chosen_year
+            row[f"isco{n}_edu_flag"] = flag
     return rows_by_iso
 
 
@@ -765,6 +786,7 @@ def validate(rows):
             # loader must be at or above it, or the withholding did not happen.
             edu = {b: r.get(f"isco{n}_edu_{b}_pct") for b in C.EDU_GROUP_BANDS.values()}
             present = [v for v in edu.values() if v is not None]
+            flag = r.get(f"isco{n}_edu_flag")
             if present:
                 total = sum(present)
                 if total > 100.5:
@@ -776,4 +798,10 @@ def validate(rows):
                         f"below the {C.EDU_COVERAGE_FLOOR}% floor -- should have been withheld")
                 if r.get(f"isco{n}_edu_year") is None:
                     problems.append(f"{tag}: isco{n} education shares with no isco{n}_edu_year")
+                if flag != C.EDU_FLAG_PRESENT:
+                    problems.append(f"{tag}: isco{n} has education shares but flag={flag}")
+            elif flag == C.EDU_FLAG_WITHHELD and r.get(f"isco{n}_edu_year") is None:
+                # A withholding names the survey it judged; without the year it
+                # is indistinguishable from the source publishing nothing.
+                problems.append(f"{tag}: isco{n} withheld with no isco{n}_edu_year")
     return problems

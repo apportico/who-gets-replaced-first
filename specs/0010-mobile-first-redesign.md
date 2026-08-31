@@ -552,8 +552,8 @@ in prose; `npm run verify` fails if any of them fails.
 
 ### R20. [x] The per-group cross-tabs do not ship in the initial payload
 
-R8 and R9 together add **81 columns** to every row — 27 age shares plus 9 years,
-36 education shares plus 9 years — on top of the current 84.
+R8 and R9 together add **90 columns** to every row — 27 age shares plus 9 years, 36 education
+shares plus 9 years plus 9 coverage flags — on top of the current 84.
 `src/data/global_labor.json` is **607,739 bytes** (593.5 KB) at `b4d7b0a` across
 229 rows; carrying the cross-tabs in it lands the initial download near
 **1.2 MB**, and all but one row describes a country the reader did not pick.
@@ -597,7 +597,7 @@ implementation:
   consumer: `untiered = [c for c in keep if c not in C.FIELD_TIERS]`
   (`run.py:253`), whose `raise` is the *entire* enforcement of "every emitted
   number carries a tier" inside the pipeline — `export_csv` and `export_sqlite`
-  have no tier check of their own. Excluding the 81 columns from `keep` would
+  have no tier check of their own. Excluding the 90 columns from `keep` would
   ship them in two tracked artefacts with nothing requiring them to be
   registered. **Ordering is therefore part of the requirement:** compute
   `untiered` over the full non-`_range` column list *before* the exclusion, and
@@ -765,7 +765,7 @@ section.
 | 36 × `isco<N>_edu_<band>_pct` | `DERIVED` | the cross-tab artefact's own tier block | `isco<N>_edu_year` (9 fields) |
 | Per-group headcount (R11) | `DERIVED` | the rendered label, naming both sources | inherits `data_year_occupation` |
 
-All 81 columns enter `COLUMNS` and `FIELD_TIERS`, so `global_labor_dataset.csv`
+All 90 columns enter `COLUMNS` and `FIELD_TIERS`, so `global_labor_dataset.csv`
 and the SQLite carry them and `run.py`'s `untiered` gate covers them. Only
 `export_app_json` sheds them, and only after that gate has run.
 

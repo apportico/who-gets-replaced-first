@@ -127,6 +127,42 @@ class CommittedCrosstabsMatchTheDataset(unittest.TestCase):
                          f"{len(orphaned)} group/dimension pairs carry shares "
                          "with no reconciled year")
 
+    def test_a_withholding_is_flagged_and_names_its_year(self):
+        """0010 R9. The floor is terminal at the reconciled year.
+
+        An earlier loader tested the floor inside the year loop and used
+        `continue`, which did not withhold at all -- it walked back to whichever
+        older survey happened to pass. CMR shipped four chips from 2014 beside
+        an age profile from 2021. This pins the corrected behaviour: a withheld
+        group carries no shares, carries the flag, and still names the year it
+        judged, so the withholding is checkable rather than a bare null.
+        """
+        bad = []
+        for name in self.files:
+            with open(os.path.join(CROSSTABS, name), encoding="utf-8") as f:
+                v = json.load(f)["values"]
+            for n in C.ISCO_GROUP_NUMBERS:
+                flag = v.get(f"isco{n}_edu_flag")
+                chips = [v.get(f"isco{n}_edu_{b}_pct")
+                         for b in C.EDU_GROUP_BANDS.values()]
+                present = [c for c in chips if c is not None]
+                if flag == C.EDU_FLAG_WITHHELD:
+                    if present or v.get(f"isco{n}_edu_year") is None:
+                        bad.append((name, n, "withheld but has shares or no year"))
+                elif flag == C.EDU_FLAG_PRESENT and not present:
+                    bad.append((name, n, "flagged present with no shares"))
+                elif flag == C.EDU_FLAG_NOT_PUBLISHED and present:
+                    bad.append((name, n, "flagged not published but has shares"))
+        self.assertEqual(bad[:5], [], f"{len(bad)} groups disagree with their flag")
+
+    def test_cmr_withholds_at_its_own_reconciled_year(self):
+        """The named case from R9, asserted against the committed artefact."""
+        with open(os.path.join(CROSSTABS, "CMR.json"), encoding="utf-8") as f:
+            v = json.load(f)["values"]
+        self.assertEqual(v["isco4_edu_flag"], C.EDU_FLAG_WITHHELD)
+        self.assertIsNone(v["isco4_edu_bas_pct"])
+        self.assertEqual(v["isco4_edu_year"], 2021)
+
     def test_the_education_coverage_floor_was_applied(self):
         """R9 withholds below the floor rather than rendering thin chips.
 
@@ -161,7 +197,7 @@ class CrosstabsAreExcludedFromTheAppPayload(unittest.TestCase):
         keep = [c for c in run.COLUMNS if not c.endswith("_range")]
         app_keep = [c for c in keep if c not in set(C.CROSSTAB_COLUMNS)]
         self.assertEqual(len(keep) - len(app_keep), len(C.CROSSTAB_COLUMNS))
-        self.assertEqual(len(C.CROSSTAB_COLUMNS), 81)
+        self.assertEqual(len(C.CROSSTAB_COLUMNS), 90)
 
     def test_the_tier_gate_still_covers_the_excluded_columns(self):
         """The ordering R20 specifies, asserted rather than described.

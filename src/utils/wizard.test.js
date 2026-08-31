@@ -12,6 +12,18 @@ import { describe, it, expect } from 'vitest'
 import payload from '../data/global_labor.json'
 import gbrCross from '../data/crosstabs/GBR.json'
 import canCross from '../data/crosstabs/CAN.json'
+// The countries R9 names, asserted against the committed artefacts rather than
+// against rows this file builds for itself.
+import cmrCross from '../data/crosstabs/CMR.json'
+import djiCross from '../data/crosstabs/DJI.json'
+import ethCross from '../data/crosstabs/ETH.json'
+
+// Every artefact, for the cross-country invariants.
+const CROSS_MODULES = import.meta.glob('../data/crosstabs/*.json', { eager: true })
+const ALL_CROSS = Object.entries(CROSS_MODULES).map(([path, mod]) => ({
+  iso3: path.slice(-8, -5),
+  v: (mod.default ?? mod).values,
+}))
 
 import { resolveTitle } from './resolveTitle'
 import { GROUPS, groupDisplay } from './isco'
@@ -325,10 +337,89 @@ describe('R8 / R9 — the cross-tabs as the screen reads them', () => {
     expect(e.residualNote).toMatch(/does not specify/)
   })
 
-  it('a withheld group yields the withheld state, not four thin chips', () => {
-    const withheld = { values: { isco4_edu_bas_pct: null, isco4_edu_year: null } }
-    expect(eduBands(withheld, 4).state).toBe(WITHHELD)
-    expect(eduBands(withheld, 4).bands).toEqual([])
+  // R9 names four education cases, and it names two countries because they are
+  // the pair that separates a floor measured on four chips from one measured on
+  // three. A hand-built `{ values: { isco4_edu_bas_pct: null } }` cannot tell
+  // those apart and passes whatever the loader does — which is exactly what
+  // happened: it stayed green while the loader was walking back to a 2014
+  // survey for CMR instead of withholding.
+  it('CMR yields the withheld branch rather than four chips', () => {
+    const e = eduBands(cmrCross, 4)
+    expect(e.state).toBe(WITHHELD)
+    expect(e.bands).toEqual([])
+    // The year survives the withholding: it names the survey that was judged,
+    // which is what makes the withholding checkable rather than a bare null.
+    expect(e.year).toBe(2021)
+  })
+
+  it('DJI does not withhold — three bands at 39.9%, four chips at 99.6%', () => {
+    const e = eduBands(djiCross, 4)
+    expect(e.state).toBe(PRESENT)
+    const three = e.bands.filter((b) => b.key !== 'ltb')
+      .reduce((s, b) => s + b.value, 0)
+    const four = e.bands.reduce((s, b) => s + b.value, 0)
+    expect(three).toBeLessThan(45)      // would fail a three-band floor
+    expect(four).toBeGreaterThan(99)    // passes the four-chip floor R9 states
+  })
+
+  it('ETH’s chips sum strictly below 100', () => {
+    const four = eduBands(ethCross, 4).bands.reduce((s, b) => s + b.value, 0)
+    expect(four).toBeLessThan(100)
+    expect(four).toBeGreaterThan(90)    // and still clears the floor
+  })
+
+  it('a group the source says nothing about is NOT reported as withheld', () => {
+    // The two absences are different facts and the flag is what separates them.
+    // Reporting a non-publication as "withheld" tells a reader that published
+    // bands describe too little of a workforce whose bands are not published.
+    const nothing = { values: { isco4_edu_flag: 'not_published' } }
+    expect(eduBands(nothing, 4).state).toBe(NOT_PUBLISHED)
+    expect(eduBands(nothing, 4).year).toBeNull()
+  })
+
+  it('the residual note tells the truth about LTB', () => {
+    // 69 of the 152 countries with group-4 chips publish no LTB, and for them
+    // the remainder is unspecified *or below basic*.
+    const withLtb = eduBands(gbrCross, 4)
+    expect(withLtb.bands.some((b) => b.key === 'ltb')).toBe(true)
+    expect(withLtb.residualNote).not.toMatch(/below basic/)
+
+    const noLtb = { values: {
+      isco4_edu_bas_pct: 30, isco4_edu_int_pct: 40, isco4_edu_adv_pct: 25,
+      isco4_edu_ltb_pct: null, isco4_edu_year: 2025, isco4_edu_flag: 'present',
+    } }
+    expect(eduBands(noLtb, 4).residualNote).toMatch(/below basic/)
+  })
+
+  it('every rendered set of chips clears the floor, across all 218 artefacts', () => {
+    // The walk-back this suite failed to catch shipped chips that DID clear the
+    // floor — at a survey seven years older than the one the floor rejected.
+    // So "everything present clears the floor" is necessary but not sufficient,
+    // and the CMR case above is what actually pins the year. Both are asserted.
+    //
+    // Deliberately NOT asserted: that the education year is close to the age
+    // year. MDG publishes the education bands only for 2015 and PRY only up to
+    // 2017, while both have 2022+ age data, so a gap of five or more years is a
+    // genuine difference between two flows — exactly what the vintage rule
+    // exists to record rather than to flatten.
+    const below = []
+    for (const { iso3, v } of ALL_CROSS) {
+      for (let n = 1; n <= 9; n += 1) {
+        const chips = ['bas', 'int', 'adv', 'ltb']
+          .map((b) => v[`isco${n}_edu_${b}_pct`])
+          .filter((x) => x !== null && x !== undefined)
+        if (chips.length && chips.reduce((a, b) => a + b, 0) < 89.5) {
+          below.push([iso3, n])
+        }
+      }
+    }
+    expect(below).toEqual([])
+  })
+
+  it('a withheld group still names the survey it judged', () => {
+    const withheldNoYear = ALL_CROSS.filter(({ v }) =>
+      v.isco4_edu_flag === 'withheld_below_coverage_floor' && v.isco4_edu_year === null)
+    expect(withheldNoYear.map(({ iso3 }) => iso3)).toEqual([])
   })
 
   it('every group with shares carries its own year, per country', () => {

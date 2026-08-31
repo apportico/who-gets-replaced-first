@@ -65,10 +65,11 @@ export function termsFor(row, group, crosstabs) {
         tier: present ? 'DERIVED' : null,
         sourced: present,
         year: crosstabs.values?.[`isco${group}_${prefix}_year`] ?? null,
+        // No longer hedging "withheld or not published": the flag says which.
         desc: present
           ? 'ILOSTAT, cross-tabulated with occupation.'
-          : prefix === 'edu'
-            ? 'Withheld or not published: the bands describe too little of the workforce to report.'
+          : crosstabs.values?.[`isco${group}_${prefix}_flag`] === 'withheld_below_coverage_floor'
+            ? 'Withheld: the published bands describe too little of this group to report honestly.'
             : 'Not published for this country and group.',
       })
     }

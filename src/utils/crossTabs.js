@@ -88,13 +88,22 @@ function readBands(crosstabs, group, prefix, bands) {
     .map((b) => ({ ...b, value: v[`isco${group}_${prefix}_${b.key}_pct`] }))
     .filter((b) => b.value !== null && b.value !== undefined)
   if (!present.length) {
-    // For education this is R9's coverage floor doing its job: below 90% of
-    // EDU_AGGREGATE_TOTAL the whole dimension is withheld rather than rendered
-    // as chips describing a minority of the base.
+    // Read the pipeline's flag rather than assuming. "Withheld below the floor"
+    // and "the source publishes nothing for this group" are different facts,
+    // and only the pipeline knows which it was at the moment it decided.
+    // Treating every empty education group as withheld told readers that
+    // published bands described too little of a workforce whose bands are not
+    // published at all — an absence the app invented, which is the boundary
+    // R20 protects, pointed at the source instead of at the fetch.
+    const flag = v[`isco${group}_${prefix}_flag`]
     return {
-      state: prefix === 'edu' ? WITHHELD : NOT_PUBLISHED,
+      state: flag === 'withheld_below_coverage_floor' ? WITHHELD : NOT_PUBLISHED,
       bands: [],
-      year: null,
+      // A withholding names the survey year it judged; a non-publication has
+      // none to name.
+      year: flag === 'withheld_below_coverage_floor'
+        ? (v[`isco${group}_${prefix}_year`] ?? null)
+        : null,
     }
   }
   return {
@@ -118,12 +127,20 @@ export function ageBands(crosstabs, group) {
   return out
 }
 
-/** R9's chips over EDU_AGGREGATE_TOTAL — the residual is unspecified education. */
+/** R9's chips over EDU_AGGREGATE_TOTAL. */
 export function eduBands(crosstabs, group) {
   const out = readBands(crosstabs, group, 'edu', EDU_BANDS)
   if (out.state === PRESENT) {
-    out.residualNote =
-      'The chips divide everyone in the group, so the remainder is workers whose education the source does not specify.'
+    // The remainder is `EDU_AGGREGATE_X` (unspecified) — plus
+    // `EDU_AGGREGATE_LTB` wherever the country does not publish that chip,
+    // which is 69 of the 152 countries carrying group-4 chips. Saying the
+    // remainder is only "unspecified" is false for those readers: part of it is
+    // workers the source explicitly places below basic. Same move R12 makes on
+    // the sparkline — state what the number rests on, not what it usually does.
+    const hasLtb = out.bands.some((b) => b.key === 'ltb')
+    out.residualNote = hasLtb
+      ? 'The chips divide everyone in the group, so the remainder is workers whose education the source does not specify.'
+      : 'The chips divide everyone in the group. This country does not publish a below-basic figure, so the remainder is workers whose education is unspecified or below basic.'
   }
   return out
 }

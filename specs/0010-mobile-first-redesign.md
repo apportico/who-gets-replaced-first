@@ -94,8 +94,9 @@ returns nothing; `npm run build` succeeds.
 
 ### R2. [ ] The canvas's tokens are the only source of colour, type and motion
 
-Define the palette, radii, type scale and the five keyframes from *The design*
-section of `CLAUDE.md` as CSS custom properties in `src/styles/index.css`. Load
+Define the palette, radii, type scale and the **four** keyframes from *The
+design* section of `CLAUDE.md` (`stepin`, `fade`, `draw`, `pulse` — not `band`,
+which animates the interval band R14 does not ship) as CSS custom properties in `src/styles/index.css`. Load
 Geist, Geist Mono and Instrument Serif (including Instrument Serif italic) with
 a fallback stack on every family.
 
@@ -104,7 +105,7 @@ a fallback stack on every family.
 `grep -rEn '#[0-9A-Fa-f]{6}' src/components/wizard/` returns nothing (the file
 check keeps this from passing vacuously on a missing directory); the three
 families and the italic face are requested; `@media (prefers-reduced-motion:
-reduce)` disables the five animations.
+reduce)` disables the four animations.
 
 ### R3. [ ] shadcn/ui is installed as JSX over Tailwind v4
 
@@ -192,22 +193,41 @@ cross-tab from it, emitting `youth_age_band_used`, `youth_cohort_share`,
 `youth_wc_gap`, `youth_isco_coverage_pct_of_employment`,
 `data_year_youth_occupation` and `data_year_youth_occupation_range`.
 
-So R8 **extends `load_youth_occupation` from one band to three**; it does not add
-a second reader over the same CSV. The existing youth fields keep their meaning
-and their names — `Y15-24` is one of the three bands and is now computed once and
-used twice. Reuse `data_year_youth_occupation` and its `_range` companion rather
-than inventing `data_year_age_occupation`: two per-field years for one source is
-what the vintage rule exists to prevent, and `_range` is already the answer to
-"what do you record when the reconciled year differs across cells".
+So R8 **extends `load_youth_occupation`**; it does not add a second reader over
+the same CSV. All three bands are already read there (`build.py:199-201`) — what
+the loader does *not* do is keep them per group: `_youth_share(..., family)`
+collapses ISCO into the white-collar 1–4 cut. **The per-group dimension is the
+extension, and that is where the work is** — nine group shares per band, where
+today there is one family share per band.
+
+**Each new per-group field gets its own year companion.** That is this module's
+established shape, not a duplication: `build.py:234-245` already writes
+`prime_white_collar_year` and `late_career_white_collar_year` alongside their
+`_pct` fields, so a year per band per field is `CLAUDE.md`'s "record the year per
+field" being followed, not broken. `data_year_youth_occupation` keeps exactly the
+meaning it has today and is not re-reconciled.
+
+Two reasons this cannot instead be one shared field, both measured:
+
+- Re-reconciling on all three bands moves the year for **10 countries** at group
+  4 against the existing `data_year_youth_occupation` — AFG, ARE, BHS, GMB, GTM,
+  HKG, ITA, KHM, LAO, PLW — with LAO moving five years (2022 → 2017). Reusing the
+  field would either change the youth outputs or leave it naming a year its own
+  value was not taken at.
+- The reconciled year varies **across the nine groups for 34 countries** — BEN is
+  2013 at group 1 and 2022 at the other eight; BLZ 2014 against 2019; CYP and CZE
+  2022 against 2024. One per-country field cannot name nine vintages, and `_range`
+  records that a spread exists without saying which group sits where.
 
 Emit, per country and per ISCO major group, the employed share for `Y15-24`,
 `Y25-54` and `Y55-64`, over the `YGE15` denominator. Tier `DERIVED` (share = group-age count ÷ group
 `YGE15` count, both `OFFICIAL`), recorded in `field_tiers`.
 
 Per *The vintage rule* above, the value is taken at **each country's own most
-recent year** carrying all three bands and the denominator, recorded in
-`data_year_youth_occupation` / `_range` — not forced to `data_year_occupation`.
-Countries the flow does not cover stay null with a `data_quality_flag`.
+recent year** carrying all three bands and the denominator, recorded in that
+field's own `_year` companion — not forced to `data_year_occupation`, and not
+shared with the youth fields. Countries the flow does not cover stay null with a
+`data_quality_flag`.
 
 **Acceptance:** `npm run pipeline` emits the new fields; **at least 145**
 countries carry a non-null value for group 4 (measured 149 at the free vintage;
@@ -216,7 +236,9 @@ every one of the nine groups carries at least 140** (measured floor 144, group
 1 — stated deliberately so a criterion cannot pass on clerical while failing on
 managers); no second reader over `DF_EMP_TEMP_SEX_AGE_OCU_NB` is introduced and
 `load_youth_occupation`'s existing outputs are unchanged; `field_tiers` names
-every new field; `data_year_youth_occupation` is present wherever a value is;
+every new field; each new per-group field has a non-null `_year` companion
+wherever it has a value, and the result screen can state a vintage for any of the
+nine groups;
 `npm run test:pipeline` passes with a case asserting an uncovered country stays
 null; selecting an age band in step 03 changes the figure shown.
 
@@ -232,7 +254,9 @@ shape `load_youth_occupation` already uses. Vintage rule as R8.
 
 **The denominator is `EDU_AGGREGATE_TOTAL`, never the sum of the three bands.**
 `BAS`/`INT`/`ADV` do not partition the base: `EDU_AGGREGATE_LTB` and
-`EDU_AGGREGATE_X` sit outside them, and the residual runs 0.3%–7.3%.
+`EDU_AGGREGATE_X` sit outside them. Over the 149 countries covered at group 4 the
+residual has a median of **0.81%** and a maximum of **91.68%** (CMR) — a long
+tail, not a narrow range, which is what the coverage floor below exists for.
 Renormalising over the three would silently redistribute less-than-basic
 workers, which is the imputation this project does not do. Consequences:
 
@@ -244,24 +268,49 @@ workers, which is the imputation this project does not do. Consequences:
   rather than absorbed.
 
 **And the dimension is withheld below a coverage floor.** The residual is not
-uniformly small: median 0.8%, but 27 of the 149 covered countries exceed 10% and
-Cameroon's three bands describe 8.3% of its clerical workers, the rest being
+uniformly small: median 0.81%, but 27 of the 149 covered countries exceed 10% and
+Cameroon's chips describe 13.3% of its clerical workers, the rest being
 `EDU_AGGREGATE_X`. At that level "the residual is stated" stops being a caption
-and becomes the whole answer. So: **where `BAS` + `INT` + `ADV` is less than 90%
-of `EDU_AGGREGATE_TOTAL`, the education dimension is null for that country with a
-`data_quality_flag`, and step 03 does not offer it** — withholding rather than
-rendering a misleading chip, exactly as R6 and R10 withhold. 122 of the 149 clear
-that floor.
+and becomes the whole answer. So: **where the shares actually rendered cover less
+than 90% of `EDU_AGGREGATE_TOTAL`, the education dimension is null for that
+country with a `data_quality_flag`, and step 03 does not offer it** — withholding
+rather than rendering a misleading chip, exactly as R6 and R10 withhold.
+
+**The floor is measured on the chips the screen renders** — `BAS` + `INT` + `ADV`
+**plus `LTB` where the country publishes it** — not on the three bands alone.
+Measuring on three while rendering four would withhold countries whose rendered
+chips do cover the base, on the strength of a chip R9 itself asked for: Djibouti's
+three bands are 39.9% of `TOTAL` but its four chips are 99.6%. The gap is not an
+edge case outside clerical, because clerical is the most educated group in the
+flow and therefore the best case:
+
+| Group | Carry the four cells | Clear a 3-band floor | Clear the 4-chip floor |
+|---|---|---|---|
+| 1 managers | 148 | 113 | 138 |
+| 2 professionals | 148 | 126 | 138 |
+| 3 technicians | 154 | 117 | 140 |
+| 4 clerical | 149 | 122 | 138 |
+| 5 service and sales | 156 | 95 | 142 |
+| 6 agricultural | 149 | **59** | 136 |
+| 7 craft | 153 | 89 | 140 |
+| 8 operators | 144 | 98 | **134** |
+| 9 elementary | 153 | 73 | 138 |
+
+On the three-band basis a farm worker in most of the world would be told the
+dimension does not exist while ILOSTAT publishes four chips summing over 90% of
+the base. Cameroon still withholds either way — its four chips are 13.3%.
 
 **Acceptance:** `pipeline/raw/ilostat/DF_EMP_TEMP_SEX_OCU_EDU_NB.csv` is written
-on first run and re-read on the second; **at least 115** countries carry a
+on first run and re-read on the second; **at least 130** countries carry a
 non-null education band for group 4 after the coverage floor is applied
-(measured 122 of the 149 that carry the four cells at a free vintage; 113 carry
-them at the occupation vintage before any floor); the chips land on different
-published cells, demonstrable by the figure changing between them; unit tests
-(R19) assert the three named bands are divided by `EDU_AGGREGATE_TOTAL`, that
-their sum is strictly less than 100 for ETH, and that **CMR yields the withheld
-branch rather than four chips**.
+(measured 138) **and every one of the nine groups carries at least 125**
+(measured floor 134, group 8) — mirroring R8's two-part shape so the criterion
+cannot pass on clerical while failing on agricultural; the chips land on
+different published cells, demonstrable by the figure changing between them;
+unit tests (R19) assert the three named bands are divided by
+`EDU_AGGREGATE_TOTAL`, that their sum is strictly less than 100 for ETH, that
+**CMR yields the withheld branch rather than four chips**, and that **DJI does
+not** — its three bands are 39.9% but its rendered chips are 99.6%.
 
 ### R10. [ ] The result screen shows the group's share, with tier and vintage
 
@@ -343,12 +392,21 @@ Given R13, the result screen must read as finished with no year, no interval
 band, no scenario slider and no adoption assumption. It must not display a
 placeholder, a greyed-out year, or "coming soon" copy where the year sat.
 
+**The intro screen must not promise a year either.** The canvas opens on "a year
+— not a probability", which sets up exactly the thing the result screen does not
+deliver — an intro that promises a year makes an honest result screen read as
+broken rather than as finished. The claim becomes what the wizard actually does:
+report what the statistics say about the reader's occupation group, measured
+rather than forecast. This is a product decision, not a transcription fix, which
+is why it is a requirement rather than only a note in `CLAUDE.md`.
+
 **Acceptance:** `src/components/wizard/ResultScreen.jsx` exists **and**
 `grep -rEn '\b20(2[89]|[3-7][0-9])\b' src/components/wizard/` returns nothing
 (the file check keeps this from passing vacuously; the range correctly excludes
 2025 and 2026, so the sparkline axis and `data_year_occupation` do not trip it);
-no build renders a four-digit year as the result headline; the result screen's
-own copy states that no displacement date is published, and links to the method
+no build renders a four-digit year as the result headline; the intro screen's
+claim does not reference a year, a date or a countdown; the result screen's own
+copy states that no displacement date is published, and links to the method
 panel.
 
 ### R15. [ ] Nothing is imputed, anywhere in the wizard

@@ -67,10 +67,10 @@ padding `22px`. A four-step wizard, not a dashboard:
 
 | Step | Screen | What it must do |
 |---|---|---|
-| — | Intro | The claim ("a year — not a probability"), three capability chips, one CTA |
+| — | Intro | The claim — **what the statistics actually say about your occupation group, measured rather than forecast**. Not the canvas's "a year — not a probability": R14 means no year arrives, and an intro that promises one makes the result screen read as broken rather than finished. Three capability chips, one CTA |
 | 01 | Country | Pre-filled from locale; every row tagged `official series` / `no series` |
 | 02 | Occupation | Free-text title → one of the **nine ISCO-08 major groups**; the resolution is shown and overridable by chip, never silent |
-| 03 | Optional | Age band and education — both real cross-tabulated dimensions; skipping widens the interval and says so |
+| 03 | Optional | Age band and education — both real cross-tabulated dimensions, landing on different published cells; skipping means the result is reported for the group as a whole. (No interval to widen — see below) |
 | 04 | Result | Two stat cards, the trend sparkline, and two accordions (method, back-test). **Not** the year, its interval or the scenario slider — see below |
 
 **The year apparatus does not ship.** The canvas's headline output is a projected
@@ -121,9 +121,10 @@ Three families, each with one job. Load Geist, Geist Mono and Instrument Serif
 self-hosted or from Google Fonts; always ship a fallback stack.
 
 - **Instrument Serif 400** — display only. `h1` 66px/0.9/`-0.025em`, `h2`
-  46px/0.98/`-0.02em`, the result year **132px/0.82/`-0.045em` with
-  `font-variant-numeric: tabular-nums`**, stat figures 38px, the scenario
-  sentence 25px. Italic is the emphasis device (`replaced.` in the headline).
+  46px/0.98/`-0.02em`, stat figures 38px. Italic is the emphasis device
+  (`replaced.` in the headline). The canvas's 132px result year and its 25px
+  scenario sentence are **not** in this scale — neither element ships (R14) —
+  though `font-variant-numeric: tabular-nums` still applies to the stat figures.
 - **Geist** — body. 16px/1.5 base, 17.5px lede, 15px secondary, 12.5–13.5px
   notes. `text-wrap: pretty` on every prose paragraph.
 - **Geist Mono** — every label, tier badge, eyebrow, chip and button face.
@@ -132,10 +133,11 @@ self-hosted or from Google Fonts; always ship a fallback stack.
 
 ### Motion and focus
 
-`stepin` (18px rise + fade, 0.4–0.5s `cubic-bezier(0.2,0.75,0.2,1)`) on every
-step mount · `fade` 0.3s on accordion bodies · `draw` 1.2s on the sparkline
-stroke · `band` 0.6s `scaleX` on the interval band · `pulse` 2.6s on the header
-dot. Focus is **`2px solid #FF5A2B`, `outline-offset: 3px`** — never removed.
+**Four** keyframes, not the canvas's five: `stepin` (18px rise + fade, 0.4–0.5s
+`cubic-bezier(0.2,0.75,0.2,1)`) on every step mount · `fade` 0.3s on accordion
+bodies · `draw` 1.2s on the sparkline stroke · `pulse` 2.6s on the header dot.
+The canvas's `band` 0.6s `scaleX` does not ship — it animates the interval band
+(R14). Focus is **`2px solid #FF5A2B`, `outline-offset: 3px`** — never removed.
 Respect `prefers-reduced-motion`.
 
 ### The result screen is where the data rules bite
@@ -147,8 +149,11 @@ screen is the one that states a number about the reader's own job:
   `MODELED` — in the vocabulary of the table above. The canvas mockup says
   "Placeholder" and "Missing"; those are mockup words. Ship `MODELED`, and a
   genuinely absent term renders as absent, not as a number.
-- **The interval is never optional.** The year is meaningless without the band;
-  they render together or neither renders.
+- **A point estimate never ships without its uncertainty.** In the canvas this
+  was the year and its interval band, which had to render together or not at all.
+  Neither ships (R14), so what the rule governs now is coverage: a share is shown
+  with the coverage it rests on, and a figure whose basis is too thin is withheld
+  rather than shown bare (R9's coverage floor is this rule with a number).
 - **A stand-in says it is standing in.** The canvas already does this ("Clerical
   series shown as a stand-in") — keep that behaviour, do not quietly substitute.
 - **No country without a series gets a number.** `no series` is a first-class
@@ -180,7 +185,7 @@ TSX**. So:
 
 ```bash
 npx shadcn@latest init      # answer: no tailwind.config.js — v4 is CSS-first
-npx shadcn@latest add button card input badge toggle-group slider accordion
+npx shadcn@latest add button card input badge toggle-group accordion
 ```
 
 - `components.json` must carry **`"tsx": false`** or the CLI writes `.tsx` files

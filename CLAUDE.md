@@ -67,7 +67,7 @@ padding `22px`. A four-step wizard, not a dashboard:
 
 | Step | Screen | What it must do |
 |---|---|---|
-| — | Intro | The claim — **what the statistics actually say about your occupation group, measured rather than forecast**. Not the canvas's "a year — not a probability": R14 means no year arrives, and an intro that promises one makes the result screen read as broken rather than finished. Three capability chips, one CTA |
+| — | Intro | The claim — **what the statistics actually say about your occupation group, measured rather than forecast**. Not the canvas's "a year — not a probability": R14 means no year arrives, and an intro that promises one makes the result screen read as broken rather than finished. One CTA, and **no capability chips** — the canvas has three; spec 0010 R5's second revision note records why they are not here |
 | 01 | Country | Pre-filled from locale; every row tagged `official series` / `no series` |
 | 02 | Occupation | Free-text title → one of the **nine ISCO-08 major groups**; the resolution is shown and overridable by chip, never silent |
 | 03 | Optional | Age band and education — both real cross-tabulated dimensions, landing on different published cells; skipping means the result is reported for the group as a whole. (No interval to widen — see below) |
@@ -192,7 +192,7 @@ TSX**. So:
 
 ```bash
 npx shadcn@latest init      # answer: no tailwind.config.js — v4 is CSS-first
-npx shadcn@latest add button card input badge toggle-group accordion
+npx shadcn@latest add toggle-group accordion
 ```
 
 - `components.json` must carry **`"tsx": false`** or the CLI writes `.tsx` files
@@ -214,14 +214,32 @@ npx shadcn@latest add button card input badge toggle-group accordion
 
 | Screen element | Component |
 |---|---|
-| Primary CTA, skip, "Start again" | `Button` (pill `variant`s added to the local `buttonVariants`) |
-| Stat cards, method panel | `Card` (not the canvas's scenario card — it holds the adoption slider, which does not ship) |
-| Job title field | `Input` (Instrument Serif 26px — restyled, not default) |
-| Tier badges, capability chips | `Badge` (not the canvas's `PROJECTED` badge — it labels a projection that does not ship) |
-| Country rows, ISCO override chips, age/education | `ToggleGroup` + `ToggleGroupItem` |
-| ~~Adoption scenario~~ | ~~`Slider`~~ — does not ship (R14), so `slider` is **not** installed |
-| "How the number is built", "Back-test & error" | `Accordion` |
-| Progress bar, sparkline | Hand-rolled — four `div`s and an SVG beat a dependency. The interval band does not ship (R14) |
+| Age / education band chips | `ToggleGroup` + `ToggleGroupItem` — the roving tabindex and arrow keys turn up to nine tab stops into one |
+| "How the number is built", "What this cannot tell you" | `Accordion` — `aria-expanded`, the `aria-controls`/`id` pairing and the keyboard handling, none of which is worth re-typing |
+| Everything else | Tokens plus plain elements. `.wz-cta`, `.wz-card`, `.wz-badge`, `.wz-option`, `.wz-chip` in `index.css` |
+
+Only **two** shadcn components are rendered. Spec 0010 R3 is `[~]`: `Button`,
+`Card`, `Input` and `Badge` were installed and never rendered — nothing outside
+`src/components/ui/` imported them, so a rule targeting their `data-slot`s
+matched no element and R4's "extend the `cva` variants" applied to nothing. They
+are removed.
+
+`src/components/ui/` therefore holds **three** files, not two. `toggle.jsx` is
+the third: `toggle-group` imports `toggleVariants` from it, so it is a
+dependency of a rendered component rather than an unrendered one. Deleting it
+under rule 1 below would break `toggle-group` — the rule is about what a screen
+*adds*, not about every file the directory ends up holding.
+
+`wizard.render.test.jsx` asserts that every component in `src/components/ui/`
+**except `toggle`** is imported by a screen, and then asserts that `toggle` is
+genuinely not imported, so the exemption cannot quietly start covering something
+else. "The file exists" is what made the original six look installed, which is
+why the guard is on imports rather than on the directory listing.
+
+`slider` was never installed at all: its only consumer in the canvas is the
+adoption scenario, which R14 does not ship. Same for the `PROJECTED` badge and
+the interval band — the progress bar and sparkline stay hand-rolled, four `div`s
+and an SVG beating a dependency.
 
 ### Rules
 
@@ -237,8 +255,9 @@ npx shadcn@latest add button card input badge toggle-group accordion
    non-trivial divergence from upstream in a comment at the top of the file, so
    the next `shadcn add` overwrite is a conscious choice.
 5. **Icons are `lucide-react`,** imported per-icon.
-6. shadcn changes nothing about the data contract. A `Badge` renders the tier it
-   is given; it never invents one, and there is no default tier.
+6. shadcn changes nothing about the data contract. A tier badge — `.wz-badge`
+   here, since `Badge` does not ship — renders the tier it is given; it never
+   invents one, and there is no default tier.
 
 ## Layout
 

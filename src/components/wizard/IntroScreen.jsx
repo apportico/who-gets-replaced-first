@@ -10,6 +10,9 @@
 // about the reader's occupation group, measured rather than forecast. R14's
 // acceptance checks this copy for a year, a date or a countdown, in words as
 // well as digits.
+//
+// The canvas's three capability chips are deliberately not here — R5's second
+// revision note says why, and `wizard.render.test.jsx` holds them out.
 export default function IntroScreen({ onStart }) {
   return (
     <div
@@ -32,13 +35,6 @@ export default function IntroScreen({ onStart }) {
           about your occupation group in your country — every figure with its
           source and its year.
         </p>
-        <div style={{ marginTop: 26, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-          {['9 occupation groups', 'Every figure tiered', 'Gaps shown as gaps'].map((c) => (
-            <span key={c} className="wz-chip" style={{ cursor: 'default', minHeight: 0 }}>
-              {c}
-            </span>
-          ))}
-        </div>
       </div>
       <div style={{ paddingTop: 40 }}>
         <button type="button" className="wz-cta" onClick={onStart}>

@@ -16,7 +16,8 @@ job title, then two optional cross-tabulating dimensions, then a result screen
 that reports **only what the sources carry**, each figure carrying its tier and
 its own vintage. The design is fixed by a canvas
 ([artifact](https://claude.ai/code/artifact/5144650a-4fe5-48af-b3c7-e887f7e6afde));
-its extracted contract lives in `CLAUDE.md`.
+its extracted contract lives in `CLAUDE.md`. The design has no map, so the map
+and its corridor overlay are deleted rather than kept behind a route (R1).
 
 The canvas's headline output is a projected replacement year. Probing found no
 source for it, so this spec deliberately does not ship one (R13), and specs the
@@ -41,16 +42,27 @@ was written.
 
 ## Requirements
 
-### R1. [ ] The wizard is `/`; the map survives at `/map`
+### R1. [ ] The wizard is the app; the map and the corridor overlay are deleted
 
-Introduce client-side routing. `/` renders the wizard, `/map` renders the
-existing `LaborPage` unchanged. The result screen carries a link to `/map`. No
-map component is deleted.
+The wizard is the only surface. No router — step state is internal to the
+wizard. Delete `LaborPage`, `LaborMap`, `LaborSidebar`, `LaborDetailPanel`,
+`LaborTimeline`, `ScenarioPanel`, `Header` and `utils/corridorStates.js`, along
+with the corridor snapshot `src/data/port_data.json` and
+`src/data/sanctions_regimes.json`. Drop `leaflet` and `react-leaflet` from
+`package.json` and the Leaflet CSS import from `main.jsx` and
+`src/styles/index.css`.
 
-**Acceptance:** `npm run build` succeeds; loading `/` renders the wizard intro
-and loading `/map` renders a Leaflet container with the existing sidebar;
-`git ls-files src/components/LaborMap.jsx src/components/LaborSidebar.jsx`
-still lists both.
+Keep and prune what the wizard reuses: `TIERS`, `ISCO_GROUPS`, `fmt`,
+`fmtCompact` and `qualityTone` from `utils/laborMetrics.js`; `seriesFor` and
+`PANEL_YEARS` from `utils/laborPanel.js`; and `Sparkline.jsx`. Delete the
+map-only exports (`METRICS`, `METRIC_BY_KEY`, `colorFor`, `rampStops`,
+`radiusFor`, `normalise`, `NO_DATA_COLOR`).
+
+**Acceptance:** `git ls-files src/components/LaborMap.jsx
+src/components/LaborPage.jsx src/data/port_data.json` returns nothing;
+`grep -rn "leaflet" src/ package.json` returns nothing; `npm run build`
+succeeds and the bundle no longer contains Leaflet; `npm run lint` reports no
+unused export in `src/utils/`.
 
 ### R2. [ ] The canvas's tokens are the only source of colour, type and motion
 
@@ -179,6 +191,9 @@ the sparkline is that group's own series. When it is any other group, the panel
 must state that the clerical series is standing in — or omit the panel. A
 country with no series shows no sparkline.
 
+Reuse `seriesFor` and `Sparkline` kept by R1 rather than writing a second
+sparkline.
+
 **Acceptance:** group 4 shows the sparkline with no stand-in notice; group 7
 shows either the stand-in notice or no panel, never an unlabelled line; a
 country absent from `series` renders no sparkline; the generative-AI marker line
@@ -250,6 +265,11 @@ the PR.
   Index overlay (#47). All are separate issues and would each add a dimension to
   the wizard.
 - **No payments, accounts or paid report** (#28–#32). This is the free surface.
-- **The map is not redesigned.** `/map` renders exactly what exists today; making
-  it match the new palette is a later chore.
-- **No deletion of map components.** They move behind a route, nothing more.
+- **No routing.** The wizard's steps are internal state. Real routes and
+  deep-linkable URLs remain #24 and #15.
+- **The map is not kept behind a route.** It is deleted outright — the design has
+  no map, and a second unmaintained surface in the new palette is worse than
+  none. It stays recoverable in git history.
+- **The corridor-wars overlay goes with it.** `port_data.json` and
+  `sanctions_regimes.json` were a static snapshot for the R16 overlay
+  (issue #20). Deleting them closes that drift rather than carrying it.

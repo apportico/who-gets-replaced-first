@@ -77,8 +77,11 @@ A sticky header carries a pulsing live dot, the wizard title and `NN/04`, above 
 four-segment progress bar. Steps 01–03 carry a sticky footer CTA over a
 `linear-gradient(to top, #0D0C0A 62%, transparent)` fade.
 
-The canvas has **no map**. Whether `LaborMap` and Leaflet survive the rebuild is
-a spec decision — do not assume either way from this section.
+The canvas has **no map**, and spec 0010 R1 deletes it: `LaborMap`,
+`LaborSidebar`, `LaborDetailPanel`, `LaborTimeline`, `ScenarioPanel`,
+`LaborPage`, Leaflet and the corridor overlay all go. The wizard is the only
+surface, and its steps are internal state — there is no router. The map stays
+recoverable in git history.
 
 ### Tokens
 
@@ -341,9 +344,12 @@ from 3.12.
 - `vite preview` caches `index.html` in memory; it can serve a stale page and
   look like a blank-page bug. Serve `dist/` with a plain static server when
   debugging the production build.
-- CARTO basemaps now require an API key and watermark every tile without one.
-  This project uses Esri's key-free light gray canvas. Note Esri tiles are
-  `{z}/{y}/{x}`, not `{z}/{x}/{y}`, and have no `{s}` or `{r}` tokens.
-- `src/data/port_data.json` and `sanctions_regimes.json` are a **static
-  snapshot** copied from the corridor-wars board for the R16 overlay. They do
-  not track changes made there.
+- Basemap tiles were a live gotcha while the map existed: CARTO now requires an
+  API key and watermarks every tile without one, so the project used Esri's
+  key-free light gray canvas, whose tiles are `{z}/{y}/{x}` rather than
+  `{z}/{x}/{y}` and carry no `{s}` or `{r}` tokens. Kept here for whoever
+  restores the map from history — spec 0010 R1 deletes it.
+- `src/data/port_data.json` and `sanctions_regimes.json` were a **static
+  snapshot** from the corridor-wars board for the R16 overlay, and never tracked
+  changes made there. Spec 0010 R1 deletes them, which closes that drift
+  (issue #20) rather than carrying it.

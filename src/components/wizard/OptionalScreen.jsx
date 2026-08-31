@@ -45,7 +45,19 @@ function BandRow({ title, result, value, onPick, columns }) {
         value={value ?? ''}
         onValueChange={(v) => onPick(v || null)}
         className="wz-bandgroup"
-        style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 8 }}
+        // `width: '100%'` is load-bearing, not tidying. ToggleGroup's root
+        // carries `w-fit` (toggle-group.jsx:31); overriding `display` to grid
+        // leaves the width alone, so `repeat(n, 1fr)` has no definite width to
+        // divide and the tracks size to their content — the chips hug the left
+        // edge instead of filling the column. The plain <div> this replaced was
+        // full width by default, so Radix introduced the regression.
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${columns}, 1fr)`,
+          gap: 8,
+          width: '100%',
+          alignItems: 'stretch',
+        }}
       >
         {result.bands.map((b) => (
           <ToggleGroupItem key={b.key} value={b.key} className="wz-chip" aria-label={b.label}>

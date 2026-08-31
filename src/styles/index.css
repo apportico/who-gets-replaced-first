@@ -146,11 +146,17 @@
   --font-mono:                  var(--font-mono);
   --font-serif:                 var(--font-display);
   /* Mapped to what the generated components actually reach for, not to a
-     tidy small-to-large ladder. card.jsx is `rounded-xl`, so --radius-xl has
-     to be the 18px card radius; mapping it to the pill made every stat card
-     and the method panel render as a 99px lozenge. The pill radius is applied
-     by name where it belongs (.wz-cta, .wz-chip) rather than through a scale
-     step nothing asked for. */
+     tidy small-to-large ladder. When Card was installed it used `rounded-xl`,
+     and mapping that step to the pill rendered every stat card and the method
+     panel as a 99px lozenge.
+
+     Card is gone (R3 `[~]`), so of the three remaining components only
+     --radius-md has a consumer; --radius-lg and --radius-xl now have none. The
+     mapping stays correct and computed.test.jsx keeps pinning it, because the
+     step is one `shadcn add` away from having a consumer again and the pill
+     value is the one that was wrong. The pill radius is applied by name where
+     it belongs (.wz-cta, .wz-chip) rather than through a scale step nothing
+     asked for. */
   --radius-sm:                  var(--radius-control);
   --radius-md:                  var(--radius-control);
   --radius-lg:                  var(--radius-card);
@@ -158,10 +164,15 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Fonts. Loaded from Google Fonts, probed 2026-08-31: all three return 200 and
-   Instrument Serif serves its italic face, which the headline needs. Every
-   family carries a real fallback stack above, so a blocked request degrades to
-   a system font rather than to nothing.
+   Font TOKENS only. The faces themselves are requested from index.html, for the
+   reason recorded at the top of this file — this section used to carry a second
+   and contradictory account of where they come from, which is the confusion
+   that cost two rounds.
+
+   Probed 2026-08-31: all three return 200 and Instrument Serif serves its
+   italic face, which the headline needs. Every family carries a real fallback
+   stack below, so a blocked request degrades to a system font rather than to
+   nothing.
    --------------------------------------------------------------------------- */
 
 html, body {
@@ -220,7 +231,6 @@ html, body {
    rendered, so the whole block was dead. They are gone now, and what remains
    here covers the two that do ship. Set through a selector rather than by
    editing generated files that `shadcn add` will overwrite. */
-[data-slot="toggle-group-item"],
 [data-slot="accordion-trigger"] {
   min-height: var(--tap-option);
 }
@@ -251,6 +261,16 @@ html, body {
 }
 
 .wz-bandgroup [data-slot="toggle-group-item"] {
+  /* (0,2,0), so it outranks .wz-chip. An unscoped
+     `[data-slot="toggle-group-item"]` is (0,1,0), the same as .wz-chip, and
+     .wz-chip is declared later in this file — so every band chip resolved to
+     the 48px tertiary floor instead of the 56px option floor. Before Radix
+     landed these chips carried min-height inline, which beat the class, so
+     this was a regression rather than a pre-existing gap.
+
+     .wz-chip keeps its own min-height: OccupationScreen's ISCO override chips
+     use that class and would lose their floor with it. */
+  min-height: var(--tap-option);
   border-radius: var(--radius-control);
   font-size: 12px;
 }

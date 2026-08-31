@@ -18,6 +18,14 @@ import { describe, it, expect } from 'vitest'
 const css = readFileSync(path.resolve('src/styles/index.css'), 'utf8')
 const HTML = readFileSync(path.resolve('index.html'), 'utf8')
 
+/** The declarations of one rule, comments stripped. Selector matched exactly. */
+function ruleBody(selector) {
+  const i = css.indexOf(`${selector} {`)
+  if (i === -1) return ''
+  const body = css.slice(i + selector.length + 2, css.indexOf('}', i))
+  return body.replace(/\/\*[\s\S]*?\*\//g, '')
+}
+
 describe('R2 — the canvas tokens are declared, with the canvas values', () => {
   const TOKENS = {
     '--bg': '#0D0C0A',
@@ -137,8 +145,17 @@ describe('R5 — the touch targets and the focus ring are declared', () => {
     // it was checking a rule that applied to nothing. Asserting a selector is
     // not asserting that anything matches it; computed.test.jsx is what closes
     // that gap, on elements.
-    expect(css).toMatch(/\[data-slot="toggle-group-item"\][\s\S]{0,120}min-height:\s*var\(--tap-option\)/)
-    expect(css).toMatch(/\[data-slot="accordion-trigger"\]/)
+    // Scoped under .wz-bandgroup so it outranks .wz-chip — see the comment on
+    // that rule. computed.test.jsx asserts the outcome on the element, which is
+    // what a text grep cannot do and what let the shadowing through.
+    //
+    // Extract the rule body rather than matching within a character window: the
+    // window has to be widened every time a comment grows, and a window that is
+    // too small fails for a reason that has nothing to do with the rule.
+    expect(ruleBody('.wz-bandgroup [data-slot="toggle-group-item"]'))
+      .toMatch(/min-height:\s*var\(--tap-option\)/)
+    expect(ruleBody('[data-slot="accordion-trigger"]'))
+      .toMatch(/min-height:\s*var\(--tap-option\)/)
   })
 
   it('a selected Radix chip inverts, the way .wz-option does', () => {

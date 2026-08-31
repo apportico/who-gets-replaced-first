@@ -21,7 +21,7 @@
 // loading, and the painted colour. Those need a browser. The Verification
 // section says so.
 import { describe, it, expect, beforeAll } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -158,6 +158,32 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     // renders 218 options, so this is comfortably above any plausible floor and
     // fails loudly if a screen stops rendering.
     expect(visited).toBeGreaterThan(200)
+  })
+
+  it('a band chip computes the 56px option floor, not the 48px tertiary one', async () => {
+    // A grep for the declaration could not see this: `.wz-chip` and an unscoped
+    // `[data-slot="toggle-group-item"]` are both (0,1,0), so source order gave
+    // every band chip the tertiary floor while the rule above it said option.
+    // Resolved off the rendered element, which is the whole point of this file.
+    cleanup()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    // The chips only exist once the per-country cross-tab resolves (R20), so
+    // this waits rather than asserting on the "Loading…" state. Without the
+    // wait the querySelectorAll returned nothing and the loop passed vacuously
+    // — caught by the length guard, which is why it is there.
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-slot="toggle-group-item"]').length)
+        .toBeGreaterThan(0)
+    })
+    const chips = [...document.querySelectorAll('[data-slot="toggle-group-item"]')]
+    for (const chip of chips) expect(resolved(chip, 'min-height')).toBe('56px')
   })
 
   it('the column is capped at 480px and the tokens carry the canvas values', () => {

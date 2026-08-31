@@ -157,18 +157,32 @@ describe('R3 — every installed component is actually rendered', () => {
     ).map((p) => p.split('/').pop().replace('.jsx', ''))
     expect(files.length).toBeGreaterThan(0)
 
-    const consumers = Object.values(
-      import.meta.glob(['@/components/wizard/*.jsx', '@/*.jsx'], {
+    // Every component file outside ui/ itself, not just the wizard directory:
+    // Sparkline.jsx and any future sibling can import a ui component, and
+    // scanning only wizard/ would report that as unused. It fails safe, but a
+    // guard that cries wolf gets disabled.
+    const consumers = Object.entries(
+      import.meta.glob(['@/components/**/*.jsx', '@/*.jsx'], {
         eager: true, query: '?raw', import: 'default',
       }),
-    ).join('\n')
+    ).filter(([p]) => !p.includes('/components/ui/'))
+      .map(([, src]) => src).join('\n')
 
-    // `toggle` is exempt: toggle-group imports it internally, so it is a
-    // dependency of a rendered component rather than an unrendered one.
-    const unused = files
-      .filter((f) => f !== 'toggle')
-      .filter((f) => !consumers.includes(`components/ui/${f}`))
+    // Match the whole specifier, not a substring. `components/ui/toggle` is a
+    // substring of `components/ui/toggle-group`, so the prefix version reported
+    // `toggle` as used purely because toggle-group is imported — which meant the
+    // exemption below did nothing and a future `card` beside a `card-header`
+    // would slip through the same way.
+    const imported = (f) => new RegExp(`components/ui/${f}['"\`]`).test(consumers)
+
+    // `toggle` is exempt on its merits: toggle-group imports it internally, so
+    // it is a dependency of a rendered component rather than an unrendered one.
+    const unused = files.filter((f) => f !== 'toggle').filter((f) => !imported(f))
     expect(unused).toEqual([])
+
+    // And the exemption is real rather than incidental: toggle genuinely is not
+    // imported by any screen, which is why it needs exempting at all.
+    expect(imported('toggle')).toBe(false)
   })
 })
 

@@ -100,7 +100,7 @@ recoverable in git history.
 --fg           #E8E4DA   body text
 --fg-strong    #F2EFE6   display type; also the fill of a *selected* option
 --accent       #FF5A2B   primary, progress fill, focus ring, live dot
---accent-hover #FF7A4D   hover, active scenario label
+--accent-hover #FF7A4D   hover state on the primary action
 --accent-soft  #FF9670   caveat text on accent-tinted panels
 ```
 
@@ -208,7 +208,7 @@ npx shadcn@latest add button card input badge toggle-group accordion
 | Screen element | Component |
 |---|---|
 | Primary CTA, skip, "Start again" | `Button` (pill `variant`s added to the local `buttonVariants`) |
-| Stat cards, method panel, scenario card | `Card` |
+| Stat cards, method panel | `Card` (not the canvas's scenario card — it holds the adoption slider, which does not ship) |
 | Job title field | `Input` (Instrument Serif 26px — restyled, not default) |
 | Tier badges, capability chips | `Badge` (not the canvas's `PROJECTED` badge — it labels a projection that does not ship) |
 | Country rows, ISCO override chips, age/education | `ToggleGroup` + `ToggleGroupItem` |

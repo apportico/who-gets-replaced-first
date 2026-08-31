@@ -52,7 +52,8 @@ before the requirement naming it was written.
 | `src/data/global_labor.json` — headcounts | read, 2026-08-31 | Per-group headcount exists **only** for clerical, professionals, professional-core and white-collar. `round(share / 100 × employed_total)` reproduces `clerical_employed` for **177 of 177** countries exactly. **0 of 177** have a null `employed_total`. `employed_total` (World Bank) and `isco_source_employed_thousands` (ILO survey base) differ — GBR 33,728,592 vs 34,055,472 — so the headcount is a two-source join → R11 |
 | `src/data/global_labor_timeseries.json` | read, 2026-08-31 | `fields` × `years` × `series`; years 2013–2026, 226 series. Of the ISCO fields only **`isco4_clerical_pct`** is present (185 series carry a point). GBR runs 10.0247% (2013) → 8.8633% (2025), matching the canvas exactly |
 | ILOSTAT `DF_EMP_TEMP_SEX_AGE_OCU_NB` | live SDMX `curl`, 2026-08-31 — `https://sdmx.ilo.org/rest/data/ILO,DF_EMP_TEMP_SEX_AGE_OCU_NB,1.0/.A..SEX_T../?startPeriod=2013&format=csv` (also cached under `pipeline/raw/ilostat/`) | HTTP 200. **164 areas** carry an ISCO-08 major group. `OCU_ISCO08_1`…`9` crossed with `AGE_AGGREGATE_Y15-24 / Y25-54 / Y55-64 / YGE65` and the `YGE15` denominator. Cell-level, intersected with payload countries and **counting only cells that carry a value**: **158** payload countries appear in the flow at all, but for group 4 only **149** carry all three bands plus the denominator at their own most-recent year, and **121** at `data_year_occupation`. Coverage is not uniform across the nine groups — group 1 is the floor at **144**, group 4 is 149, groups 5/7/9 reach 158. **0 areas** pair `AGE_10YRBANDS_*` with `OCU_ISCO08_*`, so 0002 R11's skill-level-only finding is correctly scoped and does not apply here |
-| ILOSTAT `DF_EMP_TEMP_SEX_OCU_EDU_NB` | live SDMX `curl`, 2026-08-31 — `https://sdmx.ilo.org/rest/data/ILO,DF_EMP_TEMP_SEX_OCU_EDU_NB,1.0/.A..SEX_T../?startPeriod=2013&format=csv` | HTTP 200, 55.5 MB, 265,835 rows, **162 areas**, years 2013–2026. *(Unrestricted the flow is 1982–2026, 428,474 rows, 90.5 MB — hence the start year in R9.)* Cell-level against payload countries, **counting only cells that carry a value**: for group 4, **149** carry `BAS`/`INT`/`ADV` plus `EDU_AGGREGATE_TOTAL` at their own most-recent year, **113** at `data_year_occupation`. (154 and 125 are the `ADV`-alone figures, not this four-cell reading.) Group floor across the nine is **144** (group 8). **`BAS`/`INT`/`ADV` do not partition the base** — `EDU_AGGREGATE_LTB` (present for group 4 at the reconciled year for **81** of the 149) and `EDU_AGGREGATE_X` sit outside them. **The residual is not a narrow range**: median 0.8%, but **27 of the 149 exceed 10%**, topping out at CMR 91.7% and AGO 91.0%, driven by `EDU_AGGREGATE_X` rather than `LTB` — Cameroon group 4 is `TOTAL` 254.3k against `X` 220.4k, so the three bands describe 8.3% of its clerical workers → R9's coverage floor |
+| ILOSTAT `DF_EMP_TEMP_SEX_OCU_EDU_NB` | live SDMX `curl`, 2026-08-31 — `https://sdmx.ilo.org/rest/data/ILO,DF_EMP_TEMP_SEX_OCU_EDU_NB,1.0/.A..SEX_T../?startPeriod=2013&format=csv` | HTTP 200, 55.5 MB, 265,835 rows, **162 areas**, years 2013–2026. *(Unrestricted the flow is 1982–2026, 428,474 rows, 90.5 MB — hence the start year in R9.)* Cell-level against payload countries, **counting only cells that carry a value**: for group 4, **149** carry `BAS`/`INT`/`ADV` plus `EDU_AGGREGATE_TOTAL` at their own most-recent year, **113** at `data_year_occupation`. (154 and 125 are the `ADV`-alone figures, not this four-cell reading.) Group floor across the nine is **144** (group 8). **`BAS`/`INT`/`ADV` do not partition the base** — `EDU_AGGREGATE_LTB` (present for group 4 at the reconciled year for **81** of the 149) and `EDU_AGGREGATE_X` sit outside them. **The residual is not a narrow range**: median 0.8%, but **27 of the 149 exceed 10%**, topping out at CMR 91.7% and AGO 91.0%, driven by `EDU_AGGREGATE_X` rather than `LTB` — Cameroon group 4 is `TOTAL` 254.3k against `X` 220.4k, so the three bands describe 8.3% of its clerical workers and all four rendered
+chips describe 13.3% — the figure R9's coverage floor actually tests → R9's coverage floor |
 | Google Fonts — Geist, Geist Mono, Instrument Serif | live `curl` css2, 2026-08-31 | All three HTTP 200. Geist serves 300–600, Instrument Serif serves normal and italic (the canvas headline needs italic) |
 | `shadcn` on npm + `ui.shadcn.com/docs/components-json` | registry `curl` + docs fetch, 2026-08-31 | Latest **4.19.1** (published 2026-08-31). `tsx: false` "allows components to be added as JavaScript with the `.jsx` file extension"; for Tailwind v4 the `tailwind.config` field is "left blank" |
 | A published source for the **replacement year** | web search, 2026-08-31 | **Not found.** Nearest published work is US-only, decadal occupational *churn* on 1950/2010 US census classifications (IPUMS / Minnesota Population Center; ITIF 1850–2015). Not ISCO-08, not per country, and churn ≠ AI displacement. Nothing publishes "years until half of ISCO group N is displaced" → R13 |
@@ -203,9 +204,22 @@ today there is one family share per band.
 **Each new per-group field gets its own year companion.** That is this module's
 established shape, not a duplication: `build.py:234-245` already writes
 `prime_white_collar_year` and `late_career_white_collar_year` alongside their
-`_pct` fields, so a year per band per field is `CLAUDE.md`'s "record the year per
-field" being followed, not broken. `data_year_youth_occupation` keeps exactly the
-meaning it has today and is not re-reconciled.
+`_pct` fields, so a `_year` companion beside a `_pct` field is `CLAUDE.md`'s
+"record the year per field" being followed, not broken.
+`data_year_youth_occupation` keeps exactly the meaning it has today and is not
+re-reconciled.
+
+**Reconciliation is joint, not per band — one year per (country, group).** The
+cited precedent supplies the *companion-field pattern*, not the reconciliation:
+`build.py:238-245` reconciles each band independently, which would give 27 year
+values per country and per-band coverage of 152 / 158 / 153 at group 4 against
+149 joint. Joint is required here for a reason the precedent does not face: the
+three bands are shares of one `YGE15` denominator, so bands taken from different
+years do not compose — they would not sum to the group's whole, and the result
+screen would show a breakdown whose parts came from different surveys. So the
+value is taken at the most recent year carrying **all three bands and the
+denominator together**, and that year is written once per (country, group):
+**9 new `_year` fields, not 27.**
 
 Two reasons this cannot instead be one shared field, both measured:
 
@@ -236,9 +250,9 @@ every one of the nine groups carries at least 140** (measured floor 144, group
 1 — stated deliberately so a criterion cannot pass on clerical while failing on
 managers); no second reader over `DF_EMP_TEMP_SEX_AGE_OCU_NB` is introduced and
 `load_youth_occupation`'s existing outputs are unchanged; `field_tiers` names
-every new field; each new per-group field has a non-null `_year` companion
-wherever it has a value, and the result screen can state a vintage for any of the
-nine groups;
+every new field; there are exactly **9** new age `_year` fields, one per group,
+each non-null wherever that group's bands carry values, so the result screen can
+state a vintage for any of the nine groups;
 `npm run test:pipeline` passes with a case asserting an uncovered country stays
 null; selecting an age band in step 03 changes the figure shown.
 
@@ -249,8 +263,16 @@ As R8, from `DF_EMP_TEMP_SEX_OCU_EDU_NB`, added to `ILO_FLOWS` in
 `age_occupation`, `lfp_by_age`) with **`startPeriod=2013`** — the unrestricted
 flow is 90.5 MB against 55.5 MB restricted, and 2013 matches the other flows.
 Unlike R8 this flow is genuinely new — nothing reads it today — so it gets its
-own reader and its own `data_year_edu_occupation` / `_range` pair, following the
-shape `load_youth_occupation` already uses. Vintage rule as R8.
+own reader. **And, exactly as R8, its year is per (country, group), not per
+country**: the reconciled year varies across the nine groups for **43 of the 149**
+countries carrying group 4 — wider than the age flow's 34, and with bigger
+spreads (TUV runs 2016–2022 across its groups; CMR is 2014 at group 2 against
+2021 elsewhere; MOZ 2015 at group 9; GEO 2019 at group 1 against 2025). R10
+requires each value to be shown with its own year, and one `data_year_edu_occupation`
+cannot say which group sits where. So: **9 new `_year` fields, one per group**,
+reconciled jointly over `BAS`/`INT`/`ADV` plus `EDU_AGGREGATE_TOTAL` for the same
+denominator reason as R8. A single `_range` may be kept as a summary; it is not
+the field R10 reads.
 
 **The denominator is `EDU_AGGREGATE_TOTAL`, never the sum of the three bands.**
 `BAS`/`INT`/`ADV` do not partition the base: `EDU_AGGREGATE_LTB` and
@@ -404,8 +426,12 @@ is why it is a requirement rather than only a note in `CLAUDE.md`.
 `grep -rEn '\b20(2[89]|[3-7][0-9])\b' src/components/wizard/` returns nothing
 (the file check keeps this from passing vacuously; the range correctly excludes
 2025 and 2026, so the sparkline axis and `data_year_occupation` do not trip it);
-no build renders a four-digit year as the result headline; the intro screen's
-claim does not reference a year, a date or a countdown; the result screen's own
+no build renders a four-digit year as the result headline; **manual, recorded in
+the Verification section** — the intro screen's claim references no year, date or
+countdown, *in words as well as digits*: the grep above catches a `2041` in
+`IntroScreen.jsx` but not "in under two decades", "how long you have" or "the
+countdown for your job", and what is being judged is copy rather than a function,
+so this is the honest shape for it; the result screen's own
 copy states that no displacement date is published, and links to the method
 panel.
 
@@ -499,14 +525,38 @@ stand-in decision (R12), the absence rules (R15), the method-panel term list
 rather than a branch inside JSX.
 
 R4 and R5 remain manual: token rendering and computed touch targets genuinely
-need a browser, and this requirement does not pretend otherwise. R15's tail — the
-hand-review of its fallback grep — is manual too, and is recorded in the
-Verification section rather than left implied.
+need a browser, and this requirement does not pretend otherwise. Two tails are
+manual too, and both are recorded in the Verification section rather than left
+implied: R15's hand-review of its fallback grep, and R14's intro copy, which is a
+copy judgement rather than a function.
 
 **Acceptance:** `npm test` runs Vitest and `npm run verify` invokes it; the
-suites named in R6, R7, R9, R10, R11, R12, R15, R16 and R18 all exist and pass;
+suites named in R6, R7, R9, R10, R11, R12, R15, R16, R18 and R20 all exist and
+pass;
 each of those requirements' criteria is executed by a test rather than asserted
 in prose; `npm run verify` fails if any of them fails.
+
+### R20. [ ] The per-group cross-tabs do not ship in the initial payload
+
+R8 and R9 together add **81 columns** to every row — 27 age shares plus 9 years,
+36 education shares plus 9 years — on top of the current 84. `global_labor.json`
+is **593 KB** today across 229 rows; carrying the cross-tabs in it lands the
+initial download near **1.2 MB**, and all but one row describes a country the
+reader did not pick.
+
+This is the mobile-first spec, so it is the wrong place to let that happen
+silently. The per-group age and education cross-tabs ship in a **separate
+artefact fetched for the chosen country**, after step 01, rather than in the
+bundle the intro screen waits on. The existing payload keeps its current shape
+and roughly its current size.
+
+This is not #26 (per-route data for the whole app); it is the narrower rule that
+this spec's own additions must not land in the initial load.
+
+**Acceptance:** `src/data/global_labor.json` grows by no more than 10% against
+its pre-R8 size; no `iscoN_*_age_*` or `iscoN_*_edu_*` field appears in it; the
+intro screen renders without having fetched any cross-tab; a unit test (R19)
+asserts the cross-tab loader is not called before a country is chosen.
 
 ## Verification section
 
@@ -519,6 +569,7 @@ for R15 record the grep output and what was concluded.*
 | R4 — palette renders | | |
 | R5 — touch targets, focus ring | | |
 | R15 — fallback grep output reviewed by hand | | |
+| R14 — intro copy reviewed by hand (no year, date or countdown, in words as well as digits) | | |
 
 ## Non-goals
 

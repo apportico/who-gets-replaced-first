@@ -122,33 +122,52 @@ R14 does not ship, and `CLAUDE.md` says to add only what a screen uses.
 `.tailwind.config === ""`; every file under `src/components/ui/` ends `.jsx`;
 the build resolves an `@/` import; `npm run lint` and `npm run build` both pass.
 
-### R4. [ ] The shadcn defaults are overwritten, not shipped
+### R4. [~] The shadcn defaults are overwritten, not shipped
 
 The generated components must render in the canvas palette — dark by default on
 `:root`, not only under `.dark`. Restyle by extending each component's `cva`
 variants and the CSS tokens, not by stacking overriding `className`s at call
 sites.
 
-**Acceptance:** `grep -c 'oklch(' src/styles/index.css` returns 0 (no shadcn
-default token value survives) and `grep -rn 'class="dark"\|className="dark"'
-src/ index.html` returns nothing — both runnable. **Manual, recorded in the
-verification section of this spec:** load `/` and confirm the ground is
-`#0D0C0A` and the primary `#FF5A2B`. This one needs a browser; per `CLAUDE.md`,
-a clean build is not evidence the page renders.
+**Acceptance (revised 2026-08-31 — see below):** `grep -c 'oklch('
+src/styles/index.css` returns 0 and no `class="dark"` appears in `src/` or
+`index.html`; and `computed.test.jsx` renders the app with the real stylesheet
+injected and asserts the **computed** values on real elements — `--bg` is
+`#0D0C0A`, the mapped shadcn names resolve to the canvas tokens rather than to
+defaults, `body`'s background computes to `#0D0C0A`, and no `.dark` class exists
+in the rendered tree.
 
-### R5. [ ] The wizard shell — five screens, progress, motion, focus
+**`[~]` revised.** The criterion was "load `/` and confirm the ground is
+`#0D0C0A`" — a person looking at a browser. jsdom cannot do layout, but it does
+do the **cascade**: it resolves selector matching, specificity and inheritance,
+and it resolves custom properties on `:root`. It does not substitute `var()`
+inside a declaration, so the suite resolves that indirection in one explicit
+step. That fails on everything a text grep cannot see — a selector that does not
+match, a rule another rule overrides, a token that is never defined, a class the
+component stopped applying. **Still outstanding and browser-only:** the actually
+painted colour.
+
+### R5. [~] The wizard shell — five screens, progress, motion, focus
 
 Sticky header with the live dot, title and `NN/04` over a four-segment progress
 bar. Screens: intro, country, occupation, optional, result. Steps 01–03 carry
 the sticky footer CTA over the gradient fade. `stepin` on mount. Mounted by
 `App.jsx` per R1.
 
-**Acceptance:** **Manual, recorded in the verification section**, because
-computed-style assertions need a rendered DOM and R19's runner is
-`jsdom`-based, not a browser: every interactive element computes `min-height >=
-48px`, the primary CTA `>= 60px`, `:focus-visible` computes to `2px solid
-#FF5A2B` with `outline-offset: 3px`, and the column is `max-width: 480px`.
-Record what was loaded, at what viewport, and what was seen.
+**Acceptance (revised 2026-08-31):** `computed.test.jsx` renders the wizard
+with the real stylesheet injected and asserts on the elements themselves: the
+primary CTA computes a 60px floor, a country option 56px, the tertiary action
+48px, nothing interactive on the intro declares under 48px, and the column token
+is 480px. The focus ring and the four keyframes are asserted in
+`tokens.test.js`.
+
+**`[~]` revised.** The criterion assumed jsdom could not check any of this
+because it does no layout. That conflated layout with the cascade: `min-height`
+is a *declared* property, not a layout outcome, so a computed value of 60px
+means the browser will honour it. **Still outstanding and browser-only:** what a
+60px min-height actually paints against its content and box model, and whether
+the three fonts load — the second of which is why the `@import` position defect
+mattered and is now its own regression test.
 
 ### R6. [x] Step 01 — country, tagged by what the data actually carries
 
@@ -670,15 +689,18 @@ for R15 record the grep output and what was concluded.*
 |---|---|---|
 | R15 — fallback grep output reviewed by hand | 2026-08-31 | **Pass.** `grep -rn 'region\|world\|average\|median' src/components/wizard/ src/utils/` returns 10 lines, all reviewed: `absence.js:6` and `terms.js:95` are prose; `countryTag.js:55-63` uses `region` for the **locale subtag** (`GB` in `en-GB`) to prefill the country, not a `row_type: 'region'` aggregate; the rest are `wizard.test.js` asserting that no borrowing happens. **No fallback path exists.** |
 | R14 — intro copy reviewed by hand | 2026-08-31 | **Closed by test instead**, and it asserts both halves rather than only the absence — R14 exists because absence alone is not enough, so a criterion checking only for absence would miss the half that matters. Negative: `wizard.render.test.jsx` finds no four-digit projection year and none of `countdown` / `how long you have` / `years until` in the rendered intro. **Positive:** it asserts the claim the intro *does* make (`Measured, not forecast`), and that the result screen states in words that no displacement date is published. |
-| R4 — palette renders | **not run** | The runnable halves pass: `oklch(` count is 0, no `class="dark"` anywhere, and `tokens.test.js` asserts all seven palette tokens carry the canvas values and that shadcn's own token names map onto them. **The rendered half is outstanding** — it needs a browser to confirm the ground paints `#0D0C0A` and the primary `#FF5A2B`. |
-| R5 — touch targets, focus ring | **not run** | `tokens.test.js` asserts the declarations: `.wz-cta` carries `--tap-primary` (60px), `.wz-option` 56px, `.wz-tertiary` 48px, the focus ring is `2px solid var(--accent)` at `outline-offset: 3px` and `outline: none` appears nowhere, and the column is capped at 480px. **Computed layout is outstanding** — jsdom does no layout, so confirming what those rules actually resolve to needs a browser. |
+| R4 — palette renders | 2026-08-31 | **Closed by computed-style test** (`[~]`). `computed.test.jsx` injects the real stylesheet, renders the app and asserts the computed cascade on real elements. Residual, browser-only: the actually painted colour. |
+| R5 — touch targets, focus ring | 2026-08-31 | **Closed by computed-style test** (`[~]`). The CTA computes 60px, an option 56px, the tertiary 48px, and nothing interactive on the intro declares under 48px — asserted on the elements, not on the file. Residual, browser-only: what those floors paint against real content, and whether the three fonts load. |
 
-**Why the last two are still open.** Both need `getComputedStyle` in a real
-engine. Playwright would close them and is deliberately a Non-goal below: it is
-a CI dependency this repo has not taken, and two criteria do not justify it. The
-Chrome extension that would have driven a manual pass was not connected in the
-session that implemented this, so the checks are recorded as not run rather than
-asserted. Everything the CSS can be held to without a browser is now a test.
+**What is left, precisely.** Not "R4 and R5 are unverified" — the cascade,
+the tokens, the selectors and the floors are all asserted against a rendered
+tree. What no engine without layout can give is the painted result: the colour
+as rasterised, the box a 60px floor produces against its content, and whether
+the three font faces actually arrive. Playwright would close those and is
+deliberately a Non-goal below. A person loading `/` at 375px is the cheapest way
+to close them, and the one defect this class of check already caught — the
+dropped font `@import` — is now its own regression test rather than something a
+viewer would have to notice.
 
 ## Implementation Plan
 

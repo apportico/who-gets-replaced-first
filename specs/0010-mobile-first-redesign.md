@@ -1,6 +1,6 @@
 # 0010 — mobile-first redesign
 
-**Status:** draft
+**Status:** in-review
 **Depends on:** 0009 (the app payload is regenerated from `run.py` and guarded against drift)
 **Issue:** [#61](https://github.com/apportico/who-gets-replaced-first/issues/61)
 

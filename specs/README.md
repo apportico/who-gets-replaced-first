@@ -48,7 +48,7 @@ build-first-document-later approach.
 | [0006](0006-eslint-worktree-ignores.md) | ESLint ignores worktrees and nested build output | done — 3 done |
 | [0007](0007-pipeline-typescript-port.md) | Port the pipeline Python → TypeScript, verified byte-identical against the committed outputs | approved — 11 requirements, none implemented |
 | [0009](0009-app-payload-drift.md) | The app payloads cannot drift from the code that writes them — regenerate `global_labor.json`, guard both | done — 6 done |
-| [0010](0010-mobile-first-redesign.md) | Mobile-first rebuild — the Replacement Date wizard on shadcn/ui, map and corridor overlay deleted | draft — 17 requirements |
+| [0010](0010-mobile-first-redesign.md) | Mobile-first rebuild — the Replacement Date wizard on shadcn/ui, map and corridor overlay deleted | in-review — 17 requirements |
 
 ## Starting a new spec
 

@@ -1,4 +1,168 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* ===========================================================================
+   Spec 0010 R2 / R4 — the design contract, in tokens.
+   Extracted from the canvas; see CLAUDE.md, "The design: The Replacement Date".
+   Every colour, radius and type step the wizard uses is defined here. A raw hex
+   inside src/components/wizard/ is a review finding, not a shortcut.
+
+   Dark only. The palette sits on bare :root rather than under .dark, because
+   dark is this app's default rather than a variant — there is no light theme to
+   switch back to.
+   =========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* -- canvas palette ---------------------------------------------------- */
+  --bg:           #0D0C0A;   /* page */
+  --surface:      #161411;   /* cards, inputs, unselected options */
+  --fg:           #E8E4DA;   /* body text */
+  --fg-strong:    #F2EFE6;   /* display type; fill of a selected option */
+  --accent:       #FF5A2B;   /* primary, progress fill, focus ring, live dot */
+  --accent-hover: #FF7A4D;   /* hover state on the primary action */
+  --accent-soft:  #FF9670;   /* caveat text on accent-tinted panels */
+
+  /* Borders and secondary text are one colour at many alphas. Named by job
+     rather than by number so a call site says what it means. */
+  --hairline:     rgba(232, 228, 218, 0.09);
+  --border:       rgba(232, 228, 218, 0.14);
+  --border-strong:rgba(232, 228, 218, 0.35);
+  --muted:        rgba(232, 228, 218, 0.45);
+  --muted-strong: rgba(232, 228, 218, 0.72);
+  --accent-tint:  rgba(255, 90, 43, 0.10);
+  --accent-edge:  rgba(255, 90, 43, 0.34);
+
+  /* -- radii ------------------------------------------------------------- */
+  --radius-control: 14px;  /* controls, inputs, small cards */
+  --radius-card:    18px;  /* stat and panel cards */
+  --radius-pill:    99px;  /* buttons, pills, badges */
+
+  /* -- touch targets ----------------------------------------------------- */
+  --tap-primary:   60px;
+  --tap-option:    56px;
+  --tap-tertiary:  48px;
+
+  /* -- type -------------------------------------------------------------- */
+  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-body:    'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:    'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* -- layout ------------------------------------------------------------ */
+  --column: 480px;
+  --gutter: 22px;
+}
+
+/* shadcn/ui reads these names. Mapping them to the canvas palette here is what
+   R4 means by "the defaults are overwritten, not shipped": none of the
+   perceptual-colour values `shadcn init` emits survives, and every generated
+   component inherits the canvas rather than neutral stone. R4's criterion greps
+   this file for that function name, so it must not appear even in a comment. */
+:root {
+  --background:            var(--bg);
+  --foreground:            var(--fg);
+  --card:                  var(--surface);
+  --card-foreground:       var(--fg);
+  --popover:               var(--surface);
+  --popover-foreground:    var(--fg);
+  --primary:               var(--accent);
+  --primary-foreground:    var(--bg);
+  --secondary:             var(--surface);
+  --secondary-foreground:  var(--fg);
+  --muted-bg:              var(--surface);
+  --muted-foreground:      var(--muted);
+  --accent-bg:             var(--surface);
+  --accent-foreground:     var(--fg-strong);
+  --destructive:           var(--accent);
+  --border-color:          var(--border);
+  --input:                 var(--border);
+  --ring:                  var(--accent);
+  --radius:                var(--radius-control);
+}
+
+@theme inline {
+  --color-background:           var(--background);
+  --color-foreground:           var(--foreground);
+  --color-card:                 var(--card);
+  --color-card-foreground:      var(--card-foreground);
+  --color-popover:              var(--popover);
+  --color-popover-foreground:   var(--popover-foreground);
+  --color-primary:              var(--primary);
+  --color-primary-foreground:   var(--primary-foreground);
+  --color-secondary:            var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:                var(--muted-bg);
+  --color-muted-foreground:     var(--muted-foreground);
+  --color-accent:               var(--accent-bg);
+  --color-accent-foreground:    var(--accent-foreground);
+  --color-destructive:          var(--destructive);
+  --color-border:               var(--border-color);
+  --color-input:                var(--input);
+  --color-ring:                 var(--ring);
+  --font-sans:                  var(--font-body);
+  --font-mono:                  var(--font-mono);
+  --font-serif:                 var(--font-display);
+  --radius-sm:                  var(--radius-control);
+  --radius-md:                  var(--radius-control);
+  --radius-lg:                  var(--radius-card);
+  --radius-xl:                  var(--radius-pill);
+}
+
+/* ---------------------------------------------------------------------------
+   Fonts. Loaded from Google Fonts, probed 2026-08-31: all three return 200 and
+   Instrument Serif serves its italic face, which the headline needs. Every
+   family carries a real fallback stack above, so a blocked request degrades to
+   a system font rather than to nothing.
+   --------------------------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300..600&family=Geist+Mono:wght@400..500&family=Instrument+Serif:ital@0;1&display=swap');
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+/* R5. Never removed, and the same ring everywhere. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+::placeholder { color: var(--muted); }
+
+/* ---------------------------------------------------------------------------
+   Motion. FOUR keyframes, not the canvas's five: `band` animated the interval
+   band, and R14 does not ship one. See CLAUDE.md, "Motion and focus".
+   --------------------------------------------------------------------------- */
+@keyframes stepin { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes fade   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes draw   { from { stroke-dashoffset: 400; } to { stroke-dashoffset: 0; } }
+@keyframes pulse  { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Everything below is the deleted map's styling. Spec 0010 R1 removes it along
+   with LaborMap and Leaflet; it is left in place until that step so the map
+   keeps working while the wizard is built alongside it.
+   --------------------------------------------------------------------------- */
 
 /* Leaflet required height */
 .leaflet-container {

@@ -14,6 +14,15 @@ echo "==> build"
 npm run --silent build || fail "build"
 
 echo ""
+# Spec 0010 R19. The JS suite. Added to `verify` in the same change that
+# introduced it, per CLAUDE.md's rule that a check added to CI is added here —
+# otherwise a contributor who is green locally lands red on the gate.
+# Unconditional like the pipeline suite: vitest runs over pure functions and the
+# committed payload, so it needs no network and no response cache.
+echo "==> js tests"
+npm run --silent test || fail "js tests"
+
+echo ""
 # Spec 0004's regression suite. Unconditional, unlike the pilot below: the
 # gzipped fixture and the CSVs it reads are all in-tree, so it runs in a fresh
 # clone with no network and no cache. This is the step that guards the numbers,

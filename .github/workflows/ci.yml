@@ -57,9 +57,14 @@ jobs:
       - name: pipeline tests
         run: npm run test:pipeline
 
-      # Spec 0008's suite — the step that guards the tier palette and the app's
-      # accessibility structure. `npm run verify` runs it too, so this is a named
-      # step purely so it fails distinguishably from lint on the checks list,
-      # matching the pipeline tests above. Needs no browser and no network.
+      # Spec 0008's node --test suite. Five of its six files went with the map
+      # spec 0010 R1 deletes, so what remains is the lint-config guard: it
+      # asserts that the .mjs scripts and suite sit in a lint config block that
+      # gives them Node globals. It does NOT guard the tier palette or the app's
+      # accessibility structure any more — 0008's AA rule moved to
+      # src/styles/contrast.test.js and runs in the js tests step above.
+      #
+      # `npm run verify` runs this too; the named step exists so it fails
+      # distinguishably from lint on the checks list.
       - name: app tests
         run: npm run test:app

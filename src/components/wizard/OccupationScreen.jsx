@@ -61,7 +61,7 @@ export default function OccupationScreen({ group, onPick, onNext }) {
                 style={{
                   flex: 'none', marginTop: 2, width: 18, height: 18, borderRadius: '50%',
                   background: 'var(--accent)', color: 'var(--bg)',
-                  fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500,
+                  fontFamily: 'var(--font-mono)', fontSize: 'var(--step-badge)', fontWeight: 500,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >

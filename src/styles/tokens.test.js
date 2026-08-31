@@ -48,10 +48,12 @@ describe('R2 — the canvas tokens are declared, with the canvas values', () => 
     for (const [name, value] of [
       ['--step-h1', '66px'], ['--step-h2', '46px'], ['--step-stat', '38px'],
       ['--step-lede', '17.5px'], ['--step-body', '15px'], ['--step-note', '12.5px'],
-      // 11px, not the canvas's 8-9px: spec 0008 R4 raised badge and label text
-      // to at least 11px and is [x] on main, so 0010 R21 carries it. The canvas
-      // values would revert a done accessibility fix.
-      ['--step-meta', '11px'], ['--step-badge', '11px'], ['--step-eyebrow', '10px'],
+      // 11px across every mono label, not just badges. 0008 R4's sentence names
+      // badge text, but 0008 records its closure as "the 7-10px labels that
+      // carry meaning are raised to 11px" — eyebrows, accordion triggers,
+      // tertiary actions and band chips all carry meaning. Raising only the
+      // badge token carried half of R4 and left the rest at the pre-fix size.
+      ['--step-meta', '11px'], ['--step-badge', '11px'], ['--step-eyebrow', '11px'],
     ]) {
       expect(css).toMatch(new RegExp(`${name}:\\s*${value.replace('.', '\\.')}`))
     }
@@ -137,6 +139,20 @@ describe('R4 — the shadcn defaults are overwritten, not shipped', () => {
 })
 
 describe('R5 — the touch targets and the focus ring are declared', () => {
+  it('no mono label ships below the 11px floor 0008 R4 set', () => {
+    // The token being right is not the same as the screens rendering it. Two
+    // inline `fontSize: 10` overrides sat on .wz-meta elements — one of them on
+    // the country row's provenance tag, across 218 rendered rows — while
+    // tokens.test asserted the token as evidence the floor was carried. That is
+    // the assert-the-token-not-the-outcome shape, so both are checked now.
+    const monoRules = [...css.matchAll(/font-family:\s*var\(--font-mono\)[^;]*;\s*font-size:\s*([^;]+);/g)]
+    expect(monoRules.length).toBeGreaterThan(0)
+    for (const [, size] of monoRules) {
+      const px = size.trim().endsWith('px') ? parseFloat(size) : null
+      if (px !== null) expect(px).toBeGreaterThanOrEqual(11)
+    }
+  })
+
   it('the two Radix components that ship meet the floor', () => {
     // shadcn ships h-9 (36px) on the toggle and the accordion trigger.
     //

@@ -104,8 +104,43 @@ describe('R14 — no year reaches the screen, in words or digits', () => {
       const t = document.body.textContent
       expect(t).toContain('8.9%')      // R10, with its tier and vintage
       expect(t).toContain('2.99M')     // R11, derived
-      expect(t).toContain('DERIVED')
       expect(t).toContain('Share since 2013')  // R12
+    })
+  })
+
+  it('every figure on the result screen carries a tier badge', async () => {
+    // The census, replacing what the merge deleted with field-tiers.test.mjs.
+    //
+    // This exists because `toContain('DERIVED')` did not: one badge anywhere on
+    // the screen satisfied it, so it was green on every SHA where the age and
+    // education figures carried no tier at all. The check that was supposed to
+    // cover this is the check that watched the defect ship.
+    //
+    // Counting both sides is the point, and it is what field-tiers.test.mjs did
+    // in substance: a dropped badge fails, and so does a badge with no figure.
+    // `toContain` can see neither.
+    startWizard()
+    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    // Pick a band on each dimension so the cross-tab figures render — they are
+    // the two that shipped without a tier, so a census that skips them is the
+    // old assertion with more steps.
+    await waitFor(() =>
+      expect(document.querySelectorAll('[data-slot="toggle-group-item"]').length)
+        .toBeGreaterThan(0))
+    const chips = screen.getAllByRole('radio')
+    fireEvent.click(chips[0])
+    fireEvent.click(chips[chips.length - 1])
+    fireEvent.click(screen.getByRole('button', { name: /see the figures/i }))
+
+    await waitFor(() => {
+      const tiers = screen.getAllByText(/^(OFFICIAL|DERIVED|PROXY|MODELED)$/)
+      // share, headcount, age, education, trend
+      expect(tiers).toHaveLength(5)
     })
   })
 })

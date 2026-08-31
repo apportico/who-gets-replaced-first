@@ -128,15 +128,25 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     // A missing declaration is now a failure, not a skip. It also walks all
     // five screens rather than the intro, which had exactly one button.
     const offenders = []
-    let visited = 0
+    // Counted PER SWEEP, not across all five. A single total against a
+    // threshold of 200 was satisfied by the country screen alone — it renders
+    // 218 options — so every later screen contributed nothing the assertion
+    // could see, and a ResultScreen rendering no interactive element at all
+    // would have passed with offenders [] and visited 219.
+    //
+    // Third time in three rounds I have written a guard that cannot fail for
+    // the case it names. The pattern each time: assert a total where the thing
+    // that can break is a part.
     const sweep = (where) => {
+      let seen = 0
       for (const el of document.querySelectorAll('button, input, a[href], [tabindex]')) {
-        visited += 1
+        seen += 1
         const mh = resolved(el, 'min-height')
         const label = `${where}: ${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').slice(0, 28)}"`
         if (!mh || mh === 'auto' || mh === '0px') offenders.push([label, 'no floor declared'])
         else if (mh.endsWith('px') && parseFloat(mh) < 48) offenders.push([label, mh])
       }
+      expect(seen, `${where} rendered no interactive elements`).toBeGreaterThan(0)
     }
 
     cleanup(); render(<App />)
@@ -154,10 +164,6 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     sweep('result')
 
     expect(offenders).toEqual([])
-    // A sweep that visited nothing also reports []. The country screen alone
-    // renders 218 options, so this is comfortably above any plausible floor and
-    // fails loudly if a screen stops rendering.
-    expect(visited).toBeGreaterThan(200)
   })
 
   it('a band chip computes the 56px option floor, not the 48px tertiary one', async () => {

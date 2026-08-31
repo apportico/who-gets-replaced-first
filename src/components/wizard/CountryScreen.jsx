@@ -35,7 +35,11 @@ export default function CountryScreen({ rows, iso3, onPick, onNext }) {
               <span
                 className="wz-meta"
                 style={{
-                  fontSize: 10,
+                  // No fontSize override: .wz-meta's 11px stands. This is a
+                  // provenance tag, not decoration -- it is the only thing on
+                  // the row telling a reader whether their country has a series
+                  // at all -- and an inline 10px here put 218 rendered rows out
+                  // of step with the token the suite asserts.
                   letterSpacing: '0.12em',
                   color: c.iso3 === iso3 ? 'color-mix(in srgb, var(--bg) 55%, transparent)' : 'var(--muted)',
                 }}

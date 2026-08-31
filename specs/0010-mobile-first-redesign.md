@@ -1,6 +1,6 @@
 # 0010 — mobile-first redesign
 
-**Status:** in-review
+**Status:** in-progress
 **Depends on:** 0009 (the app payload is regenerated from `run.py` and guarded against drift)
 **Issue:** [#61](https://github.com/apportico/who-gets-replaced-first/issues/61)
 
@@ -670,6 +670,126 @@ for R15 record the grep output and what was concluded.*
 | R5 — touch targets, focus ring | | |
 | R15 — fallback grep output reviewed by hand | | |
 | R14 — intro copy reviewed by hand (no year, date or countdown, in words as well as digits) | | |
+
+## Implementation Plan
+
+**Planned:** 2026-08-31
+
+### Files to create
+
+- `src/utils/` — the pure functions R19 requires: `resolveTitle.js`,
+  `countryTag.js`, `groupFigures.js`, `trend.js`, `absence.js`, `terms.js`,
+  `classification.js`, `crossTabs.js`
+- `src/components/wizard/` — `WizardShell.jsx`, `IntroScreen.jsx`,
+  `CountryScreen.jsx`, `OccupationScreen.jsx`, `OptionalScreen.jsx`,
+  `ResultScreen.jsx`
+- `src/components/ui/*.jsx` — shadcn output, six components
+- `src/data/crosstabs/<ISO3>.json` — one per-country artefact each (R20)
+- `vitest.config.js`, `jsconfig.json`, `components.json`
+- `pipeline/tests/test_crosstabs.py` — the R20 drift guard
+
+### Files to modify
+
+`pipeline/config.py` (new flow, bands, 81 tier entries) ·
+`pipeline/build.py` (extend `load_youth_occupation`; new `load_edu_occupation`) ·
+`pipeline/run.py` (`COLUMNS`, the exclusion after the tier gate, the artefact
+writer) · `pipeline/tests/test_app_payloads.py:334` (teach the exclusion; `:201`
+**left untouched**) · `pipeline/tests/fixtures/` (regenerate) ·
+`src/styles/index.css` · `vite.config.js` · `package.json` · `src/App.jsx` ·
+`scripts/verify.sh`
+
+### Sequence
+
+**A — Tooling.** 1) R19's runner: Vitest + jsdom, `npm test`, wired into
+`verify` in the same change. 2) R3: shadcn init with `tsx: false` and a blank
+`tailwind.config`, `@/` alias in **both** `jsconfig.json` and `vite.config.js`.
+3) R2 and R4: tokens, the three fonts, the four keyframes, defaults overwritten.
+
+**B — Pipeline.** 4) R8. 5) R9, including the fixture cache slice for the new
+flow. 6) R20's pipeline half: the exclusion placed after the `untiered` gate, the
+per-country writer, `test_every_cell_matches_the_dataset_csv` taught the
+exclusion, the new guard, and the committed CSVs plus golden fixture
+regenerated.
+
+**C — Logic.** 7) The seven util modules with their Vitest suites — R6, R7, R10,
+R11, R12, R15, R16, R18. Pure functions over the payload, no DOM, no working app
+required.
+
+**D — App.** 8) R1 and R5 land **together**, so the app is never left broken:
+the deletion and the new mount point are one change. 9) The screens, consuming
+step 7. 10) R20's app half: the loader, its own load state, and the failed-fetch
+branch kept distinct from absence.
+
+**E — Close.** 11) R17. 12) The four manual checks recorded in the Verification
+section.
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | Delete seven components, `corridorStates.js` and the two corridor snapshots; prune to the eight kept exports; `App.jsx` becomes the shell's mount point | `src/` | `git ls-files` returns nothing for the deleted paths; `grep -rn "leaflet" src/ package.json package-lock.json` empty; the twelve-name export grep empty |
+| R2 | Palette, radii, type scale and four keyframes as custom properties; Geist, Geist Mono, Instrument Serif with fallbacks | `src/styles/index.css` | `grep -c -- '--accent: *#FF5A2B'` returns 1; `ResultScreen.jsx` exists **and** the hex grep over `wizard/` is empty |
+| R3 | shadcn CLI, six components, `slider` excluded | `components.json`, `src/components/ui/` | `.tsx === false`, `.tailwind.config === ""`; every `ui/` file `.jsx`; lint and build pass |
+| R4 | Palette on `:root`; restyle via `cva` variants and tokens | `src/components/ui/` | `grep -c 'oklch('` returns 0; no `class="dark"`; **manual** — palette renders |
+| R5 | Sticky header, four-segment progress, five screens, `stepin` | `wizard/WizardShell.jsx` | **manual** — 48px/60px targets, focus ring, 480px column |
+| R6 | `countryTag.js`, reading "any of the nine" | `src/utils/` | Vitest — 177 rows tagged `official series`; all-null row tagged `no series` |
+| R7 | `resolveTitle.js`, a pure resolver | `src/utils/` | Vitest — `paralegal`→3, `bookkeeper`→4, `zzzz`→null |
+| R8 | Extend `load_youth_occupation` to nine groups per band, joint reconciliation, 27 shares + 9 `_year` | `pipeline/build.py` | `npm run pipeline` — group 4 ≥ 145, every group ≥ 140; exactly 9 age `_year` fields; `load_youth_occupation`'s existing outputs unchanged |
+| R9 | New `ILO_FLOWS` entry and loader; `TOTAL` denominator; four-chip 90% floor | `pipeline/build.py`, `config.py` | `npm run pipeline` — group 4 ≥ 130, every group ≥ 125; Vitest — CMR withheld, DJI not |
+| R10 | `groupFigures.js`, including R6's withdrawal branch | `src/utils/` | Vitest — GBR × group 4 gives 8.9%, `DERIVED`, 2025; a null group gives the stated-absence branch |
+| R11 | `round(share / 100 × employed_total)`, labelled as a two-source join | `src/utils/groupFigures.js` | Vitest — GBR × 4 gives 2.99M; GBR × 7 derived; a synthetic null-`employed_total` row gives no headcount |
+| R12 | `trend.js` deciding the stand-in; reuse `seriesFor` and `Sparkline` | `src/utils/` | Vitest — group 4 no notice; group 7 notice or no panel; absent series no sparkline |
+| R13 | Already `[!]` — the probe is recorded in *Source verification* | — | No implementation work |
+| R14 | Result and intro ship with no year, band or slider | `wizard/` | The year-range grep over `wizard/` empty with `ResultScreen.jsx` present; **manual** — intro copy |
+| R15 | `absence.js` — nulls stay null, no fallback path | `src/utils/` | Vitest over synthetic rows; **manual** — the fallback grep's output reviewed |
+| R16 | `terms.js` exporting `termsFor(row, group)` | `src/utils/` | Vitest — the terms returned match the figures rendered, each with its tier |
+| R17 | Lint, build, the pipeline suite, the JS suite and the pilot anchors | `scripts/verify.sh` | `npm run verify` exits 0; the four anchors unmoved |
+| R18 | `classification.js` reading `isco_classification` | `src/utils/` | Vitest — CAN × 2 carries the ISCO-88 notice, GBR × 2 does not; present for all ten |
+| R19 | Vitest + jsdom; the logic above pushed into `src/utils/` | root, `src/utils/` | `npm test` runs Vitest; `verify` invokes it; the nine suites pass |
+| R20 | Exclusion after the `untiered` gate; one artefact per country; loader with its own state | `pipeline/run.py`, `src/utils/crossTabs.js` | The anchored regex prints `[]` over rows and tiers; payload ≤ 668,000 bytes; the columns present in the CSV; Vitest — only the chosen country fetched, failed fetch ≠ withheld branch |
+
+### Tier and vintage handling
+
+| New number | Tier | Tier recorded in | Year recorded in |
+|---|---|---|---|
+| 27 × `isco<N>_age_<band>_pct` | `DERIVED` | the cross-tab artefact's own tier block | `isco<N>_age_year` (9 fields) |
+| 36 × `isco<N>_edu_<band>_pct` | `DERIVED` | the cross-tab artefact's own tier block | `isco<N>_edu_year` (9 fields) |
+| Per-group headcount (R11) | `DERIVED` | the rendered label, naming both sources | inherits `data_year_occupation` |
+
+All 81 columns enter `COLUMNS` and `FIELD_TIERS`, so `global_labor_dataset.csv`
+and the SQLite carry them and `run.py`'s `untiered` gate covers them. Only
+`export_app_json` sheds them, and only after that gate has run.
+
+### Validation
+
+The existing `[validate]`, `[crosscheck]` and `[outliers]` blocks are unaffected:
+all four regression anchors read `emp_services_pct`, which this spec does not
+touch. New checks needed in `build.validate`:
+
+- every new share within 0–100;
+- the three age bands summing to ≈100 within a group;
+- the education chips summing to ≤100, strictly below it where a residual exists;
+- the coverage floor applied rather than assumed.
+
+Plus `pipeline/tests/test_crosstabs.py`, in the shape of
+`CommittedRowsMatchTheDataset`, so the per-country artefacts cannot drift.
+
+### Risks
+
+1. **The golden master must be re-fixtured offline.** `test_golden_master.py`
+   patches `getaddrinfo` to raise, so `fixtures/raw/` needs a slice of the new
+   education flow for the six pilot areas or the pilot cannot run at all. Highest
+   probability of blocking step 5.
+2. **218 per-country artefacts** is a lot of files to ship on GitHub Pages. If it
+   proves unworkable the fallback is a sharded index, which reopens R20's
+   one-file-versus-per-country decision — that would be a `[~]`, not a silent
+   change.
+3. **`test_columns.py:43` asserts header equality** with `run.COLUMNS`, so the
+   committed CSVs must regenerate in the same commit that adds the columns; a
+   partial commit reds the suite.
+4. **R9's flow is 55.5 MB** on a cold cache. First run is slow; re-runs offline.
+5. **R4, R5, R14 and R15 stay manual**, so `/evaluate` cannot close them — they
+   need the Verification section filled in by hand.
 
 ## Non-goals
 

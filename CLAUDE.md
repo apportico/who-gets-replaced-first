@@ -71,7 +71,16 @@ padding `22px`. A four-step wizard, not a dashboard:
 | 01 | Country | Pre-filled from locale; every row tagged `official series` / `no series` |
 | 02 | Occupation | Free-text title → one of the **nine ISCO-08 major groups**; the resolution is shown and overridable by chip, never silent |
 | 03 | Optional | Age band and education — both real cross-tabulated dimensions; skipping widens the interval and says so |
-| 04 | Result | The year, its interval, the scenario slider, two stat cards, the trend sparkline, and two accordions (method, back-test) |
+| 04 | Result | Two stat cards, the trend sparkline, and two accordions (method, back-test). **Not** the year, its interval or the scenario slider — see below |
+
+**The year apparatus does not ship.** The canvas's headline output is a projected
+replacement year, with an interval band and a three-notch adoption slider under
+it. Spec 0010 R13 is `[!] not feasible` — probed 2026-08-31, nothing publishes a
+displacement date per occupation — and R14 requires the result screen to read as
+finished without any of it: no year, no interval band, no scenario slider, no
+adoption assumption, and no placeholder where they sat. Everything else on the
+canvas's result screen ships. Treat the canvas as authoritative on layout and
+type, and this paragraph as authoritative on what is on the screen.
 
 A sticky header carries a pulsing live dot, the wizard title and `NN/04`, above a
 four-segment progress bar. Steps 01–03 carry a sticky footer CTA over a
@@ -150,10 +159,12 @@ screen is the one that states a number about the reader's own job:
   10.0% (2013) → 8.9% (2025). Those are `DERIVED` and may ship. What *is*
   invented is the year (2041), the three scenario years and the 2028–2072 axis.
   Those may not reach a build.
-- The canvas's own method panel marks **Duration** as not yet sourced. A
-  "replacement year" therefore has no verified source today, and per the rule at
-  the top of this file a requirement that names one is not ready to implement.
-  Probe first; `[!]` is an acceptable outcome for the year itself.
+- The canvas's own method panel marks **Duration** as not yet sourced. That probe
+  has now happened: spec 0010 R13 is `[!] not feasible` — the nearest published
+  work is US-only decadal occupational churn on US census classifications, which
+  is not ISCO-08, not per country, and not AI displacement. **No replacement year
+  ships, in any tier.** Reviving it as `MODELED` would need its own formula,
+  sensitivity analysis and issue, on the precedent of the exposure weights.
 
 ## The component layer: shadcn/ui
 
@@ -194,11 +205,11 @@ npx shadcn@latest add button card input badge toggle-group slider accordion
 | Primary CTA, skip, "Start again" | `Button` (pill `variant`s added to the local `buttonVariants`) |
 | Stat cards, method panel, scenario card | `Card` |
 | Job title field | `Input` (Instrument Serif 26px — restyled, not default) |
-| Tier badges, capability chips, `PROJECTED` | `Badge` |
+| Tier badges, capability chips | `Badge` (not the canvas's `PROJECTED` badge — it labels a projection that does not ship) |
 | Country rows, ISCO override chips, age/education | `ToggleGroup` + `ToggleGroupItem` |
-| Adoption scenario | `Slider` (three notches, keyboard-operable) |
+| ~~Adoption scenario~~ | ~~`Slider`~~ — does not ship (R14), so `slider` is **not** installed |
 | "How the number is built", "Back-test & error" | `Accordion` |
-| Progress bar, sparkline, interval band | Hand-rolled — four `div`s and an SVG beat a dependency |
+| Progress bar, sparkline | Hand-rolled — four `div`s and an SVG beat a dependency. The interval band does not ship (R14) |
 
 ### Rules
 

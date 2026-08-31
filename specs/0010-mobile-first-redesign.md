@@ -35,8 +35,9 @@ own `data_year_*` field.** The age share is not forced to align with
 This is not a new rule — it is `CLAUDE.md`'s existing one: *"Record the year per
 field. Vintages differ — population may be 2025 while occupation is 2017. Never
 present a row as a single-year snapshot."* Forcing alignment would be the novel
-choice, and it costs coverage: 158 → 132 countries for R8, 155 → 124 for R9.
-Both years are recorded, so the result screen can and must show them separately.
+choice, and it costs coverage: forcing alignment takes group 4 from **149 → 121**
+countries for R8 and **149 → 113** for R9. Both years are recorded, so the result
+screen can and must show them separately.
 
 ## Source verification
 
@@ -50,8 +51,8 @@ before the requirement naming it was written.
 | `src/data/global_labor.json` — classification | read, 2026-08-31 | Of the 177, **167 publish ISCO-08 and 10 publish ISCO-88** (BMU CAN MAC NAM NIC TTO TWN UKR YEM ZAF), carried in `isco_classification`. `pipeline/README.md` justifies the fallback for the aggregate 1–4 cut and warns the revision moved ICT occupations across the 2/3 boundary → R18 |
 | `src/data/global_labor.json` — headcounts | read, 2026-08-31 | Per-group headcount exists **only** for clerical, professionals, professional-core and white-collar. `round(share / 100 × employed_total)` reproduces `clerical_employed` for **177 of 177** countries exactly. **0 of 177** have a null `employed_total`. `employed_total` (World Bank) and `isco_source_employed_thousands` (ILO survey base) differ — GBR 33,728,592 vs 34,055,472 — so the headcount is a two-source join → R11 |
 | `src/data/global_labor_timeseries.json` | read, 2026-08-31 | `fields` × `years` × `series`; years 2013–2026, 226 series. Of the ISCO fields only **`isco4_clerical_pct`** is present (185 series carry a point). GBR runs 10.0247% (2013) → 8.8633% (2025), matching the canvas exactly |
-| ILOSTAT `DF_EMP_TEMP_SEX_AGE_OCU_NB` | live SDMX `curl`, 2026-08-31 — `https://sdmx.ilo.org/rest/data/ILO,DF_EMP_TEMP_SEX_AGE_OCU_NB,1.0/.A..SEX_T../?startPeriod=2013&format=csv` (also cached under `pipeline/raw/ilostat/`) | HTTP 200. **164 areas** carry an ISCO-08 major group. `OCU_ISCO08_1`…`9` crossed with `AGE_AGGREGATE_Y15-24 / Y25-54 / Y55-64 / YGE65` and the `YGE15` denominator. Cell-level, intersected with payload countries: **158** carry all three bands plus the denominator at their own most-recent year, **132** at `data_year_occupation`. **0 areas** pair `AGE_10YRBANDS_*` with `OCU_ISCO08_*`, so 0002 R11's skill-level-only finding is correctly scoped and does not apply here |
-| ILOSTAT `DF_EMP_TEMP_SEX_OCU_EDU_NB` | live SDMX `curl`, 2026-08-31 — `https://sdmx.ilo.org/rest/data/ILO,DF_EMP_TEMP_SEX_OCU_EDU_NB,1.0/.A..SEX_T../?startPeriod=2013&format=csv` | HTTP 200, 55.5 MB, 265,835 rows, **162 areas**, years 2013–2026. *(Unrestricted the flow is 1982–2026, 428,474 rows, 90.5 MB — hence the start year in R9.)* Cell-level against payload countries: **155** carry `BAS`/`INT`/`ADV` plus `EDU_AGGREGATE_TOTAL` at their own most-recent year, **124** at `data_year_occupation`. **`BAS`/`INT`/`ADV` do not partition the base** — `EDU_AGGREGATE_LTB` (published by **132** payload countries) and `EDU_AGGREGATE_X` sit outside them; the residual over group 4 runs 0.3% (IND) to 7.3% (ETH) → R9 |
+| ILOSTAT `DF_EMP_TEMP_SEX_AGE_OCU_NB` | live SDMX `curl`, 2026-08-31 — `https://sdmx.ilo.org/rest/data/ILO,DF_EMP_TEMP_SEX_AGE_OCU_NB,1.0/.A..SEX_T../?startPeriod=2013&format=csv` (also cached under `pipeline/raw/ilostat/`) | HTTP 200. **164 areas** carry an ISCO-08 major group. `OCU_ISCO08_1`…`9` crossed with `AGE_AGGREGATE_Y15-24 / Y25-54 / Y55-64 / YGE65` and the `YGE15` denominator. Cell-level, intersected with payload countries and **counting only cells that carry a value**: **158** payload countries appear in the flow at all, but for group 4 only **149** carry all three bands plus the denominator at their own most-recent year, and **121** at `data_year_occupation`. Coverage is not uniform across the nine groups — group 1 is the floor at **144**, group 4 is 149, groups 5/7/9 reach 158. **0 areas** pair `AGE_10YRBANDS_*` with `OCU_ISCO08_*`, so 0002 R11's skill-level-only finding is correctly scoped and does not apply here |
+| ILOSTAT `DF_EMP_TEMP_SEX_OCU_EDU_NB` | live SDMX `curl`, 2026-08-31 — `https://sdmx.ilo.org/rest/data/ILO,DF_EMP_TEMP_SEX_OCU_EDU_NB,1.0/.A..SEX_T../?startPeriod=2013&format=csv` | HTTP 200, 55.5 MB, 265,835 rows, **162 areas**, years 2013–2026. *(Unrestricted the flow is 1982–2026, 428,474 rows, 90.5 MB — hence the start year in R9.)* Cell-level against payload countries, **counting only cells that carry a value**: for group 4, **149** carry `BAS`/`INT`/`ADV` plus `EDU_AGGREGATE_TOTAL` at their own most-recent year, **113** at `data_year_occupation`. (154 and 125 are the `ADV`-alone figures, not this four-cell reading.) Group floor across the nine is **144** (group 8). **`BAS`/`INT`/`ADV` do not partition the base** — `EDU_AGGREGATE_LTB` (present for group 4 at the reconciled year for **81** of the 149) and `EDU_AGGREGATE_X` sit outside them. **The residual is not a narrow range**: median 0.8%, but **27 of the 149 exceed 10%**, topping out at CMR 91.7% and AGO 91.0%, driven by `EDU_AGGREGATE_X` rather than `LTB` — Cameroon group 4 is `TOTAL` 254.3k against `X` 220.4k, so the three bands describe 8.3% of its clerical workers → R9's coverage floor |
 | Google Fonts — Geist, Geist Mono, Instrument Serif | live `curl` css2, 2026-08-31 | All three HTTP 200. Geist serves 300–600, Instrument Serif serves normal and italic (the canvas headline needs italic) |
 | `shadcn` on npm + `ui.shadcn.com/docs/components-json` | registry `curl` + docs fetch, 2026-08-31 | Latest **4.19.1** (published 2026-08-31). `tsx: false` "allows components to be added as JavaScript with the `.jsx` file extension"; for Tailwind v4 the `tailwind.config` field is "left blank" |
 | A published source for the **replacement year** | web search, 2026-08-31 | **Not found.** Nearest published work is US-only, decadal occupational *churn* on 1950/2010 US census classifications (IPUMS / Minnesota Population Center; ITIF 1850–2015). Not ISCO-08, not per country, and churn ≠ AI displacement. Nothing publishes "years until half of ISCO group N is displaced" → R13 |
@@ -111,8 +112,9 @@ Run the shadcn CLI against the existing Tailwind v4 setup. `components.json`
 must carry `"tsx": false` and an empty `tailwind.config`. Add `jsconfig.json`
 with `@/*` → `./src/*` **and** the matching `resolve.alias` in `vite.config.js`,
 because Vite does not read `jsconfig.json` for resolution. Add only the
-components the screens use: `button card input badge toggle-group slider
-accordion`.
+components the screens use: `button card input badge toggle-group accordion`.
+**Not `slider`**: its only consumer in the canvas is the adoption scenario, which
+R14 does not ship, and `CLAUDE.md` says to add only what a screen uses.
 
 **Acceptance:** `components.json` parses with `.tsx === false` and
 `.tailwind.config === ""`; every file under `src/components/ui/` ends `.jsx`;
@@ -183,31 +185,50 @@ pre-selected; picking any chip overrides the resolution.
 
 ### R8. [ ] Age band × ISCO group comes from ILOSTAT, per group
 
-Extend the pipeline to emit, per country and per ISCO major group, the employed
-share for `Y15-24`, `Y25-54` and `Y55-64` from `DF_EMP_TEMP_SEX_AGE_OCU_NB`,
-over the `YGE15` denominator. Tier `DERIVED` (share = group-age count ÷ group
+**This flow is already fetched, cached and read.** `ILO_FLOWS["age_occupation"]`
+is `DF_EMP_TEMP_SEX_AGE_OCU_NB` at `startPeriod=2013` (`pipeline/config.py:48`),
+and `load_youth_occupation` (`pipeline/run.py:105`) already derives an age × ISCO
+cross-tab from it, emitting `youth_age_band_used`, `youth_cohort_share`,
+`youth_wc_gap`, `youth_isco_coverage_pct_of_employment`,
+`data_year_youth_occupation` and `data_year_youth_occupation_range`.
+
+So R8 **extends `load_youth_occupation` from one band to three**; it does not add
+a second reader over the same CSV. The existing youth fields keep their meaning
+and their names — `Y15-24` is one of the three bands and is now computed once and
+used twice. Reuse `data_year_youth_occupation` and its `_range` companion rather
+than inventing `data_year_age_occupation`: two per-field years for one source is
+what the vintage rule exists to prevent, and `_range` is already the answer to
+"what do you record when the reconciled year differs across cells".
+
+Emit, per country and per ISCO major group, the employed share for `Y15-24`,
+`Y25-54` and `Y55-64`, over the `YGE15` denominator. Tier `DERIVED` (share = group-age count ÷ group
 `YGE15` count, both `OFFICIAL`), recorded in `field_tiers`.
 
 Per *The vintage rule* above, the value is taken at **each country's own most
-recent year** carrying all three bands and the denominator, recorded in its own
-`data_year_age_occupation` field — not forced to `data_year_occupation`.
+recent year** carrying all three bands and the denominator, recorded in
+`data_year_youth_occupation` / `_range` — not forced to `data_year_occupation`.
 Countries the flow does not cover stay null with a `data_quality_flag`.
 
 **Acceptance:** `npm run pipeline` emits the new fields; **at least 145**
-countries carry a non-null value for group 4 × `Y25-54` (measured 158 at the
-free vintage; the same criterion at `data_year_occupation` would be 132, which
-is why the vintage rule is stated); `field_tiers` names every new field; a
-`data_year_age_occupation` is present wherever a value is; `npm run
-test:pipeline` passes with a case asserting an uncovered country stays null;
-selecting an age band in step 03 changes the figure shown on the result screen.
+countries carry a non-null value for group 4 (measured 149 at the free vintage;
+121 at `data_year_occupation`, which is why the vintage rule is stated) **and
+every one of the nine groups carries at least 140** (measured floor 144, group
+1 — stated deliberately so a criterion cannot pass on clerical while failing on
+managers); no second reader over `DF_EMP_TEMP_SEX_AGE_OCU_NB` is introduced and
+`load_youth_occupation`'s existing outputs are unchanged; `field_tiers` names
+every new field; `data_year_youth_occupation` is present wherever a value is;
+`npm run test:pipeline` passes with a case asserting an uncovered country stays
+null; selecting an age band in step 03 changes the figure shown.
 
 ### R9. [ ] Education band × ISCO group comes from ILOSTAT, per group
 
 As R8, from `DF_EMP_TEMP_SEX_OCU_EDU_NB`, added to `ILO_FLOWS` in
 `pipeline/config.py` alongside the existing three (`occupation`,
-`age_occupation`, `lfp_by_area`) with **`startPeriod=2013`** — the unrestricted
+`age_occupation`, `lfp_by_age`) with **`startPeriod=2013`** — the unrestricted
 flow is 90.5 MB against 55.5 MB restricted, and 2013 matches the other flows.
-Vintage rule as R8, recorded in `data_year_edu_occupation`.
+Unlike R8 this flow is genuinely new — nothing reads it today — so it gets its
+own reader and its own `data_year_edu_occupation` / `_range` pair, following the
+shape `load_youth_occupation` already uses. Vintage rule as R8.
 
 **The denominator is `EDU_AGGREGATE_TOTAL`, never the sum of the three bands.**
 `BAS`/`INT`/`ADV` do not partition the base: `EDU_AGGREGATE_LTB` and
@@ -216,19 +237,31 @@ Renormalising over the three would silently redistribute less-than-basic
 workers, which is the imputation this project does not do. Consequences:
 
 - The three shares **will not sum to 100**, and the result screen says why.
-- `LTB` is a **fourth chip** — "Below basic" — wherever the country publishes it
-  (132 payload countries). The canvas shows three; the data has four, and the
-  data wins.
+- `LTB` is a **fourth chip** — "Below basic" — wherever the country publishes it,
+  which is 81 of the 149 at the reconciled year rather than the majority. The
+  canvas shows three; the data has four where it has four, and the data wins.
 - Where `LTB` is not published but a residual remains, the residual is stated
   rather than absorbed.
 
+**And the dimension is withheld below a coverage floor.** The residual is not
+uniformly small: median 0.8%, but 27 of the 149 covered countries exceed 10% and
+Cameroon's three bands describe 8.3% of its clerical workers, the rest being
+`EDU_AGGREGATE_X`. At that level "the residual is stated" stops being a caption
+and becomes the whole answer. So: **where `BAS` + `INT` + `ADV` is less than 90%
+of `EDU_AGGREGATE_TOTAL`, the education dimension is null for that country with a
+`data_quality_flag`, and step 03 does not offer it** — withholding rather than
+rendering a misleading chip, exactly as R6 and R10 withhold. 122 of the 149 clear
+that floor.
+
 **Acceptance:** `pipeline/raw/ilostat/DF_EMP_TEMP_SEX_OCU_EDU_NB.csv` is written
-on first run and re-read on the second; **at least 140** countries carry a
-non-null value for group 4 × `ADV` (measured 155 at the free vintage; 124 at the
-occupation vintage); the four chips land on four different published cells,
-demonstrable by the figure changing between them; a unit test (R19) asserts the
-three named bands are divided by `EDU_AGGREGATE_TOTAL` and that their sum is
-strictly less than 100 for ETH.
+on first run and re-read on the second; **at least 115** countries carry a
+non-null education band for group 4 after the coverage floor is applied
+(measured 122 of the 149 that carry the four cells at a free vintage; 113 carry
+them at the occupation vintage before any floor); the chips land on different
+published cells, demonstrable by the figure changing between them; unit tests
+(R19) assert the three named bands are divided by `EDU_AGGREGATE_TOTAL`, that
+their sum is strictly less than 100 for ETH, and that **CMR yields the withheld
+branch rather than four chips**.
 
 ### R10. [ ] The result screen shows the group's share, with tier and vintage
 
@@ -347,9 +380,15 @@ reason**, not as a number. The back-test panel states the nine-group floor —
 that no source supports telling an individual their specific role is at risk,
 only their occupational group.
 
-**Acceptance:** the method panel's terms match the figures actually rendered;
-the "Duration" term, if shown, states it is unsourced and cites R13; no panel
-claims a back-test that has not been run.
+The panel renders its term list from a pure `termsFor(row, group)` in
+`src/utils/` rather than from JSX, so "the terms match the figures rendered"
+becomes an assertion over one function instead of a person reading two lists
+side by side.
+
+**Acceptance:** unit test (R19) — `termsFor` returns exactly the terms whose
+figures the result screen renders for that row and group, each with its tier; the
+"Duration" term, if present, is marked unsourced and cites R13; no term claims a
+back-test that has not been run.
 
 ### R17. [ ] `npm run verify` stays green
 
@@ -397,26 +436,31 @@ of reach of `/evaluate`.
 Add **Vitest** with `jsdom`, wired into `npm run verify`. Push the testable
 logic out of the components and into `src/utils/` — the title resolver (R7), the
 country tagger (R6), the share and headcount formatters (R10, R11), the trend
-stand-in decision (R12), the absence rules (R15) and the ISCO-88 notice (R18) —
-so each is a pure function over the payload rather than a branch inside JSX.
+stand-in decision (R12), the absence rules (R15), the method-panel term list
+(R16) and the ISCO-88 notice (R18) — so each is a pure function over the payload
+rather than a branch inside JSX.
 
 R4 and R5 remain manual: token rendering and computed touch targets genuinely
-need a browser, and this requirement does not pretend otherwise.
+need a browser, and this requirement does not pretend otherwise. R15's tail — the
+hand-review of its fallback grep — is manual too, and is recorded in the
+Verification section rather than left implied.
 
 **Acceptance:** `npm test` runs Vitest and `npm run verify` invokes it; the
-suites named in R6, R7, R9, R10, R11, R12, R15 and R18 all exist and pass; each
-of those requirements' criteria is executed by a test rather than asserted in
-prose; `npm run verify` fails if any of them fails.
+suites named in R6, R7, R9, R10, R11, R12, R15, R16 and R18 all exist and pass;
+each of those requirements' criteria is executed by a test rather than asserted
+in prose; `npm run verify` fails if any of them fails.
 
 ## Verification section
 
-*Filled in during implementation. R4 and R5 are manual checks; record what was
-loaded, at what viewport, and what was seen.*
+*Filled in during implementation. These are the only checks not executed by R19's
+suite. For R4 and R5 record what was loaded, at what viewport, and what was seen;
+for R15 record the grep output and what was concluded.*
 
 | Requirement | Checked | Result |
 |---|---|---|
 | R4 — palette renders | | |
 | R5 — touch targets, focus ring | | |
+| R15 — fallback grep output reviewed by hand | | |
 
 ## Non-goals
 

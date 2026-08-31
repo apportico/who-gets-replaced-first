@@ -192,7 +192,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     for (const chip of chips) expect(resolved(chip, 'min-height')).toBe('56px')
   })
 
-  it('no mono label RENDERS below 11px, inline overrides included', () => {
+  it('no mono label RENDERS below 11px, inline overrides included', async () => {
     // The half tokens.test.js cannot reach. The defect was an inline
     // `fontSize: 10` on .wz-meta across 218 country rows — outside index.css,
     // so no amount of stylesheet grepping would have seen it, and the token
@@ -203,9 +203,15 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     // non-adjacent declaration and a new rule are all covered by the same
     // check — on the element, which is the only place the question is real.
     const small = []
+    // Scoped to `.wz-step`, NOT the document. The sticky header's two .wz-meta
+    // spans live outside the step switch and render on every screen, so a
+    // document-wide counter was satisfied by them and a step rendering no mono
+    // label at all still passed.
     const sweep = (where) => {
       let seen = 0
-      for (const el of document.querySelectorAll('*')) {
+      const step = document.querySelector('.wz-step')
+      expect(step, `${where} rendered no step`).toBeTruthy()
+      for (const el of step.querySelectorAll('*')) {
         const fam = resolved(el, 'font-family')
         if (!fam || !fam.includes('Geist Mono')) continue
         seen += 1
@@ -224,6 +230,29 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     sweep('occupation')
+
+    // The two screens the first version never reached — and the ones that
+    // matter most. Both `fontSize: 8.5` overrides this check is named after
+    // were in ResultScreen, and all nine .wz-badge sites are there, so a sweep
+    // stopping at `occupation` skipped two of the three known instances of the
+    // class it exists to catch.
+    fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    await waitFor(() =>
+      expect(document.querySelectorAll('[data-slot="toggle-group-item"]').length)
+        .toBeGreaterThan(0))
+    sweep('optional')
+
+    // Select a band on each dimension so the cross-tab figures — and their
+    // badges — actually render on the result screen.
+    const chips = screen.getAllByRole('radio')
+    fireEvent.click(chips[0])
+    fireEvent.click(chips[chips.length - 1])
+    fireEvent.click(screen.getByRole('button', { name: /see the figures/i }))
+    await waitFor(() =>
+      expect(document.querySelectorAll('.wz-badge').length).toBeGreaterThan(4))
+    sweep('result')
 
     expect(small).toEqual([])
   })

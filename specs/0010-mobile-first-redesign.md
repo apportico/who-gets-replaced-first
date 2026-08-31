@@ -669,7 +669,7 @@ for R15 record the grep output and what was concluded.*
 | Requirement | Checked | Result |
 |---|---|---|
 | R15 — fallback grep output reviewed by hand | 2026-08-31 | **Pass.** `grep -rn 'region\|world\|average\|median' src/components/wizard/ src/utils/` returns 10 lines, all reviewed: `absence.js:6` and `terms.js:95` are prose; `countryTag.js:55-63` uses `region` for the **locale subtag** (`GB` in `en-GB`) to prefill the country, not a `row_type: 'region'` aggregate; the rest are `wizard.test.js` asserting that no borrowing happens. **No fallback path exists.** |
-| R14 — intro copy reviewed by hand | 2026-08-31 | **Closed by test instead**, which is better than the manual row planned for it. `wizard.render.test.jsx` asserts the rendered intro contains no four-digit projection year, no `countdown` / `how long you have` / `years until`, and does contain the claim it does make. A copy change that reintroduced a promise of a date now fails the suite. |
+| R14 — intro copy reviewed by hand | 2026-08-31 | **Closed by test instead**, and it asserts both halves rather than only the absence — R14 exists because absence alone is not enough, so a criterion checking only for absence would miss the half that matters. Negative: `wizard.render.test.jsx` finds no four-digit projection year and none of `countdown` / `how long you have` / `years until` in the rendered intro. **Positive:** it asserts the claim the intro *does* make (`Measured, not forecast`), and that the result screen states in words that no displacement date is published. |
 | R4 — palette renders | **not run** | The runnable halves pass: `oklch(` count is 0, no `class="dark"` anywhere, and `tokens.test.js` asserts all seven palette tokens carry the canvas values and that shadcn's own token names map onto them. **The rendered half is outstanding** — it needs a browser to confirm the ground paints `#0D0C0A` and the primary `#FF5A2B`. |
 | R5 — touch targets, focus ring | **not run** | `tokens.test.js` asserts the declarations: `.wz-cta` carries `--tap-primary` (60px), `.wz-option` 56px, `.wz-tertiary` 48px, the focus ring is `2px solid var(--accent)` at `outline-offset: 3px` and `outline: none` appears nowhere, and the column is capped at 480px. **Computed layout is outstanding** — jsdom does no layout, so confirming what those rules actually resolve to needs a browser. |
 
@@ -699,13 +699,17 @@ asserted. Everything the CSS can be held to without a browser is now a test.
 
 ### Files to modify
 
-`pipeline/config.py` (new flow, bands, 81 tier entries) ·
+`pipeline/config.py` (new flow, bands, 90 tier entries) ·
 `pipeline/build.py` (extend `load_youth_occupation`; new `load_edu_occupation`) ·
 `pipeline/run.py` (`COLUMNS`, the exclusion after the tier gate, the artefact
 writer) · `pipeline/tests/test_app_payloads.py:334` (teach the exclusion; `:201`
 **left untouched**) · `pipeline/tests/fixtures/` (regenerate) ·
-`src/styles/index.css` · `vite.config.js` · `package.json` · `src/App.jsx` ·
-`scripts/verify.sh`
+`src/styles/index.css` · `vite.config.js` · `package.json` ·
+**`package-lock.json`** (regenerated when `leaflet` and `react-leaflet` are
+dropped — R1 greps it, so it is not incidental) · `src/App.jsx` ·
+**`src/main.jsx`** (R1 removes the Leaflet stylesheet import) ·
+`scripts/verify.sh` · `eslint.config.js` (R3's scoped `react-refresh` exemption
+for the generated components)
 
 ### Sequence
 
@@ -754,7 +758,7 @@ section.
 | R16 | `terms.js` exporting `termsFor(row, group)` | `src/utils/` | Vitest — the terms returned match the figures rendered, each with its tier |
 | R17 | Lint, build, the pipeline suite, the JS suite and the pilot anchors | `scripts/verify.sh` | `npm run verify` exits 0; the four anchors unmoved |
 | R18 | `classification.js` reading `isco_classification` | `src/utils/` | Vitest — CAN × 2 carries the ISCO-88 notice, GBR × 2 does not; present for all ten |
-| R19 | Vitest + jsdom; the logic above pushed into `src/utils/` | root, `src/utils/` | `npm test` runs Vitest; `verify` invokes it; the nine suites pass |
+| R19 | Vitest + jsdom; the logic above pushed into `src/utils/` | root, `src/utils/` | `npm test` runs Vitest; `verify` invokes it; the **ten** suites named in R19 pass — R6, R7, R9, R10, R11, R12, R15, R16, R18 and R20 |
 | R20 | Exclusion after the `untiered` gate; one artefact per country; loader with its own state | `pipeline/run.py`, `src/utils/crossTabs.js` | The anchored regex prints `[]` over rows and tiers; payload ≤ 668,000 bytes; the columns present in the CSV; Vitest — only the chosen country fetched, failed fetch ≠ withheld branch |
 
 ### Tier and vintage handling

@@ -67,7 +67,7 @@ padding `22px`. A four-step wizard, not a dashboard:
 
 | Step | Screen | What it must do |
 |---|---|---|
-| — | Intro | The claim — **what the statistics actually say about your occupation group, measured rather than forecast**. Not the canvas's "a year — not a probability": R14 means no year arrives, and an intro that promises one makes the result screen read as broken rather than finished. Three capability chips, one CTA |
+| — | Intro | The claim — **what the statistics actually say about your occupation group, measured rather than forecast**. Not the canvas's "a year — not a probability": R14 means no year arrives, and an intro that promises one makes the result screen read as broken rather than finished. One CTA — **no capability chips**: the canvas's three asserted the wizard's own virtues ("Every figure tiered", "Gaps shown as gaps") on the screen with no figures and no gaps on it yet, and both are demonstrated two screens later by the tier badges and the stated absences themselves |
 | 01 | Country | Pre-filled from locale; every row tagged `official series` / `no series` |
 | 02 | Occupation | Free-text title → one of the **nine ISCO-08 major groups**; the resolution is shown and overridable by chip, never silent |
 | 03 | Optional | Age band and education — both real cross-tabulated dimensions, landing on different published cells; skipping means the result is reported for the group as a whole. (No interval to widen — see below) |
@@ -214,14 +214,22 @@ npx shadcn@latest add button card input badge toggle-group accordion
 
 | Screen element | Component |
 |---|---|
-| Primary CTA, skip, "Start again" | `Button` (pill `variant`s added to the local `buttonVariants`) |
-| Stat cards, method panel | `Card` (not the canvas's scenario card — it holds the adoption slider, which does not ship) |
-| Job title field | `Input` (Instrument Serif 26px — restyled, not default) |
-| Tier badges, capability chips | `Badge` (not the canvas's `PROJECTED` badge — it labels a projection that does not ship) |
-| Country rows, ISCO override chips, age/education | `ToggleGroup` + `ToggleGroupItem` |
-| ~~Adoption scenario~~ | ~~`Slider`~~ — does not ship (R14), so `slider` is **not** installed |
-| "How the number is built", "Back-test & error" | `Accordion` |
-| Progress bar, sparkline | Hand-rolled — four `div`s and an SVG beat a dependency. The interval band does not ship (R14) |
+| Age / education band chips | `ToggleGroup` + `ToggleGroupItem` — the roving tabindex and arrow keys turn up to nine tab stops into one |
+| "How the number is built", "What this cannot tell you" | `Accordion` — `aria-expanded`, the `aria-controls`/`id` pairing and the keyboard handling, none of which is worth re-typing |
+| Everything else | Tokens plus plain elements. `.wz-cta`, `.wz-card`, `.wz-badge`, `.wz-option`, `.wz-chip` in `index.css` |
+
+Only **two** shadcn components ship. Spec 0010 R3 is `[~]`: `Button`, `Card`,
+`Input` and `Badge` were installed and never rendered — nothing outside
+`src/components/ui/` imported them, so a rule targeting their `data-slot`s
+matched no element and R4's "extend the `cva` variants" applied to nothing. They
+are removed, and `wizard.render.test.jsx` asserts that every component still in
+`src/components/ui/` is imported by a screen, because "the file exists" is what
+made the original six look installed.
+
+`slider` was never installed at all: its only consumer in the canvas is the
+adoption scenario, which R14 does not ship. Same for the `PROJECTED` badge and
+the interval band — the progress bar and sparkline stay hand-rolled, four `div`s
+and an SVG beating a dependency.
 
 ### Rules
 

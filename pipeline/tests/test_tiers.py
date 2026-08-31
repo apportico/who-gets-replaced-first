@@ -169,10 +169,21 @@ class AppPayload(unittest.TestCase):
         self.assertIn("field_tiers", self.payload)
 
     def test_payload_tiers_match_the_columns_it_actually_ships(self):
-        """84, not 89 -- export_app_json drops the five *_range columns."""
+        """84 of 170: export_app_json drops five *_range and 81 cross-tabs.
+
+        0010 R20. The cross-tab columns are excluded from this payload and
+        shipped per country instead. They are still tiered -- the gate in
+        export_app_json runs over the full column list before the exclusion --
+        and their tiers travel in each per-country artefact's own block, which
+        test_crosstabs asserts.
+        """
         keep = [c for c in run.COLUMNS if not c.endswith("_range")]
-        self.assertEqual(set(self.payload["field_tiers"]), set(keep))
+        app_keep = [c for c in keep if c not in set(C.CROSSTAB_COLUMNS)]
+        self.assertEqual(set(self.payload["field_tiers"]), set(app_keep))
         self.assertEqual(len(self.payload["field_tiers"]), 84)
+        # The exclusion is the only thing that shrinks it, and it must not have
+        # taken anything else with it.
+        self.assertEqual(len(keep) - len(app_keep), len(C.CROSSTAB_COLUMNS))
 
     def test_payload_tiers_cover_every_key_in_a_row(self):
         """Every field the app can render must be labellable."""

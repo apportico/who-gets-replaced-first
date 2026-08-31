@@ -56,6 +56,7 @@ import os
 import tempfile
 import unittest
 
+import config as C
 import fixtures
 import panel as P
 import run
@@ -337,11 +338,17 @@ class CommittedRowsMatchTheDataset(unittest.TestCase):
         `export_csv` sorts aggregates first then by iso3; `export_app_json` does
         not sort at all. Comparing positionally would fail on correct data.
         """
+        # 0010 R20. The 81 cross-tab columns reach the CSV but not this
+        # payload, so comparing them here would fail 229 times over on correct
+        # data. They are compared against the CSV in test_crosstabs.py, against
+        # the per-country artefacts that actually carry them -- excluding them
+        # from a guard without asserting them somewhere else would be a hole.
         keep = [c for c in run.COLUMNS if not c.endswith("_range")]
+        app_keep = [c for c in keep if c not in set(C.CROSSTAB_COLUMNS)]
         disagreed = []
         for row in self.rows:
             csv_row = self.by_iso[row["iso3"]]
-            for column in keep:
+            for column in app_keep:
                 if _num(csv_row.get(column)) != _num(row.get(column)):
                     disagreed.append((row["iso3"], column))
         self.assertEqual(
@@ -350,6 +357,29 @@ class CommittedRowsMatchTheDataset(unittest.TestCase):
             "pipeline/data/global_labor_dataset.csv at "
             f"{disagreed[:5]} ({len(disagreed)} cells) -- one of the two was "
             "not regenerated. Run `npm run pipeline`.")
+
+    def test_the_crosstab_columns_are_in_the_csv_but_not_the_payload(self):
+        """0010 R20, both halves, because either alone is a hole.
+
+        Excluding 81 columns from the app payload is only correct if they are
+        still in the archival dataset: this project's output IS the dataset, so
+        paying for the app's download with a gap in the CSV would be the worse
+        trade. And the exclusion has to be real, or R20 bought nothing.
+        """
+        header = set(self.by_iso[next(iter(self.by_iso))])
+        missing_from_csv = [c for c in C.CROSSTAB_COLUMNS if c not in header]
+        self.assertEqual(missing_from_csv, [],
+                         "cross-tab columns absent from global_labor_dataset.csv")
+        leaked_tiers = [c for c in C.CROSSTAB_COLUMNS
+                        if c in self.payload["field_tiers"]]
+        self.assertEqual(leaked_tiers, [],
+                         "cross-tab columns leaked into the payload's field_tiers")
+        # Every row, not row[0]: export_app_json builds them from one list, but
+        # the threat this module names is a hand-edit, which can add a key to
+        # any row.
+        leaked_rows = sorted({c for r in self.rows for c in C.CROSSTAB_COLUMNS if c in r})
+        self.assertEqual(leaked_rows, [],
+                         "cross-tab columns leaked into src/data/global_labor.json rows")
 
     def test_row_types_are_contiguous_and_in_the_written_order(self):
         """218 countries, then WLD, 7 regions, 3 groups.

@@ -195,11 +195,27 @@ class GoldenMaster(unittest.TestCase):
 class FixtureShape(unittest.TestCase):
     """The fixture itself has properties worth pinning."""
 
-    def test_fixture_stays_under_the_one_megabyte_bound(self):
+    def test_fixture_stays_under_its_size_bound(self):
+        """2MB, raised from 0004 R7's 1MB when 0010 R9 added a fourth flow.
+
+        The bound exists so the fixture stays reviewable rather than becoming an
+        opaque blob nobody regenerates. It was set at 1MB against three ILO
+        flows totalling 0.681MB; DF_EMP_TEMP_SEX_OCU_EDU_NB adds 0.524MB
+        gzipped for the same 32 areas, taking the total to 1.22MB.
+
+        Raised rather than met by slicing harder, and that is the substantive
+        choice. The edu flow publishes three parallel classification systems --
+        EDU_AGGREGATE_*, EDU_ISCED11_*, EDU_ISCED97_* -- and the pipeline reads
+        only the first, so dropping the other two would fit inside 1MB easily.
+        make_fixture's rule 1 forbids it: slicing by row content bakes today's
+        filter criteria into the test data, so widening the filter later would
+        leave rows silently absent rather than visibly wrong. That rule is worth
+        more than the round number it collides with, so the number moved.
+        """
         total = sum(
             os.path.getsize(os.path.join(root, n))
             for root, _, files in os.walk(FIXTURE_RAW) for n in files)
-        self.assertLess(total, 1_000_000, f"fixture is {total / 1e6:.2f}MB")
+        self.assertLess(total, 2_000_000, f"fixture is {total / 1e6:.2f}MB")
 
     def test_country_metadata_ships_whole_not_sliced(self):
         """build_reference iterates all areas and keys on `id`, not iso3.

@@ -196,7 +196,8 @@ def load_youth_occupation(rows_by_iso):
     path = fetch.ilo_flow("age_occupation")
     # iso3 -> age -> year -> ocu -> value
     by = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-    wanted = set(C.YOUTH_AGE_CODES) | set(C.CAREER_STAGE_BANDS)
+    wanted = (set(C.YOUTH_AGE_CODES) | set(C.CAREER_STAGE_BANDS)
+              | set(C.AGE_GROUP_BANDS) | {C.AGE_GROUP_DENOM})
     keep = {g for fam in C.ISCO_FAMILIES for g in fam["groups"]}
     for iso3, age, ocu, year, val in _read_ilo(
             path, ["REF_AREA", "AGE", "OCU", "TIME_PERIOD", "OBS_VALUE"]):
@@ -243,6 +244,125 @@ def load_youth_occupation(rows_by_iso):
                     break
             row[field] = value
             row[field.replace("_pct", "_year")] = value_year
+
+        # -- 0010 R8. Per-group age profile.
+        #
+        # The bands above were already read; what is new is keeping them PER
+        # ISCO GROUP instead of collapsing to the white-collar cut through
+        # _youth_share. That is where the work is: nine group shares per band
+        # where there was one family share per band.
+        #
+        # Reconciled JOINTLY -- one year per (country, group) carrying all three
+        # bands and the YGE15 denominator. The three shares divide a common
+        # base, so bands from different years would not sum to the group's
+        # whole. This is why the value cannot reuse data_year_youth_occupation,
+        # which is reconciled on its own band: they disagree for 10 countries at
+        # group 4, LAO by five years.
+        _age_by_group(row, ages, families)
+    return rows_by_iso
+
+
+def _age_by_group(row, ages, families):
+    """0010 R8. Nine group x three band shares, one reconciled year per group."""
+    for n in C.ISCO_GROUP_NUMBERS:
+        canon = f"OCU_ISCO08_{n}"
+        shares, chosen_year = {}, None
+        for family in families:
+            src = {c: s for s, c in family["groups"].items()}.get(canon)
+            if src is None:
+                continue
+            years = sorted({y for band in C.AGE_GROUP_BANDS for y in ages.get(band, {})}
+                           | set(ages.get(C.AGE_GROUP_DENOM, {})), reverse=True)
+            for year in years:
+                base = ages.get(C.AGE_GROUP_DENOM, {}).get(year, {}).get(src)
+                if not base or base <= 0:
+                    continue
+                cells = {}
+                for band, suffix in C.AGE_GROUP_BANDS.items():
+                    v = ages.get(band, {}).get(year, {}).get(src)
+                    if v is None:
+                        break
+                    cells[suffix] = round(100.0 * v / base, 4)
+                else:
+                    shares, chosen_year = cells, year
+                    break
+            if chosen_year is not None:
+                break
+        for suffix in C.AGE_GROUP_BANDS.values():
+            row[f"isco{n}_age_{suffix}_pct"] = shares.get(suffix)
+        row[f"isco{n}_age_year"] = chosen_year
+
+
+def load_edu_occupation(rows_by_iso):
+    """0010 R9. Education x ISCO major group, per group, from a new ILO flow.
+
+    Unlike R8 this flow is genuinely new -- nothing read it before -- so it gets
+    its own reader and its own `_year` companions.
+
+    Two decisions live here rather than in the caller:
+
+      1. The denominator is EDU_AGGREGATE_TOTAL, never the sum of the bands.
+         BAS/INT/ADV do not partition the base, and renormalising over them
+         would silently redistribute the less-than-basic and unspecified
+         workers -- the imputation this project does not do.
+      2. Below EDU_COVERAGE_FLOOR the dimension is WITHHELD for that group, all
+         four chips null, measured on the chips actually rendered. Cameroon's
+         four chips describe 13.3% of its clerical workers; four chips summing
+         to 13 with a caption explaining the other 87 is not an honest screen.
+    """
+    path = fetch.ilo_flow("edu_occupation")
+    # iso3 -> edu -> year -> ocu -> value
+    by = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+    wanted = set(C.EDU_GROUP_BANDS) | {C.EDU_GROUP_DENOM}
+    keep = {g for fam in C.ISCO_FAMILIES for g in fam["groups"]}
+    for iso3, edu, ocu, year, val in _read_ilo(
+            path, ["REF_AREA", "EDU", "OCU", "TIME_PERIOD", "OBS_VALUE"]):
+        if edu not in wanted or ocu not in keep:
+            continue
+        v = num(val)
+        if v is not None:
+            by[iso3][edu][int(year)][ocu] = v
+
+    for iso3, row in rows_by_iso.items():
+        edus = by.get(iso3, {})
+        families = sorted(C.ISCO_FAMILIES,
+                          key=lambda f: f["name"] != (row.get("isco_classification") or "ISCO-08"))
+        for n in C.ISCO_GROUP_NUMBERS:
+            canon = f"OCU_ISCO08_{n}"
+            shares, chosen_year = {}, None
+            for family in families:
+                src = {c: s for s, c in family["groups"].items()}.get(canon)
+                if src is None:
+                    continue
+                years = sorted({y for e in C.EDU_GROUP_BANDS for y in edus.get(e, {})}
+                               | set(edus.get(C.EDU_GROUP_DENOM, {})), reverse=True)
+                for year in years:
+                    base = edus.get(C.EDU_GROUP_DENOM, {}).get(year, {}).get(src)
+                    if not base or base <= 0:
+                        continue
+                    cells, rendered = {}, 0.0
+                    for edu, suffix in C.EDU_GROUP_BANDS.items():
+                        v = edus.get(edu, {}).get(year, {}).get(src)
+                        if v is None:
+                            # LTB is optional -- it is a fourth chip only where
+                            # published. The three named bands are required.
+                            if edu in C.EDU_GROUP_REQUIRED:
+                                cells = None
+                                break
+                            continue
+                        cells[suffix] = round(100.0 * v / base, 4)
+                        rendered += v
+                    if cells is None:
+                        continue
+                    if 100.0 * rendered / base < C.EDU_COVERAGE_FLOOR:
+                        continue    # withheld: the chips describe too little
+                    shares, chosen_year = cells, year
+                    break
+                if chosen_year is not None:
+                    break
+            for suffix in C.EDU_GROUP_BANDS.values():
+                row[f"isco{n}_edu_{suffix}_pct"] = shares.get(suffix)
+            row[f"isco{n}_edu_year"] = chosen_year
     return rows_by_iso
 
 
@@ -625,4 +745,35 @@ def validate(rows):
         wc, bc = r.get("white_collar_pct"), r.get("blue_collar_service_pct")
         if wc is not None and bc is not None and abs(wc + bc - 100) > 0.5:
             problems.append(f"{tag}: white+blue collar = {wc + bc:.2f}, not 100")
+
+        # -- 0010 R8/R9. The per-group cross-tabs.
+        for n in C.ISCO_GROUP_NUMBERS:
+            # Age: the three bands divide YGE15, which also contains 65+, so
+            # they sum to UNDER 100 and the residual is the 65-and-over cohort.
+            # Asserting ~100 here would be wrong; over 100 is the real error.
+            age = [r.get(f"isco{n}_age_{b}_pct") for b in C.AGE_GROUP_BANDS.values()]
+            if all(v is not None for v in age):
+                if sum(age) > 100.5:
+                    problems.append(
+                        f"{tag}: isco{n} age bands sum to {sum(age):.2f}, over 100")
+                if r.get(f"isco{n}_age_year") is None:
+                    problems.append(f"{tag}: isco{n} age shares with no isco{n}_age_year")
+
+            # Education: BAS/INT/ADV/LTB do not partition TOTAL either -- the
+            # unspecified cell sits outside them -- so the same rule applies.
+            # What IS checked is the coverage floor: anything that survived the
+            # loader must be at or above it, or the withholding did not happen.
+            edu = {b: r.get(f"isco{n}_edu_{b}_pct") for b in C.EDU_GROUP_BANDS.values()}
+            present = [v for v in edu.values() if v is not None]
+            if present:
+                total = sum(present)
+                if total > 100.5:
+                    problems.append(
+                        f"{tag}: isco{n} education chips sum to {total:.2f}, over 100")
+                if total < C.EDU_COVERAGE_FLOOR - 0.5:
+                    problems.append(
+                        f"{tag}: isco{n} education chips cover {total:.2f}%, "
+                        f"below the {C.EDU_COVERAGE_FLOOR}% floor -- should have been withheld")
+                if r.get(f"isco{n}_edu_year") is None:
+                    problems.append(f"{tag}: isco{n} education shares with no isco{n}_edu_year")
     return problems

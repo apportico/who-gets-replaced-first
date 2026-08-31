@@ -48,6 +48,10 @@ ILO_FLOWS = {
     "age_occupation": ("DF_EMP_TEMP_SEX_AGE_OCU_NB", "1.0", ".A..SEX_T..", 2013),
     # labour force participation rate by sex and age band
     "lfp_by_age":     ("DF_EAP_DWAP_SEX_AGE_RT",     "1.0", ".A..SEX_T.",  2015),
+    # 0010 R9. employment by sex, occupation and education -> education x ISCO.
+    # startPeriod 2013 matches the other flows and is not cosmetic: unrestricted
+    # this flow is 1982-2026, 428,474 rows and 90.5 MB against 55.5 MB here.
+    "edu_occupation": ("DF_EMP_TEMP_SEX_OCU_EDU_NB", "1.0", ".A..SEX_T..", 2013),
 }
 
 ISCO_GROUPS = {
@@ -107,6 +111,65 @@ LFP_AGE_CODES = {
     "AGE_AGGREGATE_Y25-54": "lfp_rate_25_54",
     "AGE_AGGREGATE_Y55-64": "lfp_rate_55_64",
 }
+
+# --- 0010 R8 / R9. The per-group cross-tabs. ------------------------------
+#
+# Both dimensions are reconciled JOINTLY: one year per (country, ISCO group)
+# carrying every band plus the denominator. That is not the shape
+# CAREER_STAGE_BANDS uses above, and the difference is deliberate. Those two
+# fields are independent aggregate measures, so reconciling each at its own most
+# recent year is fine. These are shares of a COMMON denominator, so bands taken
+# from different years would not compose -- they would not sum to the group's
+# whole, and the result screen would show a breakdown assembled from different
+# surveys.
+#
+# Each (country, group) therefore carries ONE year, in its own `_year` field.
+# Nine per dimension, not 27: the reconciled year varies across the nine groups
+# for 34 countries on the age flow and 43 on the education flow, so one
+# per-country field cannot name them, but one per band would be recording the
+# same year three times.
+AGE_GROUP_BANDS = {
+    "AGE_AGGREGATE_Y15-24": "15_24",
+    "AGE_AGGREGATE_Y25-54": "25_54",
+    "AGE_AGGREGATE_Y55-64": "55_64",
+}
+AGE_GROUP_DENOM = "AGE_AGGREGATE_YGE15"
+
+# BAS/INT/ADV do NOT partition the base: EDU_AGGREGATE_LTB (less than basic) and
+# EDU_AGGREGATE_X (unspecified) sit outside them. The denominator is TOTAL and
+# never the sum of the bands -- renormalising over the three would silently
+# redistribute less-than-basic workers, which is the imputation this project
+# does not do. LTB is a fourth chip wherever a country publishes it.
+EDU_GROUP_BANDS = {
+    "EDU_AGGREGATE_BAS": "bas",
+    "EDU_AGGREGATE_INT": "int",
+    "EDU_AGGREGATE_ADV": "adv",
+    "EDU_AGGREGATE_LTB": "ltb",
+}
+EDU_GROUP_REQUIRED = ["EDU_AGGREGATE_BAS", "EDU_AGGREGATE_INT", "EDU_AGGREGATE_ADV"]
+EDU_GROUP_DENOM = "EDU_AGGREGATE_TOTAL"
+
+# The residual is not uniformly small: median 0.81% over the 149 countries
+# covered at group 4, but 27 of them exceed 10% and Cameroon's chips describe
+# 13.3% of its clerical workers. Below this floor the dimension is WITHHELD --
+# null with a data_quality_flag -- rather than rendered as chips that describe a
+# minority of the base. Measured on the chips actually rendered (the three bands
+# plus LTB where published), not on the three alone: Djibouti is 39.9% on three
+# and 99.6% on four, and withholding it would penalise a country for supplying
+# the fourth chip.
+EDU_COVERAGE_FLOOR = 90.0
+
+ISCO_GROUP_NUMBERS = list(range(1, 10))
+AGE_GROUP_COLUMNS = (
+    [f"isco{n}_age_{b}_pct" for n in ISCO_GROUP_NUMBERS for b in AGE_GROUP_BANDS.values()]
+    + [f"isco{n}_age_year" for n in ISCO_GROUP_NUMBERS])
+EDU_GROUP_COLUMNS = (
+    [f"isco{n}_edu_{b}_pct" for n in ISCO_GROUP_NUMBERS for b in EDU_GROUP_BANDS.values()]
+    + [f"isco{n}_edu_year" for n in ISCO_GROUP_NUMBERS])
+# 27 + 9 + 36 + 9 = 81. These reach global_labor_dataset.csv and the SQLite like
+# every other column; only export_app_json sheds them, and only after the tier
+# gate has run (0010 R20).
+CROSSTAB_COLUMNS = AGE_GROUP_COLUMNS + EDU_GROUP_COLUMNS
 
 # ------------------------------------------------------------------- Scope
 PILOT = ["ARM", "USA", "DEU", "CHN", "IND", "WLD"]
@@ -323,3 +386,15 @@ FIELD_TIERS = {
     "youth_isco_coverage_pct_of_employment": "DERIVED",
     "data_quality_flag": NOT_A_MEASUREMENT,
 }
+
+# 0010 R8/R9. The 81 cross-tab columns, registered here rather than typed out:
+# every share is the same arithmetic on the same kind of OFFICIAL counts, and a
+# hand-written block of 81 would drift from CROSSTAB_COLUMNS the first time a
+# band changed. The invariant set(FIELD_TIERS) == set(run.COLUMNS) is what makes
+# this safe -- a column added without a tier fails test_columns.
+#
+# DERIVED, not OFFICIAL: the published cells are headcounts, and the share is
+# our division of one by another. The `_year` companions are provenance rather
+# than measurement, like every other data_year_* field.
+FIELD_TIERS.update({c: "DERIVED" for c in CROSSTAB_COLUMNS if c.endswith("_pct")})
+FIELD_TIERS.update({c: NOT_A_MEASUREMENT for c in CROSSTAB_COLUMNS if c.endswith("_year")})

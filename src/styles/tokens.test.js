@@ -41,6 +41,17 @@ describe('R2 — the canvas tokens are declared, with the canvas values', () => 
     }
   })
 
+  it('puts the font @import above every rule, or the browser drops it', () => {
+    // The defect this guards actually shipped: the @import sat after the :root
+    // blocks, which CSS forbids, so browsers dropped it and none of the three
+    // families loaded. Nothing failed -- the page just rendered in fallbacks.
+    // Asserting the URL is present is not enough; position is the bug.
+    const fontImport = css.indexOf('@import url(')
+    const firstRule = css.search(/^[.:@a-z[][^\n]*\{/m)
+    expect(fontImport).toBeGreaterThan(-1)
+    expect(fontImport).toBeLessThan(firstRule)
+  })
+
   it('loads all three families, including the italic face the headline needs', () => {
     expect(css).toContain('Instrument+Serif:ital@0;1')
     expect(css).toContain('family=Geist:')
@@ -91,6 +102,12 @@ describe('R4 — the shadcn defaults are overwritten, not shipped', () => {
 })
 
 describe('R5 — the touch targets and the focus ring are declared', () => {
+  it('the generated shadcn components meet the 48px floor too', () => {
+    // shadcn ships h-9 (36px) on button, toggle and input. Without this the
+    // three tap tokens would be declared and unused by anything shadcn renders.
+    expect(css).toMatch(/\[data-slot="toggle"\][\s\S]{0,200}min-height:\s*var\(--tap-tertiary\)/)
+  })
+
   it('the primary CTA declares the 60px target', () => {
     expect(css).toMatch(/\.wz-cta\s*{[^}]*min-height:\s*var\(--tap-primary\)/)
   })

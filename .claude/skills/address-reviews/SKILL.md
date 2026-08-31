@@ -2,7 +2,7 @@
 name: address-reviews
 description: Address unresolved PR review feedback — inline threads, review body comments, and general PR comments. Fixes code, replies, and resolves.
 argument-hint: "[pr-number]"
-allowed-tools: Read, Edit, Glob, Grep, Bash, Agent
+allowed-tools: Read, Edit, Write, Glob, Grep, Bash, Agent
 ---
 
 You are running the `/address-reviews` command. Your job is to fetch unresolved PR review comments, fix the code they reference, reply to each comment, resolve the threads, then commit and push.
@@ -142,7 +142,8 @@ For each **Actionable** thread:
    - **Does it breach a project non-negotiable?** A reviewer asking you to fill a null country, drop a tier, average country percentages, or add a figure without a citation is asking for something this project does not do. Reclassify as **Disagree** and explain, citing `CLAUDE.md`.
    - **Is the comment based on a misunderstanding?** The reviewer may not see the full picture — check if the concern is addressed elsewhere in the diff or codebase.
    - **Is the suggestion actually an improvement?** Some feedback is subjective or would make the code worse. Use your judgment.
-   - **Does the reviewer's steer survive a check of its own?** A steer that changes a *shape* — a schema, a field's cardinality, a threshold, which vintage a value carries — is checkable against the thing it describes: the loader, the payload, `pipeline/config.py`. Check it before complying. On PR #62 the reviewer retracted two confidently-stated steers ("the error was mine", "the steer toward it was mine, and it was wrong") only after each had been implemented, costing a round each. A steer that contradicts what the code already does is a **Disagree**, however confidently it is written.
+   - **Does the reviewer's steer survive a check of its own?** A steer that changes a *shape* — a schema, a field's cardinality, a threshold, which vintage a value carries — is checkable against the thing it describes: the loader, the payload, `pipeline/config.py`. Check it before complying; a steer that contradicts what the code already does is a **Disagree**, however confidently it is written. PR #62 implemented two such steers and the reviewer then retracted both, at a round each.
+4. **Name the defect class, then find every instance of it.** See Step 4b — this is where the sweep is *found*, so that Step 5 can present it and Step 7b can apply it.
 
 Reclassify threads based on this evaluation:
 - If the comment is **valid and actionable** → keep as **Actionable** with your planned fix.
@@ -151,6 +152,41 @@ Reclassify threads based on this evaluation:
 
 For each **Question** thread:
 1. Read the code and spec to formulate an accurate, informed answer.
+
+### 4b — Name the defect class and find its siblings
+
+**This is the step that collapses rounds**, and it belongs here rather than at
+apply-time: a sweep the user cannot see at the Step 5 gate is a sweep that gets
+pushed unapproved. On PR #62, 8 of the 14 findings raised after round 1 were
+siblings of a fix already made — R8 gained a coverage floor and R9 did not,
+raised in round 3 and still wrong in round 4.
+
+For each **Actionable** thread, with the file already open from Step 4:
+
+1. **Name the defect class in one sentence.** Not "R8's threshold is wrong" but
+   "a requirement states a coverage threshold measured on one ISCO group and
+   applies it to all nine". The class is what you search for; the line is not.
+2. **Find every other instance of that class**, in this order:
+   - **Sibling requirements in the same spec** — `grep -n '^### R' <spec>` and
+     read every requirement sharing the class's shape. R8 and R9 are siblings;
+     so are any two requirements citing the same flow or the same field.
+   - **Enumerations** — a requirement that lists other requirement IDs, a keep/
+     delete list, a shadcn add list, a table of screens. Check it *element by
+     element* against the set it claims to cover, and confirm the lists
+     partition rather than overlap or leave a remainder.
+   - **The rest of the same file** — after correcting a figure or a phrase,
+     `grep -n` the **old** value across the file. A corrected number left
+     standing fifteen lines below its own fix cost #62 a round.
+   - **Cross-document** — `CLAUDE.md`, `REVIEW.md`, `specs/README.md`,
+     `pipeline/README.md`, and any other doc the change contradicts. A spec
+     decision at odds with the design contract is one defect in two files, and
+     `CLAUDE.md` says to fix it in the same change.
+   - **The code the spec describes** — a spec claim about an export, a config
+     key or a lint rule is checkable. `grep` it rather than trusting the
+     sentence.
+3. **Carry every instance into the Step 5 table.** The sweep widens the diff
+   beyond what anyone commented on — sometimes into files no reviewer touched —
+   so the user approves that widening at the gate, not after the push.
 
 ## Step 5 — Present Plan and Wait for Confirmation
 
@@ -167,9 +203,11 @@ Found <N> unresolved threads (<A> actionable, <D> disagree, <G> suggestions, <Q>
 |---|------|------|----------|---------|-------------|------------|
 | 1 | src/foo.ts | 42 | @reviewer | "Add null check" | Add null guard before access | Same guard missing in `bar.ts:88` |
 
-The **Also swept** column is the sibling instances of the same defect class found
-in Step 7b. They are approved in this same gate — do not come back for a second
-confirmation, and do not leave them for the reviewer to find.
+The **Also swept** column is the sibling instances of the same defect class,
+found in Step 4b. Listing them here is what gets them approved: a sweep reaches
+the user in this table or it does not ship. Once the table is approved, apply
+those sweeps without a second confirmation — but anything discovered *after*
+approval goes back through this gate (see Step 8).
 
 ## Disagree (will reply with explanation, no code change, thread left open)
 
@@ -206,7 +244,7 @@ Wait for user confirmation before continuing. If the user wants to exclude certa
 
 ## Step 6 — Read Remaining Context
 
-Step 4 already required reading code and spec. If any actionable or question threads still need deeper context (e.g., understanding a utility used elsewhere, checking how a pattern is used across the codebase), read those files now.
+Step 4 already required reading code and spec, and Step 4b the class search across siblings, enumerations and cross-documents. If any actionable or question threads still need deeper context (e.g., understanding a utility used elsewhere, checking how a pattern is used across the codebase), read those files now.
 
 ## Step 7 — Apply Fixes
 
@@ -216,51 +254,24 @@ For each actionable thread (processing in file order to minimize conflicts):
 
 - **If the comment contains a suggestion block** (fenced code block with `suggestion` language tag): Skip it — these are best applied via GitHub's one-click "Apply suggestion" button. Note it in the report so the user can apply them manually on GitHub.
 
-- **Otherwise:** Understand what the reviewer is asking for, then make the code change using the Edit tool. Keep the change at the pointed-at site minimal — but *minimal at the site* is not *only at the site*. The class of defect gets swept, per 7b.
+- **Otherwise:** Understand what the reviewer is asking for, then make the code change using the Edit tool. Keep the change at the pointed-at site minimal — but *minimal at the site* is not *only at the site*. The sweeps Step 4b found and Step 5 approved get applied too, per 7b.
 
-### 7b — Sweep the class, do not patch the line
+### 7b — Apply the sweeps, not just the pointed-at line
 
-**This is the step that collapses rounds.** A reviewer points at one instance of
-a defect; unless you sweep, they find the rest next round. On PR #62, 8 of the 14
-findings raised after round 1 were siblings of a fix already made: R8 gained a
-coverage floor and R9 did not (raised in round 3, still wrong in round 4), a
-suite list gained seven requirement IDs and missed the eighth, and a decision was
-corrected in the spec while `CLAUDE.md` was left telling an implementer the
-opposite.
+Step 4b named each defect class and found its siblings; Step 5 got them
+approved. Apply them in the same commit as the fix that revealed the class.
 
-For each fix, before you make it:
-
-1. **Name the defect class in one sentence.** Not "R8's threshold is wrong" but
-   "a requirement states a coverage threshold measured on one ISCO group and
-   applies it to all nine". The class is what you search for; the line is not.
-2. **Find every other instance of that class**, in this order:
-   - **Sibling requirements in the same spec** — `grep -n '^### R' <spec>` and
-     read every requirement sharing the class's shape. R8 and R9 are siblings;
-     so are any two requirements citing the same flow or the same field.
-   - **Enumerations** — a requirement that lists other requirement IDs, a keep/
-     delete list, a shadcn add list, a table of screens. Check it *element by
-     element* against the set it claims to cover, and confirm the lists
-     partition rather than overlap or leave a remainder.
-   - **The rest of the same file** — after correcting a figure or a phrase,
-     `grep -n` the **old** value across the file. Two of PR #62's later findings
-     were a corrected number left standing fifteen lines below its own fix.
-   - **Cross-document** — `CLAUDE.md`, `REVIEW.md`, `specs/README.md`,
-     `pipeline/README.md`. A spec decision that contradicts the design contract
-     is one defect in two files, and `CLAUDE.md` says to fix it in the same
-     change.
-   - **The code the spec describes** — a spec claim about an export, a config
-     key or a lint rule is checkable. `grep` it rather than trusting the
-     sentence.
-3. **Fix every instance in this round.** If an instance is deliberately
-   different, say so in the reply rather than leaving it silent. Sweeps are
-   listed in the Step 5 plan table and approved in that same gate.
+If an instance in the list turns out to be deliberately different once you have
+it open, leave it and say so in the reply — silently dropping a sweep the user
+approved is how the next round finds it. If applying the fixes reveals a
+*further* instance nobody has approved, it goes back through the gate, per
+Step 8.
 
 ### 7c — Verify every claim your own fix introduces
 
 A fix that writes a new fact makes a new claim, and it earns the same scrutiny as
-the original code. Three of PR #62's round-2 findings were exactly this — new
-cell-level counts that did not reproduce and "look like my previous comment's
-numbers re-labelled".
+the original code. Three of PR #62's round-2 findings were figures the previous
+round had introduced without re-probing them.
 
 Before committing, for anything the fix newly asserts:
 
@@ -278,25 +289,39 @@ unverifiable number in a spec is the same Blocker as an unprobed source.
 ### 7d — Run the reviewer's own contract over your diff
 
 `REVIEW.md` is what the reviewer is applying, so apply it yourself before
-pushing. Read `git diff` against Pass 1 (data non-negotiables), Pass 2 (unprobed
-sources), Pass 3 (a requirement marked `[x]` with no evidence its criterion was
-*run*) and Pass 7 (a UI change with no evidence the page was loaded). Anything
-you would flag, fix now rather than reading it back next round.
+pushing. **Read it and take every pass over your diff** — it is the contract,
+this skill is not a copy of it, and `CLAUDE.md` says the contract changes there
+and never inside a skill.
+
+Two are worth naming because this skill trips them most: **Pass 2**, a source
+read by code with no row in its spec's *Source verification* table, and
+**Pass 3**, a requirement marked `[x]` with no evidence its criterion was *run*
+rather than asserted. Anything you would flag, fix now rather than reading it
+back next round.
 
 For spec PRs, add one check `REVIEW.md` does not spell out: **every acceptance
 criterion this round adds must be checkable by something that exists in this
-repo.** Unverifiable criteria were found on PR #62 in rounds 2, 3 and 4 — one per
-round, because each round only fixed the one instance pointed at.
+repo.** That class was found on PR #62 once per round, in rounds 2, 3 and 4,
+because each round fixed only the instance pointed at.
 
 ### 7e — Run the checks
 
-After all edits are applied, run the checks the change warrants:
 ```bash
-npm run lint
-npm run build            # if src/ changed
-npm run pipeline:pilot   # if pipeline/ changed — read the [validate]/[crosscheck] blocks
+npm run verify
 ```
-A fix that breaks a regression anchor is not a fix. Report it rather than pushing it.
+
+One command, because `CLAUDE.md` makes it the single gate and CI runs the same
+one. Do not hand-pick a subset here: an earlier revision of this step listed
+`lint`, `build` and `pipeline:pilot`, which silently skipped `test:pipeline` —
+the suite that guards the numbers — and `test:app`. `verify` runs lint, build,
+both suites and the pilot, and skips only the pilot when `pipeline/raw/` is
+absent, saying so loudly.
+
+Read the `[validate]` and `[crosscheck]` blocks when the pilot runs. A fix that
+breaks a regression anchor is not a fix — report it rather than pushing it.
+
+If the change cannot affect what `verify` covers (a Markdown-only edit, say),
+say so explicitly in the PR and let CI's required check stand as the evidence.
 
 If a file referenced by a thread no longer exists at that path, skip it and note it in the report.
 
@@ -306,9 +331,18 @@ If a file referenced by a thread no longer exists at that path, skip it and note
 
 Reviewers comment while you work. Re-run the Step 2a query and diff the thread
 ids against the set you planned. A thread that arrived mid-round is far cheaper
-to fold into this commit than to leave for another round — classify it (Steps
-3–4), sweep it (7b) and add it to this batch. Only stop and re-confirm with the
-user if the new thread contradicts a fix already applied.
+to fold into this commit than to leave for another round — so fold it in:
+classify it (Steps 3–4), run the class search (4b), and **re-present it as a
+short addendum to the Step 5 table.**
+
+Re-presenting is the default, not the exception. A late thread is the one most
+likely to carry a wrong steer, because it is the one that has had the least
+scrutiny, and this skill's shape is plan, confirm, apply everywhere else.
+
+Skip the re-confirmation in exactly one case: the new thread is an **in-class
+sibling** of a fix the user already approved — the reviewer piling on more
+instances of a defect whose fix is already agreed. That is the common case and
+the one worth collapsing. Anything else waits for a yes.
 
 Stage all modified files (only the specific files that were edited):
 ```bash

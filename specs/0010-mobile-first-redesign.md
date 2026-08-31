@@ -1,7 +1,7 @@
 # 0010 — mobile-first redesign
 
 **Status:** in-progress
-**Depends on:** 0009 (the app payload is regenerated from `run.py` and guarded against drift)
+**Depends on:** 0009 (the app payload is regenerated from `run.py` and guarded against drift) · supersedes the map surface of 0008, carrying its AA guarantee forward (R21)
 **Issue:** [#61](https://github.com/apportico/who-gets-replaced-first/issues/61)
 
 ## Objective
@@ -701,6 +701,45 @@ deliberately a Non-goal below. A person loading `/` at 375px is the cheapest way
 to close them, and the one defect this class of check already caught — the
 dropped font `@import` — is now its own regression test rather than something a
 viewer would have to notice.
+
+### R21. [x] Spec 0008's accessibility guarantee survives the map's deletion
+
+Added 2026-08-31, during implementation. Spec 0008 — *mobile layout, keyboard
+access and tier provenance* — merged to `main` after this spec was approved and
+while it was being built. It hardened the map: it found three of four tier
+badges failing WCAG AA (3.08 / 3.16 / 4.39:1) and fixed them, found the lightest
+ramp step sitting ΔE 5.6 from the no-data grey so a measured low value and a
+null looked identical, and pinned both with a `node --test` suite wired into
+`verify`.
+
+R1 deletes the surface all of that was measured on. Five of 0008's six suites
+import `LaborDetailPanel`, the metric ramps, or the light-theme text palette,
+none of which survive a dark-only wizard, so they cannot be carried across
+unchanged. **Retiring the assertions with the surface is correct; retiring the
+guarantee would not be** — the wizard renders a tier badge on every figure it
+shows, which is precisely the case 0008 was about.
+
+So:
+
+- The five map-dependent suites, their fixtures, the four map probe scripts,
+  `mapText.js`, `textPalette.js` and `BottomSheet.jsx` retire **with the map**.
+- `test/lint-config.test.mjs` and `scripts/palette-probe.mjs` survive — the
+  first is about where `.mjs` files run rather than what they assert, and the
+  second is the WCAG maths.
+- **The AA rule moves to `src/styles/contrast.test.js`**, recomputed against the
+  canvas palette, importing `contrast` from 0008's own probe so the two cannot
+  drift and a change to the maths applies to both.
+- 0008's null-versus-measurement finding has no direct analogue: the wizard has
+  no colour ramp, because an absence here is a *sentence* rather than a shade.
+  What replaces it is the assertion that absence text is legible rather than
+  greyed into its background.
+
+**Acceptance:** `npm run verify` runs both suites; `src/styles/contrast.test.js`
+asserts ≥ 4.5:1 for the neutral and accent-tinted tier badges, body and display
+text on both grounds, the primary action's label, and an inverted selection, and
+≥ 3:1 for the muted note tone with that lower floor stated rather than implied;
+`grep -rn 'LaborDetailPanel\|mapText\|textPalette' test/ scripts/` returns
+nothing.
 
 ## Implementation Plan
 

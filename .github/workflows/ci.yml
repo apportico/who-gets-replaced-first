@@ -56,3 +56,10 @@ jobs:
       # checks list. `npm run verify` also runs it, so local and CI are one gate.
       - name: pipeline tests
         run: npm run test:pipeline
+
+      # Spec 0008's suite — the step that guards the tier palette and the app's
+      # accessibility structure. `npm run verify` runs it too, so this is a named
+      # step purely so it fails distinguishably from lint on the checks list,
+      # matching the pipeline tests above. Needs no browser and no network.
+      - name: app tests
+        run: npm run test:app

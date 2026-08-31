@@ -54,4 +54,17 @@ export default defineConfig([
       'react-refresh/only-export-components': 'off',
     },
   },
+  {
+    // From spec 0008: its probe scripts and node --test suites are Node ESM,
+    // not browser code, so they need the Node globals and none of the React
+    // rules. Kept through 0010's merge — 0010 deletes the map those suites
+    // partly targeted, but this block is about where the files run, not what
+    // they assert.
+    files: ['scripts/**/*.mjs', 'test/**/*.mjs'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      globals: globals.node,
+      parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
+    },
+  },
 ])

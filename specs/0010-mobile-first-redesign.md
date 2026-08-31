@@ -238,7 +238,8 @@ Emit, per country and per ISCO major group, the employed share for `Y15-24`,
 `isco<N>_age_<band>_pct` with companion `isco<N>_age_year`** — stated here so
 R20's exclusion has a name to bind to rather than a convention invented in its
 own criterion. Tier `DERIVED` (share = group-age count ÷ group
-`YGE15` count, both `OFFICIAL`), recorded in `field_tiers`.
+`YGE15` count, both `OFFICIAL`), recorded in **the cross-tab artefact's own tier
+block** — R20 excludes these columns from `global_labor.json`'s.
 
 Per *The vintage rule* above, the value is taken at **each country's own most
 recent year** carrying all three bands and the denominator, recorded in that
@@ -556,9 +557,14 @@ R8 and R9 together add **81 columns** to every row — 27 age shares plus 9 year
 **1.2 MB**, and all but one row describes a country the reader did not pick.
 
 This is the mobile-first spec, so it is the wrong place to let that happen
-silently. The per-group age and education cross-tabs ship in a **separate
-artefact fetched for the chosen country**, after step 01, rather than in the
-bundle the intro screen waits on.
+silently. The per-group age and education cross-tabs ship in **one artefact per
+country**, fetched after step 01 for the country the reader picked.
+
+**One file per country, not one file for all of them.** A single combined
+artefact would still carry ~575 KB of which about 2.5 KB is the chosen country —
+it defers the download to the step 01 → step 02 transition rather than removing
+it, and the argument this requirement opens with ("all but one row describes a
+country the reader did not pick") only lands on the per-country reading.
 
 **The columns still enter `COLUMNS`.** They reach `global_labor_dataset.csv` and
 the SQLite like every other column — this project's output *is* the dataset, and
@@ -574,13 +580,27 @@ implementation:
 - **R8's `field_tiers` criterion moves to the new artefact.** Every emitted
   number still carries a tier; the tier block it appears in is the cross-tab
   artefact's, not `global_labor.json`'s.
-- **Spec 0009's two guards read `COLUMNS` and both would fail.**
-  `test_field_tiers_covers_every_key_a_row_ships`
-  (`pipeline/tests/test_app_payloads.py:201`) asserts `set().union(*rows) ==
-  set(field_tiers)` exactly, and `test_every_cell_matches_the_dataset_csv`
-  (`:334`) walks every non-`_range` column against the committed payload. Both
-  must learn the exclusion, and R17 means the alternative is finding out as a red
-  suite.
+- **One of spec 0009's guards fails, not two.**
+  `test_every_cell_matches_the_dataset_csv`
+  (`pipeline/tests/test_app_payloads.py:334`) rebuilds `keep` from `run.COLUMNS`
+  and walks every non-`_range` column against the committed payload, so it fails
+  229 times over and must learn the exclusion.
+  `test_field_tiers_covers_every_key_a_row_ships` (`:201`) compares
+  `set().union(*rows)` against `self.committed["field_tiers"]` — **both sides out
+  of the committed artefact** — so the exclusion drops them together and it stays
+  green untouched. It must be **left alone**: its stated threat model is a
+  hand-edit, and a name-shaped skip would blind it to exactly that. R17 means the
+  alternative to deciding this here is a red suite during implementation.
+- **The exclusion must not take the tier gate with it.** `keep` feeds a third
+  consumer: `untiered = [c for c in keep if c not in C.FIELD_TIERS]`
+  (`run.py:253`), whose `raise` is the *entire* enforcement of "every emitted
+  number carries a tier" inside the pipeline — `export_csv` and `export_sqlite`
+  have no tier check of their own. Excluding the 81 columns from `keep` would
+  ship them in two tracked artefacts with nothing requiring them to be
+  registered. **Ordering is therefore part of the requirement:** compute
+  `untiered` over the full non-`_range` column list *before* the exclusion, and
+  apply the exclusion only where the payload's rows and tier block are
+  assembled.
 - **The new artefact gets its own drift guard**, in the shape of
   `CommittedRowsMatchTheDataset`. 0009 exists because a committed payload went
   unregenerated for the life of the project while six tests appeared to cover it.
@@ -610,16 +630,33 @@ This is not #26 (per-route data for the whole app); it is the narrower rule that
 this spec's own additions must not land in the initial load.
 
 **Acceptance:** `src/data/global_labor.json` is **no larger than 668,000 bytes**
-(10% over its 607,739-byte pre-R8 size) and
-`python3 -c "import json;print([k for k in json.load(open('src/data/global_labor.json'))['field_tiers'] if '_age_' in k or '_edu_' in k])"`
-prints `[]` — binding to the `isco<N>_age_*` / `isco<N>_edu_*` names R8 and R9
-now state, in the `field_tiers` block as well as the rows; the same columns **are**
-present in `global_labor_dataset.csv`; `npm run test:pipeline` passes with 0009's
-two guards taught the exclusion and a new guard asserting the cross-tab artefact
-matches the dataset; the intro screen renders without having fetched any
-cross-tab; unit tests (R19) assert the cross-tab loader is not called before a
-country is chosen, and that **a failed fetch renders "could not load", not R9's
-withheld branch or R10's stated absence**.
+(10% over its 607,739-byte size at `986d32c`), and this prints `[]` — over the
+row keys as well as the tier block, so it still holds if someone implements the
+exclusion in two places:
+
+```python
+import json, re
+d = json.load(open('src/data/global_labor.json'))
+bad = re.compile(r'isco[1-9]_(age|edu)_')
+print(sorted({k for k in d['field_tiers'] if bad.match(k)} |
+             {k for r in d['rows'] for k in r if bad.match(k)}))
+```
+
+The pattern is **anchored** on the `isco<N>_age_*` / `isco<N>_edu_*` names R8 and
+R9 state. A substring test on `_age_` / `_edu_` does not work: it matches
+`youth_age_band_used` and `labor_force_advanced_edu_pct`, both in the payload
+today, so it would fail before R8 adds a column.
+
+Also: the same columns **are** present in `global_labor_dataset.csv` and the
+SQLite; `run.py`'s `untiered` gate still raises for an unregistered cross-tab
+column; `npm run test:pipeline` passes with
+`test_every_cell_matches_the_dataset_csv` taught the exclusion,
+`test_field_tiers_covers_every_key_a_row_ships` **unmodified**, and a new guard
+asserting the per-country artefacts match the dataset; the intro screen renders
+without having fetched any cross-tab; unit tests (R19) assert the loader is not
+called before a country is chosen, that it fetches **only the chosen country's
+artefact**, and that **a failed fetch renders "could not load", not R9's withheld
+branch or R10's stated absence**.
 
 ## Verification section
 

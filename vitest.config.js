@@ -15,6 +15,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.{js,jsx}'],
+    globals: true,
     // The pipeline suite lives in Python and runs separately; keep vitest from
     // walking pipeline/raw/, which is ~80MB of cached API responses.
     exclude: ['node_modules/**', 'dist/**', 'pipeline/**', '.claude/**'],

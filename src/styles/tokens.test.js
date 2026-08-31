@@ -139,12 +139,22 @@ describe('R4 — the shadcn defaults are overwritten, not shipped', () => {
 })
 
 describe('R5 — the touch targets and the focus ring are declared', () => {
-  it('no mono label ships below the 11px floor 0008 R4 set', () => {
-    // The token being right is not the same as the screens rendering it. Two
-    // inline `fontSize: 10` overrides sat on .wz-meta elements — one of them on
-    // the country row's provenance tag, across 218 rendered rows — while
-    // tokens.test asserted the token as evidence the floor was carried. That is
-    // the assert-the-token-not-the-outcome shape, so both are checked now.
+  it('no mono rule in this stylesheet declares a px size under 11', () => {
+    // Deliberately narrow, and named for what it does. It catches the likely
+    // new-label regression — someone writing `font-family: var(--font-mono);
+    // font-size: 9px` — and nothing else:
+    //
+    //   - the token-valued rules are skipped here and pinned at the token
+    //     assertions above, which is where they belong;
+    //   - it requires font-size to sit adjacent to font-family, so a mono rule
+    //     that sets size elsewhere in its block is invisible to it;
+    //   - it cannot see inline `fontSize` in JSX at all, which is what the
+    //     defect actually was — 218 rendered country rows, outside this file.
+    //
+    // The rendered floor is asserted in computed.test.jsx, on elements. An
+    // earlier version of this comment claimed both halves were checked here.
+    // They were not, and saying so was the same defect as the thing it claimed
+    // to check.
     const monoRules = [...css.matchAll(/font-family:\s*var\(--font-mono\)[^;]*;\s*font-size:\s*([^;]+);/g)]
     expect(monoRules.length).toBeGreaterThan(0)
     for (const [, size] of monoRules) {

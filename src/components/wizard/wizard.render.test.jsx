@@ -116,9 +116,17 @@ describe('R14 — no year reaches the screen, in words or digits', () => {
     // education figures carried no tier at all. The check that was supposed to
     // cover this is the check that watched the defect ship.
     //
-    // Counting both sides is the point, and it is what field-tiers.test.mjs did
-    // in substance: a dropped badge fails, and so does a badge with no figure.
-    // `toContain` can see neither.
+    // What this DOES carry: a dropped badge fails, which is the direction the
+    // defect took. What it does not: a badge rendered beside an absent figure
+    // still counts as one of the five. The JSX makes that hard to produce —
+    // every badge sits inside the conditional that renders its own figure — so
+    // the claim is trimmed rather than an assertion added for it.
+    //
+    // The 5 depends on Radix unmounting both AccordionContent bodies while
+    // collapsed: `terms.map` renders a wz-badge per term carrying `t.tier`,
+    // which matches the same regex. Correct today. If either panel ever
+    // defaults to open, this fails for a reason with nothing to do with tier
+    // badges — so read this note before debugging the number.
     startWizard()
     fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))

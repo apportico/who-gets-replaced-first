@@ -948,9 +948,21 @@ Plus `pipeline/tests/test_crosstabs.py`, in the shape of
   cross-tab columns out; the base payloads were always meant to stay in, and
   `global_labor.json` genuinely is needed at step 01 for the country list.
 
-  The **timeseries is not** — it is read only by `seriesFor`, and only the result
-  screen consumes it — so it is a candidate for exactly R20's treatment and would
-  take about 319 KB off the first load. Recorded rather than done: it turns
-  `trendFor` from sync to async and ripples through `terms.js`, `ResultScreen`
-  and three suites, which deserves its own change rather than a tail-end
-  addition to this one.
+  The **timeseries is not** — only the result screen consumes it — so it is a
+  candidate for exactly R20's treatment and would take about 319 KB off the
+  first load.
+
+  **Scoping it honestly, because "read only by `seriesFor`" understates it:**
+  `laborPanel.js` touches the payload three times and two are at *module scope*
+  — `FIELDS` and `PANEL_YEARS` at `:7-8`, and an eager `PANEL` build at `:10-18`
+  that walks every country and every year at import. So the change is not just
+  `trendFor` gaining an `await`: the panel build has to move behind the same
+  boundary, or the 319 KB re-enters the initial chunk the moment anything
+  imports the module. It also ripples through `terms.js`, `ResultScreen` and
+  three suites.
+
+  Recorded rather than done: that is its own change, not a tail-end addition to
+  this one. Note for whoever takes it — `PANEL_YEARS` has no consumer in `src/`
+  or `test/` at this SHA. R1 names it as a keeper, so it is not being deleted
+  here, but it is the only reader of `timeseries.years` and a lazy-load would be
+  carrying it for nothing.

@@ -192,6 +192,42 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     for (const chip of chips) expect(resolved(chip, 'min-height')).toBe('56px')
   })
 
+  it('no mono label RENDERS below 11px, inline overrides included', () => {
+    // The half tokens.test.js cannot reach. The defect was an inline
+    // `fontSize: 10` on .wz-meta across 218 country rows — outside index.css,
+    // so no amount of stylesheet grepping would have seen it, and the token
+    // assertion passed the whole time as evidence the floor was carried.
+    //
+    // Walks the screens and reads the computed size off every element whose
+    // font-family resolves to the mono stack, so an inline override, a
+    // non-adjacent declaration and a new rule are all covered by the same
+    // check — on the element, which is the only place the question is real.
+    const small = []
+    const sweep = (where) => {
+      let seen = 0
+      for (const el of document.querySelectorAll('*')) {
+        const fam = resolved(el, 'font-family')
+        if (!fam || !fam.includes('Geist Mono')) continue
+        seen += 1
+        const size = resolved(el, 'font-size')
+        if (size.endsWith('px') && parseFloat(size) < 11) {
+          small.push([`${where}: ${(el.textContent || '').slice(0, 24)}`, size])
+        }
+      }
+      expect(seen, `${where} rendered no mono label`).toBeGreaterThan(0)
+    }
+
+    cleanup(); render(<App />)
+    sweep('intro')
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    sweep('country')
+    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    sweep('occupation')
+
+    expect(small).toEqual([])
+  })
+
   it('the column is capped at 480px and the tokens carry the canvas values', () => {
     const root = getComputedStyle(document.documentElement)
     expect(root.getPropertyValue('--column').trim()).toBe('480px')

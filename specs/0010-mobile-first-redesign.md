@@ -60,7 +60,7 @@ chips describe 13.3% — the figure R9's coverage floor actually tests → R9's 
 
 ## Requirements
 
-### R1. [ ] The wizard is the app; the map and the corridor overlay are deleted
+### R1. [x] The wizard is the app; the map and the corridor overlay are deleted
 
 The wizard is the only surface. No router — step state is internal to the
 wizard. Delete `LaborPage`, `LaborMap`, `LaborSidebar`, `LaborDetailPanel`,
@@ -93,7 +93,7 @@ returns nothing; `npm run build` succeeds.
 > import boundary, and `varsIgnorePattern: '^[A-Z_]'` exempts most of the delete
 > list even as locals. The grep is the check that can actually fail.
 
-### R2. [ ] The canvas's tokens are the only source of colour, type and motion
+### R2. [x] The canvas's tokens are the only source of colour, type and motion
 
 Define the palette, radii, type scale and the **four** keyframes from *The
 design* section of `CLAUDE.md` (`stepin`, `fade`, `draw`, `pulse` — not `band`,
@@ -108,7 +108,7 @@ check keeps this from passing vacuously on a missing directory); the three
 families and the italic face are requested; `@media (prefers-reduced-motion:
 reduce)` disables the four animations.
 
-### R3. [ ] shadcn/ui is installed as JSX over Tailwind v4
+### R3. [x] shadcn/ui is installed as JSX over Tailwind v4
 
 Run the shadcn CLI against the existing Tailwind v4 setup. `components.json`
 must carry `"tsx": false` and an empty `tailwind.config`. Add `jsconfig.json`
@@ -150,7 +150,7 @@ computed-style assertions need a rendered DOM and R19's runner is
 #FF5A2B` with `outline-offset: 3px`, and the column is `max-width: 480px`.
 Record what was loaded, at what viewport, and what was seen.
 
-### R6. [ ] Step 01 — country, tagged by what the data actually carries
+### R6. [x] Step 01 — country, tagged by what the data actually carries
 
 List countries from the payload. Each row's `official series` / `no series` tag
 is **derived from the row's own nullity**, reading **"any of the nine ISCO
@@ -171,7 +171,7 @@ fields null renders `no series`; the count of `official series` rows equals the
 count of countries with any of the nine non-null (177 at the probed vintage);
 no country is hidden from the list for lacking data.
 
-### R7. [ ] Step 02 — a job title resolves to an ISCO-08 major group, visibly
+### R7. [x] Step 02 — a job title resolves to an ISCO-08 major group, visibly
 
 Free-text input resolves to one of the nine ISCO-08 major groups. The resolved
 group is displayed with its code and full label, and is overridable by chip. A
@@ -185,7 +185,7 @@ UI shows `3 · Technicians and associate professionals`;
 the UI shows an explicit "not resolved — pick a group" state with no group
 pre-selected; picking any chip overrides the resolution.
 
-### R8. [ ] Age band × ISCO group comes from ILOSTAT, per group
+### R8. [x] Age band × ISCO group comes from ILOSTAT, per group
 
 **This flow is already fetched, cached and read.** `ILO_FLOWS["age_occupation"]`
 is `DF_EMP_TEMP_SEX_AGE_OCU_NB` at `startPeriod=2013` (`pipeline/config.py:48`),
@@ -262,7 +262,7 @@ state a vintage for any of the nine groups;
 `npm run test:pipeline` passes with a case asserting an uncovered country stays
 null; selecting an age band in step 03 changes the figure shown.
 
-### R9. [ ] Education band × ISCO group comes from ILOSTAT, per group
+### R9. [x] Education band × ISCO group comes from ILOSTAT, per group
 
 As R8, from `DF_EMP_TEMP_SEX_OCU_EDU_NB`, added to `ILO_FLOWS` in
 `pipeline/config.py` alongside the existing three (`occupation`,
@@ -346,7 +346,7 @@ unit tests (R19) assert the three named bands are divided by
 **CMR yields the withheld branch rather than four chips**, and that **DJI does
 not** — its three bands are 39.9% but its rendered chips are 99.6%.
 
-### R10. [ ] The result screen shows the group's share, with tier and vintage
+### R10. [x] The result screen shows the group's share, with tier and vintage
 
 Report the chosen group's share of employment for the chosen country, its tier
 badge (`DERIVED` at the probed vintage) and the `data_year_occupation` for that
@@ -363,7 +363,7 @@ with a `DERIVED` badge and the year 2025; a country with a null share for the
 chosen group yields the stated-absence branch, not a zero, a dash or an empty
 node; a country with all nine null yields the same branch.
 
-### R11. [ ] Headcount is derived per group, or it is absent
+### R11. [x] Headcount is derived per group, or it is absent
 
 The canvas's "People doing it" figure exists in the payload only for clerical,
 professionals and the two aggregates. For the other groups compute
@@ -384,7 +384,7 @@ headcount — no country in the current payload has one (0 of 177), so this bran
 cannot be exercised against real data and must not be marked `[x]` on the
 strength of never having run.
 
-### R12. [ ] The trend says it is a stand-in whenever it is one
+### R12. [x] The trend says it is a stand-in whenever it is one
 
 The time series carries `isco4_clerical_pct` only. When the chosen group is 4,
 the sparkline is that group's own series. When it is any other group, the panel
@@ -420,7 +420,7 @@ on review at `8509f46`.
 precedent of the AI exposure weights; that is deliberately not borrowed here.
 R14 specs the result screen to be complete without it.
 
-### R14. [ ] The result screen is complete and honest without the year
+### R14. [x] The result screen is complete and honest without the year
 
 Given R13, the result screen must read as finished with no year, no interval
 band, no scenario slider and no adoption assumption. It must not display a
@@ -447,7 +447,7 @@ so this is the honest shape for it; the result screen's own
 copy states that no displacement date is published, and links to the method
 panel.
 
-### R15. [ ] Nothing is imputed, anywhere in the wizard
+### R15. [x] Nothing is imputed, anywhere in the wizard
 
 Every screen honours the project non-negotiable: a null stays null and says so.
 No fallback to a regional average, a world figure, or a neighbouring country.
@@ -468,7 +468,7 @@ another group, from a region row, or from the world row. Plus
 `grep -rn 'region\|world\|average\|median' src/components/wizard/` reviewed by
 hand for any fallback path.
 
-### R16. [ ] The method and back-test panels tell the truth about the model
+### R16. [x] The method and back-test panels tell the truth about the model
 
 The two accordions ship. The method panel lists the terms the result actually
 uses, each with its tier. A term with no source is shown as **absent with its
@@ -486,7 +486,7 @@ figures the result screen renders for that row and group, each with its tier; th
 "Duration" term, if present, is marked unsourced and cites R13; no term claims a
 back-test that has not been run.
 
-### R17. [ ] `npm run verify` stays green
+### R17. [x] `npm run verify` stays green
 
 Lint, build, the pipeline suite, the new JS suite from R19 and the pilot anchors
 all pass with the new pipeline fields and the new app. R19's runner is added to
@@ -499,7 +499,7 @@ unmoved; CI is green on the PR. The pipeline suite's test count rises from 126
 as a result of R8 and R9 — the criterion is that it passes, not that it stays at
 126.
 
-### R18. [ ] Ten countries publish ISCO-88, and the result screen says so
+### R18. [x] Ten countries publish ISCO-88, and the result screen says so
 
 167 of the 177 countries with an ISCO block publish ISCO-08; **10 publish
 ISCO-88** — BMU, CAN, MAC, NAM, NIC, TTO, TWN, UKR, YEM, ZAF — carried in
@@ -522,7 +522,7 @@ ISCO-88 notice naming the classification and the 2/3 boundary caveat; GBR ×
 group 2 does not; the notice is present for all ten countries and absent for the
 other 167.
 
-### R19. [ ] A JavaScript test runner, and the logic pushed where it can be tested
+### R19. [x] A JavaScript test runner, and the logic pushed where it can be tested
 
 There is no JS test runner in this repo: `verify` is lint, build, the Python
 suite and the pilot. Ten of this spec's acceptance criteria need a rendered DOM
@@ -544,11 +544,13 @@ copy judgement rather than a function.
 
 **Acceptance:** `npm test` runs Vitest and `npm run verify` invokes it; the
 suites named in R6, R7, R9, R10, R11, R12, R15, R16, R18 and R20 all exist and
-pass;
+pass — 66 tests across three files at the time of writing, including a
+`jsdom` render suite that walks all five screens, because a clean build is not
+evidence the page renders;
 each of those requirements' criteria is executed by a test rather than asserted
 in prose; `npm run verify` fails if any of them fails.
 
-### R20. [ ] The per-group cross-tabs do not ship in the initial payload
+### R20. [x] The per-group cross-tabs do not ship in the initial payload
 
 R8 and R9 together add **81 columns** to every row — 27 age shares plus 9 years,
 36 education shares plus 9 years — on top of the current 84.
@@ -666,10 +668,17 @@ for R15 record the grep output and what was concluded.*
 
 | Requirement | Checked | Result |
 |---|---|---|
-| R4 — palette renders | | |
-| R5 — touch targets, focus ring | | |
-| R15 — fallback grep output reviewed by hand | | |
-| R14 — intro copy reviewed by hand (no year, date or countdown, in words as well as digits) | | |
+| R15 — fallback grep output reviewed by hand | 2026-08-31 | **Pass.** `grep -rn 'region\|world\|average\|median' src/components/wizard/ src/utils/` returns 10 lines, all reviewed: `absence.js:6` and `terms.js:95` are prose; `countryTag.js:55-63` uses `region` for the **locale subtag** (`GB` in `en-GB`) to prefill the country, not a `row_type: 'region'` aggregate; the rest are `wizard.test.js` asserting that no borrowing happens. **No fallback path exists.** |
+| R14 — intro copy reviewed by hand | 2026-08-31 | **Closed by test instead**, which is better than the manual row planned for it. `wizard.render.test.jsx` asserts the rendered intro contains no four-digit projection year, no `countdown` / `how long you have` / `years until`, and does contain the claim it does make. A copy change that reintroduced a promise of a date now fails the suite. |
+| R4 — palette renders | **not run** | The runnable halves pass: `oklch(` count is 0, no `class="dark"` anywhere, and `tokens.test.js` asserts all seven palette tokens carry the canvas values and that shadcn's own token names map onto them. **The rendered half is outstanding** — it needs a browser to confirm the ground paints `#0D0C0A` and the primary `#FF5A2B`. |
+| R5 — touch targets, focus ring | **not run** | `tokens.test.js` asserts the declarations: `.wz-cta` carries `--tap-primary` (60px), `.wz-option` 56px, `.wz-tertiary` 48px, the focus ring is `2px solid var(--accent)` at `outline-offset: 3px` and `outline: none` appears nowhere, and the column is capped at 480px. **Computed layout is outstanding** — jsdom does no layout, so confirming what those rules actually resolve to needs a browser. |
+
+**Why the last two are still open.** Both need `getComputedStyle` in a real
+engine. Playwright would close them and is deliberately a Non-goal below: it is
+a CI dependency this repo has not taken, and two criteria do not justify it. The
+Chrome extension that would have driven a manual pass was not connected in the
+session that implemented this, so the checks are recorded as not run rather than
+asserted. Everything the CSS can be held to without a browser is now a test.
 
 ## Implementation Plan
 

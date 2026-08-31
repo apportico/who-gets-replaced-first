@@ -14,7 +14,11 @@
 // `contrast` is imported from 0008's own probe rather than reimplemented, so
 // the two cannot drift and a change to the WCAG maths applies to both.
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { contrast } from '../../scripts/palette-probe.mjs'
+
+const CSS = readFileSync(path.resolve('src/styles/index.css'), 'utf8')
 
 // The canvas palette, from src/styles/index.css. Duplicated as literals on
 // purpose: a test that read the tokens from the file it is checking would pass
@@ -55,6 +59,27 @@ describe('0008 R4, on 0010’s surface — every tier badge clears AA', () => {
 })
 
 describe('0008 R11, on 0010’s surface — body text clears AA', () => {
+  // The tones the SCREENS paint, not the ones the palette happens to define.
+  //
+  // The first version of this block asserted `contrast(FG, BG)` — 15.40:1 — and
+  // reported body text as passing. Bare `--fg` is used by exactly one rule,
+  // `body`; every explanatory paragraph on every screen is `.wz-body` or
+  // `.wz-note`, both `--muted`, which computed 3.80:1 and failed AA the whole
+  // time. A test that measures a colour nothing paints is the shape 0008 spent
+  // four rounds learning to distrust.
+  const MUTED = over(FG, 0.55, BG)
+  const MUTED_ON_CARD = over(FG, 0.55, SURFACE)
+  const MUTED_STRONG = over(FG, 0.72, SURFACE)
+
+  it('.wz-body and .wz-note — the prose the screens actually render', () => {
+    expect(contrast(MUTED, BG)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(MUTED_ON_CARD, SURFACE)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('the emphasised secondary tone', () => {
+    expect(contrast(MUTED_STRONG, SURFACE)).toBeGreaterThanOrEqual(4.5)
+  })
+
   it('body text on the page and on a card', () => {
     expect(contrast(FG, BG)).toBeGreaterThanOrEqual(4.5)
     expect(contrast(FG, SURFACE)).toBeGreaterThanOrEqual(4.5)
@@ -76,12 +101,11 @@ describe('0008 R11, on 0010’s surface — body text clears AA', () => {
     expect(contrast(BG, FG_STRONG)).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('muted note text clears the 3:1 floor it is held to', () => {
-    // --muted is rgba(232,228,218,0.45), used only for secondary notes at
-    // 12.5px. Held to 3:1 rather than 4.5:1 and said so, rather than claiming
-    // an AA pass it does not have.
-    const muted = over(FG, 0.45, SURFACE)
-    expect(contrast(muted, SURFACE)).toBeGreaterThanOrEqual(3.0)
+  it('the token itself is the one the screens use, not a weaker one', () => {
+    // Guards the fix rather than the symptom: if --muted drifts back toward the
+    // canvas's 0.45 this fails, where an assertion on a hardcoded flattened hex
+    // would not.
+    expect(CSS).toMatch(/--muted:\s*rgba\(232, 228, 218, 0\.5[5-9]\)/)
   })
 })
 

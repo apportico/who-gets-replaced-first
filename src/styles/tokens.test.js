@@ -40,7 +40,10 @@ describe('R2 — the canvas tokens are declared, with the canvas values', () => 
     for (const [name, value] of [
       ['--step-h1', '66px'], ['--step-h2', '46px'], ['--step-stat', '38px'],
       ['--step-lede', '17.5px'], ['--step-body', '15px'], ['--step-note', '12.5px'],
-      ['--step-meta', '9.5px'], ['--step-eyebrow', '10px'],
+      // 11px, not the canvas's 8-9px: spec 0008 R4 raised badge and label text
+      // to at least 11px and is [x] on main, so 0010 R21 carries it. The canvas
+      // values would revert a done accessibility fix.
+      ['--step-meta', '11px'], ['--step-badge', '11px'], ['--step-eyebrow', '10px'],
     ]) {
       expect(css).toMatch(new RegExp(`${name}:\\s*${value.replace('.', '\\.')}`))
     }

@@ -41,7 +41,13 @@
   --hairline:     rgba(232, 228, 218, 0.09);
   --border:       rgba(232, 228, 218, 0.14);
   --border-strong:rgba(232, 228, 218, 0.35);
-  --muted:        rgba(232, 228, 218, 0.45);
+  /* 0.55, not the canvas's 0.45. At 0.45 this computes 3.80:1 on --bg and
+     3.83 on --surface, below AA, and it is the tone every explanatory
+     paragraph on every screen uses (.wz-body, .wz-note). 0.55 gives 5.15 and
+     5.08. Spec 0008 R11 fixed exactly this class on the map and 0010 R21
+     carries that guarantee; shipping the canvas value unchanged would have
+     re-introduced it on the surface that replaced it. */
+  --muted:        rgba(232, 228, 218, 0.55);
   --muted-strong: rgba(232, 228, 218, 0.72);
   --accent-tint:  rgba(255, 90, 43, 0.10);
   --accent-edge:  rgba(255, 90, 43, 0.34);
@@ -73,7 +79,13 @@
   --step-lede:    17.5px; --lh-lede:  1.45;
   --step-body:    15px;   --lh-body:  1.5;
   --step-note:    12.5px; --lh-note:  1.4;
-  --step-meta:    9.5px;  --tr-meta:  0.18em;
+  /* 11px, not the canvas's 8px. Spec 0008 R4 raised badge text "from 8-9px to
+     at least 11px" and is [x] on main; 0010 R21 carries that requirement
+     forward, so shipping the canvas size would have reverted a done
+     accessibility fix without saying so. --step-meta follows for the same
+     reason: it is the same mono label at the same size. */
+  --step-badge:   11px;
+  --step-meta:    11px;  --tr-meta:  0.18em;
   --step-eyebrow: 10px;   --tr-eyebrow: 0.2em;
 
   /* -- layout ------------------------------------------------------------ */
@@ -329,7 +341,7 @@ html, body {
   border: 1px solid var(--border); border-radius: var(--radius-card);
 }
 .wz-badge {
-  display: inline-block; font-family: var(--font-mono); font-size: 8px;
+  display: inline-block; font-family: var(--font-mono); font-size: var(--step-badge);
   letter-spacing: 0.14em; text-transform: uppercase; padding: 3px 7px;
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--fg) 7%, transparent);

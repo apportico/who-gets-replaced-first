@@ -731,7 +731,7 @@ to close them, and the one defect this class of check already caught — the
 dropped font `@import` — is now its own regression test rather than something a
 viewer would have to notice.
 
-### R21. [x] Spec 0008's accessibility guarantee survives the map's deletion
+### R21. [~] Spec 0008's accessibility guarantee survives the map's deletion
 
 Added 2026-08-31, during implementation. Spec 0008 — *mobile layout, keyboard
 access and tier provenance* — merged to `main` after this spec was approved and
@@ -763,12 +763,36 @@ So:
   What replaces it is the assertion that absence text is legible rather than
   greyed into its background.
 
+**`[~]` revised 2026-09-01.** This requirement went `[x]` on the sentence "the
+wizard renders a tier badge on every figure it shows", which nothing checked and
+which was **false**: the age and education figures on the result screen rendered
+a year badge and no tier, with the year sitting in the slot every other figure
+uses for its tier. Two further instances of the same shape, both found by review
+rather than by this requirement:
+
+- **`.wz-body` computed 3.80:1**, below AA, and it is the tone every explanatory
+  paragraph uses. The contrast suite reported body text passing because it
+  asserted bare `--fg` at 15.40:1 — a colour used by exactly one rule, `body`.
+  `--muted` is now 0.55 (5.15 / 5.08).
+- **Tier badges shipped at 8px**, the size 0008 R4 explicitly raised them *from*.
+  Carrying R4's colour half and silently reverting its size half is not carrying
+  the requirement. `--step-badge` and `--step-meta` are 11px.
+
+That is three instances of the failure this requirement is *about*, and it is
+worth stating plainly: 0008's own account records four attempts at this check
+that passed while the defect stood, and `test/field-tiers.test.mjs` was its
+terminal answer. This merge deleted that file and replaced it with a claim.
+
 **Acceptance:** `npm run verify` runs both suites; `src/styles/contrast.test.js`
-asserts ≥ 4.5:1 for the neutral and accent-tinted tier badges, body and display
-text on both grounds, the primary action's label, and an inverted selection, and
-≥ 3:1 for the muted note tone with that lower floor stated rather than implied;
-`grep -rn 'LaborDetailPanel\|mapText\|textPalette' test/ scripts/` returns
-nothing.
+asserts ≥ 4.5:1 against **the tones the screens actually paint** — `.wz-body` and
+`.wz-note` on both grounds, the emphasised secondary tone, the tier badges
+neutral and accent-tinted, display text, the primary action's label and an
+inverted selection — and pins the `--muted` token itself so the fix cannot drift
+back; the type-scale tokens carry 11px for badge and meta text;
+`computed.test.jsx` sweeps all five screens and **fails on a missing floor
+rather than skipping it**, with a visited-count guard so a sweep that renders
+nothing cannot pass; `grep -rn 'LaborDetailPanel\|mapText\|textPalette' test/
+scripts/` returns nothing.
 
 ## Implementation Plan
 

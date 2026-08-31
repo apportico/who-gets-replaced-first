@@ -116,13 +116,48 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     expect(resolved(skip, 'min-height')).toBe('48px')
   })
 
-  it('nothing interactive on the intro declares under 48px', () => {
-    cleanup()
-    render(<App />)
-    const short = [...document.querySelectorAll('button, input, [tabindex]')]
-      .map((el) => [el.textContent?.slice(0, 24), resolved(el, 'min-height')])
-      .filter(([, mh]) => mh && mh.endsWith('px') && parseFloat(mh) < 48)
-    expect(short).toEqual([])
+  it('no interactive element anywhere in the wizard is missing a floor', () => {
+    // The first version of this was the inverse of its own rule. `resolved()`
+    // returns '' when nothing declares min-height, and the filter said
+    // `mh && ...`, so the empty string short-circuited and `auto` failed
+    // `endsWith('px')`. The one case it existed to catch — a new interactive
+    // element reaching no `.wz-*` rule and carrying no floor at all — passed
+    // silently. Only an element that declared a floor AND declared it too small
+    // could trip it.
+    //
+    // A missing declaration is now a failure, not a skip. It also walks all
+    // five screens rather than the intro, which had exactly one button.
+    const offenders = []
+    let visited = 0
+    const sweep = (where) => {
+      for (const el of document.querySelectorAll('button, input, a[href], [tabindex]')) {
+        visited += 1
+        const mh = resolved(el, 'min-height')
+        const label = `${where}: ${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').slice(0, 28)}"`
+        if (!mh || mh === 'auto' || mh === '0px') offenders.push([label, 'no floor declared'])
+        else if (mh.endsWith('px') && parseFloat(mh) < 48) offenders.push([label, mh])
+      }
+    }
+
+    cleanup(); render(<App />)
+    sweep('intro')
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    sweep('country')
+    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    sweep('occupation')
+    fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    sweep('optional')
+    fireEvent.click(screen.getByRole('button', { name: /skip/i }))
+    sweep('result')
+
+    expect(offenders).toEqual([])
+    // A sweep that visited nothing also reports []. The country screen alone
+    // renders 218 options, so this is comfortably above any plausible floor and
+    // fails loudly if a screen stops rendering.
+    expect(visited).toBeGreaterThan(200)
   })
 
   it('the column is capped at 480px and the tokens carry the canvas values', () => {

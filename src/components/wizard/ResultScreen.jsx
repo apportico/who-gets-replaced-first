@@ -29,7 +29,7 @@ import { PRESENT, LOAD_FAILED, NOT_LOADED, absenceMessage } from '@/utils/absenc
 function Figure({ label, result, note }) {
   return (
     <div className="wz-card" style={{ padding: '18px 16px' }}>
-      <span className="wz-meta" style={{ fontSize: 8.5, letterSpacing: '0.16em', color: 'var(--muted)' }}>
+      <span className="wz-meta" style={{ letterSpacing: '0.16em', color: 'var(--muted)' }}>
         {label}
       </span>
       {result.state === PRESENT ? (
@@ -115,16 +115,24 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart })
       {(chosenAge || chosenEdu) && (
         <div className="wz-card" style={{ marginTop: 10 }}>
           <span className="wz-meta" style={{ color: 'var(--muted)' }}>Within this group</span>
+          {/* Tier first, year second — the order `Figure` uses above, and the
+              order a reader has already learned by the time they reach this
+              card. These two were the only figures on the screen with no tier
+              at all, with the year sitting in the slot where the tier goes, so
+              `2021` read as the provenance of the number. The tier was in hand
+              the whole time: readBands returns it and step 03 renders it. */}
           {chosenAge && (
             <p className="wz-body" style={{ margin: '10px 0 0', color: 'var(--fg)' }}>
               {chosenAge.value.toFixed(1)}% are aged {chosenAge.label}
-              <span className="wz-badge" style={{ marginLeft: 8 }}>{ages.year}</span>
+              <span className="wz-badge" style={{ marginLeft: 8 }}>{ages.tier}</span>
+              <span className="wz-badge" style={{ marginLeft: 6 }}>{ages.year}</span>
             </p>
           )}
           {chosenEdu && (
             <p className="wz-body" style={{ margin: '8px 0 0', color: 'var(--fg)' }}>
               {chosenEdu.value.toFixed(1)}% have {chosenEdu.label.toLowerCase()} education
-              <span className="wz-badge" style={{ marginLeft: 8 }}>{edus.year}</span>
+              <span className="wz-badge" style={{ marginLeft: 8 }}>{edus.tier}</span>
+              <span className="wz-badge" style={{ marginLeft: 6 }}>{edus.year}</span>
             </p>
           )}
           <p className="wz-note" style={{ margin: '10px 0 0' }}>
@@ -143,7 +151,7 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart })
       {trend.show && (
         <div className="wz-card" style={{ marginTop: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-            <span className="wz-meta" style={{ fontSize: 8.5, color: 'var(--muted)' }}>Share since 2013</span>
+            <span className="wz-meta" style={{ color: 'var(--muted)' }}>Share since 2013</span>
             <span className="wz-badge">{trend.tier}</span>
           </div>
           <div style={{ marginTop: 16 }}>

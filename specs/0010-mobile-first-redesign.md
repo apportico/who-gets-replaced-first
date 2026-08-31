@@ -942,3 +942,15 @@ Plus `pipeline/tests/test_crosstabs.py`, in the shape of
 - **No browser-driven end-to-end tests.** R19 stops at `jsdom`. Playwright would
   make R4 and R5 checkable, but it is a CI dependency this repo has not taken
   and is not worth taking for two criteria.
+- **Lazy-loading the base payloads.** Measured at `a9c9d9e`: the main chunk is
+  **1,163 KB**, because `global_labor.json` (593 KB) and
+  `global_labor_timeseries.json` (319 KB) are static imports. R20 moved the 90
+  cross-tab columns out; the base payloads were always meant to stay in, and
+  `global_labor.json` genuinely is needed at step 01 for the country list.
+
+  The **timeseries is not** — it is read only by `seriesFor`, and only the result
+  screen consumes it — so it is a candidate for exactly R20's treatment and would
+  take about 319 KB off the first load. Recorded rather than done: it turns
+  `trendFor` from sync to async and ripples through `terms.js`, `ResultScreen`
+  and three suites, which deserves its own change rather than a tail-end
+  addition to this one.

@@ -14,6 +14,15 @@ echo "==> build"
 npm run --silent build || fail "build"
 
 echo ""
+# Spec 0010 R19. The JS suite. Added to `verify` in the same change that
+# introduced it, per CLAUDE.md's rule that a check added to CI is added here —
+# otherwise a contributor who is green locally lands red on the gate.
+# Unconditional like the pipeline suite: vitest runs over pure functions and the
+# committed payload, so it needs no network and no response cache.
+echo "==> js tests"
+npm run --silent test || fail "js tests"
+
+echo ""
 # Spec 0004's regression suite. Unconditional, unlike the pilot below: the
 # gzipped fixture and the CSVs it reads are all in-tree, so it runs in a fresh
 # clone with no network and no cache. This is the step that guards the numbers,
@@ -22,18 +31,18 @@ echo "==> pipeline tests"
 npm run --silent test:pipeline || fail "pipeline tests"
 
 echo ""
-# Spec 0008's accessibility and palette suite. Unconditional for the same reason
-# the pipeline tests are: it needs no network and no browser, so it runs in a
-# fresh clone. It guards the two things a build cannot — that the tier colours
-# still clear AA and stay separable under colour-vision deficiency, and that the
-# rendered tree carries its landmarks and labels.
+# Spec 0008's node --test suite. Five of its six files went with the map that
+# spec 0010 R1 deletes -- they imported LaborDetailPanel, the metric ramps or the
+# light-theme text palette, none of which survive a dark-only wizard. What
+# remains here is the lint-config guard, which is about where files run rather
+# than what they assert.
 #
-# What it deliberately does NOT check: rendered sizes and rendered contrast.
-# jsdom has no layout engine, so axe's `target-size` rule reports a false pass
-# over a real tree rather than failing. Those live in spec 0008 R11, verified in
-# a browser by hand.
-echo "==> app tests (accessibility + palette)"
-npm run --silent test:app || fail "app tests — a tier colour, a text colour, or a landmark regressed"
+# 0008's substantive guarantee did NOT go with them: the AA contrast rule it
+# added moved to src/styles/contrast.test.js, which imports 0008's own
+# scripts/palette-probe.mjs so the two cannot drift, and runs in the vitest step
+# above.
+echo "==> app tests (0008 lint-config guard)"
+npm run --silent test:app || fail "app tests — the .mjs lint config block regressed"
 
 echo ""
 if [ -d pipeline/raw ] && [ -n "$(ls -A pipeline/raw 2>/dev/null)" ]; then

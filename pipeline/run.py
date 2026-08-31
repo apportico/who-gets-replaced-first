@@ -66,6 +66,11 @@ COLUMNS = [
     "data_year_youth_occupation_range",
     "isco_coverage_pct_of_employment", "youth_isco_coverage_pct_of_employment",
     "data_quality_flag",
+    # H. 0010 R8/R9 — the per-group cross-tabs. Appended rather than slotted
+    # beside section D so the 84 existing columns keep their positions and the
+    # CSV diff stays readable. They reach global_labor_dataset.csv and the
+    # SQLite like any other column; export_app_json sheds them (R20).
+    *C.CROSSTAB_COLUMNS,
 ]
 
 REGRESSION_CHECKS = [
@@ -106,6 +111,9 @@ def run(scope=None, label="full"):
 
     print("[5/7] ILOSTAT labour force participation by age band")
     B.load_lfp_by_age(rows)
+
+    print("[5b/7] ILOSTAT education x occupation cross-tab (0010 R9)")
+    B.load_edu_occupation(rows)
 
     print("[6/9] derived fields + modeled AI exposure (section F)")
     B.derive(rows, weights)
@@ -248,7 +256,22 @@ def export_panel_sqlite(panel, path):
 
 
 def export_app_json(rows, path):
-    """Trimmed payload for the React map page."""
+    """Trimmed payload for the wizard's first load.
+
+    0010 R20. The 81 per-group cross-tab columns are excluded here and shipped
+    per country instead: carrying them would take this file from 593 KB to
+    ~1.2 MB, almost all of it describing the 217 countries the reader did not
+    pick, on the spec whose first premise is mobile-first.
+
+    ORDER MATTERS, and it is the whole reason this is written out rather than
+    left to a comprehension. `keep` feeds three consumers, not two: the
+    `untiered` gate below, the `field_tiers` block, and the row keys. That gate
+    is the ENTIRE enforcement of "every emitted number carries a tier" inside
+    the pipeline -- export_csv and export_sqlite have no tier check of their own.
+    So it runs over the full column list FIRST, and the exclusion is applied
+    only afterwards, where the payload is assembled. Excluding before the gate
+    would ship 81 unregistered numbers in the CSV and the SQLite.
+    """
     keep = [c for c in COLUMNS if not c.endswith("_range")]
     untiered = [c for c in keep if c not in C.FIELD_TIERS]
     if untiered:
@@ -256,13 +279,15 @@ def export_app_json(rows, path):
             f"columns with no tier in config.FIELD_TIERS: {untiered}. "
             "Every emitted number carries a tier (CLAUDE.md); add these to the "
             "registry, using NOT_A_MEASUREMENT for identity/provenance fields.")
+    # -- the exclusion, after the gate above has seen every column
+    app_keep = [c for c in keep if c not in set(C.CROSSTAB_COLUMNS)]
     payload = {
         "generated_from": "pipeline/run.py",
         # 0004 R3. Per-field tier, so the app can label every number it renders
         # rather than relying on prose the reader has to go and find. Filtered
         # to `keep`, not the whole registry: the payload must not claim coverage
         # of the five *_range columns it drops.
-        "field_tiers": {c: C.FIELD_TIERS[c] for c in keep},
+        "field_tiers": {c: C.FIELD_TIERS[c] for c in app_keep},
         "sources": {
             "population_labor_sector": "World Bank Open Data API v2",
             "occupation": "ILOSTAT SDMX DF_EMP_TEMP_SEX_OCU_NB",
@@ -271,12 +296,55 @@ def export_app_json(rows, path):
             "ai_exposure": "MODELED — pipeline/ai_exposure_isco.json",
         },
         "ai_exposure_weights": load_weights(),
-        "rows": [{k: r.get(k) for k in keep} for r in rows],
+        "rows": [{k: r.get(k) for k in app_keep} for r in rows],
     }
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, separators=(",", ":"))
     print(f"      wrote {path} ({os.path.getsize(path):,} bytes)")
+
+
+def export_crosstabs(rows, dirpath):
+    """0010 R20. One artefact per country, fetched after step 01.
+
+    One file per country and not one combined file: a single artefact would
+    still carry ~575 KB of which about 2.5 KB is the country the reader picked,
+    which defers the download to the step 01 -> step 02 transition rather than
+    removing it -- and delivers it at the worst moment, mid-wizard.
+
+    Each file carries its own tier block. Every emitted number still carries a
+    tier; the block it appears in is this artefact's rather than
+    global_labor.json's, which is what R8 and R9 mean by "the cross-tab
+    artefact's own tier block".
+    """
+    os.makedirs(dirpath, exist_ok=True)
+    written = 0
+    for r in rows:
+        if r.get("row_type") != "country":
+            continue
+        values = {c: r.get(c) for c in C.CROSSTAB_COLUMNS}
+        # A country with nothing at all still gets a file. The wizard has to be
+        # able to tell "the source publishes nothing here" from "the fetch
+        # failed", and a 404 cannot say the first one (R20).
+        payload = {
+            "generated_from": "pipeline/run.py",
+            "iso3": r["iso3"],
+            "country_name": r.get("country_name"),
+            # Deliberately NOT isco_classification. That field records the
+            # family the OCCUPATION flow chose for this country, and the age and
+            # education loaders resolve their own family per group against a
+            # different flow -- so copying it here would label these numbers
+            # with a classification they may not have come from. The app reads
+            # it from the main payload for R18's notice, which is about the
+            # occupation share, so nothing needs it here.
+            "field_tiers": {c: C.FIELD_TIERS[c] for c in C.CROSSTAB_COLUMNS},
+            "values": values,
+        }
+        with open(os.path.join(dirpath, f"{r['iso3']}.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump(payload, f, separators=(",", ":"))
+        written += 1
+    print(f"      wrote {written} per-country cross-tab files to {dirpath}")
 
 
 def console_summary(rows):
@@ -351,6 +419,7 @@ def main():
     export_sqlite(rows, os.path.join(DATA, "global_labor_dataset.sqlite"))
     if not args.no_app_json:
         export_app_json(rows, os.path.join(APP_DATA, "global_labor.json"))
+        export_crosstabs(rows, os.path.join(APP_DATA, "crosstabs"))
     with open(os.path.join(DATA, "validation_report.txt"), "w") as f:
         f.write(f"{len(problems)} problems\n" + "\n".join(problems))
     if outliers:

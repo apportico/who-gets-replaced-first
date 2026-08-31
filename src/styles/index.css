@@ -1,142 +1,385 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+/* Fonts are requested from index.html, NOT from here.
 
-/* Spec 0008 R7 — text palette tokens.
-   These mirror `src/utils/textPalette.js` exactly, and `test/palette.test.mjs`
-   parses this block to assert the two have not drifted. Components reference
-   them as `text-[var(--text-muted)]` rather than using Tailwind's colour scale,
-   because with no `@theme` block the scale's utilities resolve from v4's OKLCH
-   defaults and their contrast ratios cannot be checked from the class name. */
+   They were an `@import url(...)` at this spot. It did not survive the build:
+   Tailwind v4's processing drops a bare `@import url()`, so the emitted CSS
+   carried no @import and no @font-face and the app shipped in fallback faces.
+   Moving it above the first rule fixed the source ordering CSS requires and
+   changed nothing about delivery, which is the more useful lesson: the check
+   that mattered was "is the family in the built output", not "is the URL in
+   this file".
+
+   The fallback stacks below are load-bearing rather than decorative — see
+   --font-display, --font-body and --font-mono. */
+
+/* ===========================================================================
+   Spec 0010 R2 / R4 — the design contract, in tokens.
+   Extracted from the canvas; see CLAUDE.md, "The design: The Replacement Date".
+   Every colour, radius and type step the wizard uses is defined here. A raw hex
+   inside src/components/wizard/ is a review finding, not a shortcut.
+
+   Dark only. The palette sits on bare :root rather than under .dark, because
+   dark is this app's default rather than a variant — there is no light theme to
+   switch back to.
+   =========================================================================== */
+
 :root {
-  --text-primary: #111827;
-  --text-body: #374151;
-  --text-secondary: #4b5563;
-  --text-muted: #5b6270;
-  --text-faint: #646b78;
-  --text-warn: #8a5300;
-  --text-caution: #9a4200;
-  --text-info: #1a4fa0;
-  --text-accent: #6b21a8;
-  --text-alert: #a4161a;
-  --surface-warn: #fdf6e7;
-  --surface-caution: #fdf1e7;
-  --surface-info: #e8eefb;
-  --surface-accent: #f4e8fb;
-  --surface-alert: #fdeaea;
-  --text-disabled: #d1d5db;
+  color-scheme: dark;
+
+  /* -- canvas palette ---------------------------------------------------- */
+  --bg:           #0D0C0A;   /* page */
+  --surface:      #161411;   /* cards, inputs, unselected options */
+  --fg:           #E8E4DA;   /* body text */
+  --fg-strong:    #F2EFE6;   /* display type; fill of a selected option */
+  --accent:       #FF5A2B;   /* primary, progress fill, focus ring, live dot */
+  --accent-hover: #FF7A4D;   /* hover state on the primary action */
+  --accent-soft:  #FF9670;   /* caveat text on accent-tinted panels */
+
+  /* Borders and secondary text are one colour at many alphas. Named by job
+     rather than by number so a call site says what it means. */
+  --hairline:     rgba(232, 228, 218, 0.09);
+  --border:       rgba(232, 228, 218, 0.14);
+  --border-strong:rgba(232, 228, 218, 0.35);
+  /* 0.55, not the canvas's 0.45. At 0.45 this computes 3.80:1 on --bg and
+     3.83 on --surface, below AA, and it is the tone every explanatory
+     paragraph on every screen uses (.wz-body, .wz-note). 0.55 gives 5.15 and
+     5.08. Spec 0008 R11 fixed exactly this class on the map and 0010 R21
+     carries that guarantee; shipping the canvas value unchanged would have
+     re-introduced it on the surface that replaced it. */
+  --muted:        rgba(232, 228, 218, 0.55);
+  --muted-strong: rgba(232, 228, 218, 0.72);
+  --accent-tint:  rgba(255, 90, 43, 0.10);
+  --accent-edge:  rgba(255, 90, 43, 0.34);
+
+  /* -- radii ------------------------------------------------------------- */
+  --radius-control: 14px;  /* controls, inputs, small cards */
+  --radius-card:    18px;  /* stat and panel cards */
+  --radius-pill:    99px;  /* buttons, pills, badges */
+
+  /* -- touch targets ----------------------------------------------------- */
+  --tap-primary:   60px;
+  --tap-option:    56px;
+  --tap-tertiary:  48px;
+
+  /* -- type -------------------------------------------------------------- */
+  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-body:    'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:    'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* -- type scale --------------------------------------------------------
+     R2 names four things to define as custom properties: the palette, the
+     radii, the type scale and the keyframes. The scale was the one defined only
+     as .wz-* rules, which R2's hex grep cannot catch — a hand-typed font-size
+     in a screen would have drifted silently. Named here so a call site can only
+     reach for a step that exists. */
+  --step-h1:      66px;   --lh-h1:    0.9;    --tr-h1:  -0.025em;
+  --step-h2:      46px;   --lh-h2:    0.98;   --tr-h2:  -0.02em;
+  --step-stat:    38px;   --lh-stat:  0.95;
+  --step-lede:    17.5px; --lh-lede:  1.45;
+  --step-body:    15px;   --lh-body:  1.5;
+  --step-note:    12.5px; --lh-note:  1.4;
+  /* 11px, not the canvas's 8px. Spec 0008 R4 raised badge text "from 8-9px to
+     at least 11px" and is [x] on main; 0010 R21 carries that requirement
+     forward, so shipping the canvas size would have reverted a done
+     accessibility fix without saying so. --step-meta follows for the same
+     reason: it is the same mono label at the same size. */
+  /* 11px across every mono label, not just badges. 0008 R4's sentence is about
+     badge text, but 0008 records its closure more broadly: "the 7-10px labels
+     that carry meaning are raised to 11px". Eyebrows, accordion triggers,
+     tertiary actions and band chips all carry meaning, so raising only the
+     badge token carried half of R4 and left the rest at the pre-fix size. */
+  --step-badge:   11px;
+  --step-meta:    11px;  --tr-meta:  0.18em;
+  --step-eyebrow: 11px;  --tr-eyebrow: 0.2em;
+
+  /* -- layout ------------------------------------------------------------ */
+  --column: 480px;
+  --gutter: 22px;
 }
 
-/* Leaflet required height */
-.leaflet-container {
-  width: 100%;
-  height: 100%;
-  font-family: inherit;
+/* shadcn/ui reads these names. Mapping them to the canvas palette here is what
+   R4 means by "the defaults are overwritten, not shipped": none of the
+   perceptual-colour values `shadcn init` emits survives, and every generated
+   component inherits the canvas rather than neutral stone. R4's criterion greps
+   this file for that function name, so it must not appear even in a comment. */
+:root {
+  --background:            var(--bg);
+  --foreground:            var(--fg);
+  --card:                  var(--surface);
+  --card-foreground:       var(--fg);
+  --popover:               var(--surface);
+  --popover-foreground:    var(--fg);
+  --primary:               var(--accent);
+  --primary-foreground:    var(--bg);
+  --secondary:             var(--surface);
+  --secondary-foreground:  var(--fg);
+  --muted-bg:              var(--surface);
+  --muted-foreground:      var(--muted);
+  /* Selection INVERTS: a #F2EFE6 ground with #0D0C0A text. Mapping this to
+     --surface painted a selected option #161411 on a #0D0C0A page -- about
+     1.1:1, indistinguishable from unselected -- and dimmed the label with it. */
+  --accent-bg:             var(--fg-strong);
+  --accent-foreground:     var(--bg);
+  --destructive:           var(--accent);
+  --border-color:          var(--border);
+  --input:                 var(--border);
+  --ring:                  var(--accent);
+  --radius:                var(--radius-control);
 }
 
-/* Light popup styling */
-.leaflet-popup-content-wrapper {
-  background: #ffffff !important;
-  color: var(--text-primary) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
-  border: 1px solid #e5e7eb !important;
-}
-.leaflet-popup-tip {
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
-  border-top: none !important;
-  border-left: none !important;
-}
-.leaflet-popup-close-button {
-  color: var(--text-faint) !important;
-}
-.leaflet-popup-close-button:hover {
-  color: var(--text-body) !important;
-}
-.leaflet-popup-content {
-  margin: 10px 14px !important;
+@theme inline {
+  --color-background:           var(--background);
+  --color-foreground:           var(--foreground);
+  --color-card:                 var(--card);
+  --color-card-foreground:      var(--card-foreground);
+  --color-popover:              var(--popover);
+  --color-popover-foreground:   var(--popover-foreground);
+  --color-primary:              var(--primary);
+  --color-primary-foreground:   var(--primary-foreground);
+  --color-secondary:            var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:                var(--muted-bg);
+  --color-muted-foreground:     var(--muted-foreground);
+  --color-accent:               var(--accent-bg);
+  --color-accent-foreground:    var(--accent-foreground);
+  --color-destructive:          var(--destructive);
+  --color-border:               var(--border-color);
+  --color-input:                var(--input);
+  --color-ring:                 var(--ring);
+  --font-sans:                  var(--font-body);
+  --font-mono:                  var(--font-mono);
+  --font-serif:                 var(--font-display);
+  /* Mapped to what the generated components actually reach for, not to a
+     tidy small-to-large ladder. When Card was installed it used `rounded-xl`,
+     and mapping that step to the pill rendered every stat card and the method
+     panel as a 99px lozenge.
+
+     Card is gone (R3 `[~]`), so of the three remaining components only
+     --radius-md has a consumer; --radius-lg and --radius-xl now have none. The
+     mapping stays correct and computed.test.jsx keeps pinning it, because the
+     step is one `shadcn add` away from having a consumer again and the pill
+     value is the one that was wrong. The pill radius is applied by name where
+     it belongs (.wz-cta, .wz-chip) rather than through a scale step nothing
+     asked for. */
+  --radius-sm:                  var(--radius-control);
+  --radius-md:                  var(--radius-control);
+  --radius-lg:                  var(--radius-card);
+  --radius-xl:                  var(--radius-card);
 }
 
-/* Light tooltip styling */
-.leaflet-tooltip {
-  background: #ffffff !important;
-  color: var(--text-primary) !important;
-  border: 1px solid #e5e7eb !important;
-  border-radius: 4px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
-  padding: 4px 8px !important;
-  font-size: 11px !important;
-}
-.leaflet-tooltip-top::before {
-  border-top-color: #e5e7eb !important;
-}
-.leaflet-tooltip-bottom::before {
-  border-bottom-color: #e5e7eb !important;
+/* ---------------------------------------------------------------------------
+   Font TOKENS only. The faces themselves are requested from index.html, for the
+   reason recorded at the top of this file — this section used to carry a second
+   and contradictory account of where they come from, which is the confusion
+   that cost two rounds.
+
+   Probed 2026-08-31: all three return 200 and Instrument Serif serves its
+   italic face, which the headline needs. Every family carries a real fallback
+   stack below, so a blocked request degrades to a system font rather than to
+   nothing.
+   --------------------------------------------------------------------------- */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
 }
 
-/* Chokepoint pulse animation */
-@keyframes pulse-ring {
-  0% { transform: scale(0.85); opacity: 0.6; }
-  50% { opacity: 0.3; }
-  100% { transform: scale(1.6); opacity: 0; }
-}
-.choke-pulse {
-  animation: pulse-ring 2s ease-out infinite;
-  transform-origin: center;
+/* R5. Never removed, and the same ring everywhere. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
-/* Custom scrollbar for panels */
-.panel-scroll::-webkit-scrollbar {
-  width: 4px;
+::placeholder { color: var(--muted); }
+
+/* ---------------------------------------------------------------------------
+   Motion. FOUR keyframes, not the canvas's five: `band` animated the interval
+   band, and R14 does not ship one. See CLAUDE.md, "Motion and focus".
+   --------------------------------------------------------------------------- */
+@keyframes stepin { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes fade   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes draw   { from { stroke-dashoffset: 400; } to { stroke-dashoffset: 0; } }
+@keyframes pulse  { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
-.panel-scroll::-webkit-scrollbar-track {
+
+/* ---------------------------------------------------------------------------
+   The wizard's shared primitives (R2, R5).
+   Here rather than inline in each screen so the tokens above are the only
+   source of a colour, a radius or a type step — R2's grep over
+   src/components/wizard/ is what keeps that honest.
+   --------------------------------------------------------------------------- */
+
+/* R5's floor on the generated components. shadcn ships h-9 (36px) on toggle and
+   on the accordion trigger, both under 48px.
+
+   An earlier version of this rule also listed button and input selectors and
+   applied to nothing at all: those four components were installed and never
+   rendered, so the whole block was dead. They are gone now, and what remains
+   here covers the two that do ship. Set through a selector rather than by
+   editing generated files that `shadcn add` will overwrite. */
+[data-slot="accordion-trigger"] {
+  min-height: var(--tap-option);
+}
+
+/* The two Radix components, on the canvas. Restyled here rather than by
+   stacking classNames at every call site, which is what R4 asks for. */
+.wz-accordion { display: flex; flex-direction: column; gap: 8px; }
+
+[data-slot="accordion-item"] {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
   background: transparent;
-}
-.panel-scroll::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 2px;
-}
-.panel-scroll::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
-/* Leaflet zoom control */
-.leaflet-control-zoom {
-  border: 1px solid #e5e7eb !important;
-  border-radius: 6px !important;
   overflow: hidden;
 }
-.leaflet-control-zoom a {
-  background: #ffffff !important;
-  color: var(--text-faint) !important;
-  border-color: #e5e7eb !important;
+[data-slot="accordion-trigger"] {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; padding: 18px; text-align: left; cursor: pointer;
+  background: transparent; border: 0;
+  font-family: var(--font-mono); font-size: var(--step-badge); letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted-strong);
 }
-.leaflet-control-zoom a:hover {
-  background: #f3f4f6 !important;
-  color: var(--text-primary) !important;
-}
-
-/* Leaflet attribution */
-/* Spec 0008 R7. This was #9ca3af — the same 2.54:1 grey the token palette
-   replaced, hiding in raw CSS where no `text-*` grep reaches it. Third place
-   this blind spot has turned up, after the in-swatch labels and qualityTone.
-   Both colours now come from the tokens. */
-.leaflet-control-attribution {
-  background: rgba(255, 255, 255, 0.9) !important;
-  color: var(--text-faint) !important;
-  font-size: 10px !important;
-}
-.leaflet-control-attribution a {
-  color: var(--text-info) !important;
+[data-slot="accordion-trigger"]:hover { color: var(--fg); }
+[data-slot="accordion-trigger"] svg { color: var(--accent); }
+[data-slot="accordion-content"] {
+  padding: 0 18px 18px;
+  background: var(--surface);
+  animation: fade 0.3s ease both;
 }
 
-/* Spec 0008 R2 — a visible focus indicator on every focusable thing.
-   The browser default outline was suppressed on the search input and is easy to
-   lose against this palette, so it is replaced by an explicit ring rather than
-   left to chance. #1a4fa0 on white is 6.76:1, well past the 3:1 that WCAG
-   requires of a focus indicator. :focus-visible rather than :focus so a mouse
-   click does not leave a ring behind. */
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--text-info);
-  outline-offset: 2px;
-  border-radius: 2px;
+.wz-bandgroup [data-slot="toggle-group-item"] {
+  /* (0,2,0), so it outranks .wz-chip. An unscoped
+     `[data-slot="toggle-group-item"]` is (0,1,0), the same as .wz-chip, and
+     .wz-chip is declared later in this file — so every band chip resolved to
+     the 48px tertiary floor instead of the 56px option floor. Before Radix
+     landed these chips carried min-height inline, which beat the class, so
+     this was a regression rather than a pre-existing gap.
+
+     .wz-chip keeps its own min-height: OccupationScreen's ISCO override chips
+     use that class and would lose their floor with it. */
+  min-height: var(--tap-option);
+  border-radius: var(--radius-control);
+  font-size: 12px;
+}
+/* Radix reports selection through data-state, not aria-pressed. Selection
+   inverts here exactly as it does for .wz-option -- the contract calls for an
+   #F2EFE6 ground with #0D0C0A text, and a selected chip that reads as
+   unselected is the defect this file already had once. */
+[data-slot="toggle-group-item"][data-state="on"] {
+  background: var(--fg-strong);
+  color: var(--bg);
+  border-color: var(--fg-strong);
+}
+
+.wz-step   { animation: stepin 0.45s cubic-bezier(0.2, 0.75, 0.2, 1) both; }
+.wz-pad    { padding: 0 var(--gutter) 26px; }
+
+/* Small + uppercase = mono. A sentence is not. */
+.wz-meta {
+  font-family: var(--font-mono); font-size: var(--step-meta); letter-spacing: var(--tr-meta);
+  text-transform: uppercase; color: var(--muted-strong); white-space: nowrap;
+}
+.wz-eyebrow {
+  font-family: var(--font-mono); font-size: var(--step-eyebrow); letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase; color: var(--muted); margin: 0 0 16px;
+}
+
+.wz-h1 {
+  font-family: var(--font-display); font-weight: 400; font-size: var(--step-h1);
+  line-height: var(--lh-h1); letter-spacing: var(--tr-h1); color: var(--fg-strong); margin: 0;
+}
+.wz-h2 {
+  font-family: var(--font-display); font-weight: 400; font-size: var(--step-h2);
+  line-height: var(--lh-h2); letter-spacing: var(--tr-h2); color: var(--fg-strong); margin: 0;
+}
+.wz-stat {
+  font-family: var(--font-display); font-size: var(--step-stat); line-height: var(--lh-stat);
+  color: var(--fg-strong); font-variant-numeric: tabular-nums; margin: 10px 0 0;
+}
+.wz-lede { font-size: var(--step-lede); line-height: var(--lh-lede); color: var(--muted-strong); text-wrap: pretty; }
+.wz-body { font-size: var(--step-body); line-height: var(--lh-body); color: var(--muted); text-wrap: pretty; }
+.wz-note { font-size: var(--step-note); line-height: var(--lh-note); color: var(--muted); text-wrap: pretty; }
+
+.wz-cta {
+  width: 100%; padding: 20px; min-height: var(--tap-primary);
+  background: var(--accent); color: var(--bg); border: none;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+.wz-cta:hover  { background: var(--accent-hover); }
+.wz-cta:active { transform: scale(0.985); }
+
+.wz-tertiary {
+  width: 100%; padding: 16px; min-height: var(--tap-tertiary);
+  background: transparent; border: none;
+  font-family: var(--font-mono); font-size: var(--step-badge); letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted); cursor: pointer;
+  transition: color 0.2s ease;
+}
+.wz-tertiary:hover { color: var(--fg); }
+
+.wz-option {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; padding: 17px 18px; min-height: var(--tap-option);
+  background: var(--surface); color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--radius-control);
+  font-family: var(--font-body); font-size: 17px; text-align: left;
+  cursor: pointer; transition: all 0.18s ease;
+}
+.wz-option[aria-pressed='true'] {
+  background: var(--fg-strong); color: var(--bg); border-color: var(--fg-strong);
+}
+
+.wz-chip {
+  padding: 10px 13px; min-height: var(--tap-tertiary);
+  background: transparent; color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--radius-pill);
+  font-family: var(--font-mono); font-size: var(--step-badge); letter-spacing: 0.05em;
+  cursor: pointer; transition: all 0.18s ease;
+}
+.wz-chip[aria-pressed='true'] {
+  background: var(--fg-strong); color: var(--bg); border-color: var(--fg-strong);
+}
+
+.wz-card {
+  padding: 20px 18px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-card);
+}
+.wz-badge {
+  display: inline-block; font-family: var(--font-mono); font-size: var(--step-badge);
+  letter-spacing: 0.14em; text-transform: uppercase; padding: 3px 7px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  color: var(--muted-strong); border: 1px solid var(--border-strong);
+}
+.wz-caveat {
+  padding: 12px 14px; background: var(--accent-tint);
+  border: 1px solid var(--accent-edge); border-radius: 12px;
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.6;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-soft);
+  text-wrap: pretty;
+}
+.wz-footer {
+  position: sticky; bottom: 0; padding: 18px 0 0;
+  background: linear-gradient(to top, var(--bg) 62%, transparent);
 }

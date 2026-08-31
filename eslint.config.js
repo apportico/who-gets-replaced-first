@@ -38,6 +38,28 @@ export default defineConfig([
     },
   },
   {
+    // Spec 0010 R3/R4. shadcn/ui components export their `cva` variants beside
+    // the component — `buttonVariants`, `badgeVariants`, `toggleVariants` — and
+    // R4 requires restyling by extending those variants rather than stacking
+    // classNames at call sites, so the export is the seam we are told to use.
+    // react-refresh/only-export-components objects to a file exporting both.
+    //
+    // Scoped to the generated directory, not switched off globally: everywhere
+    // else the rule still catches the real mistake it exists for. The cost is a
+    // full reload instead of a hot update when a variant is edited, which is a
+    // fair price for not diverging from upstream in seven files that
+    // `shadcn add` will overwrite.
+    files: ['src/components/ui/**/*.jsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    // From spec 0008: its probe scripts and node --test suites are Node ESM,
+    // not browser code, so they need the Node globals and none of the React
+    // rules. Kept through 0010's merge — 0010 deletes the map those suites
+    // partly targeted, but this block is about where the files run, not what
+    // they assert.
     files: ['scripts/**/*.mjs', 'test/**/*.mjs'],
     extends: [js.configs.recommended],
     languageOptions: {

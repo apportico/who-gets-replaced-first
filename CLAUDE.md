@@ -51,6 +51,195 @@ Rules that follow from this:
   that claim is backed by the sensitivity analysis (median country moves 4
   places across three weightings) — not by assertion.
 
+## The design: "The Replacement Date"
+
+The app is being rebuilt against a design canvas, not against a screenshot.
+Reference: <https://claude.ai/code/artifact/5144650a-4fe5-48af-b3c7-e887f7e6afde>
+("Mobile landing page builder"). The canvas is the authority on layout, type and
+motion; this section is the extracted contract so the values are in-tree and
+reviewable. **If a value here and the canvas disagree, the canvas wins — and fix
+this file in the same change.**
+
+### Shape
+
+Mobile-first, single column, **dark only**, `max-width: 480px` centred, page
+padding `22px`. A four-step wizard, not a dashboard:
+
+| Step | Screen | What it must do |
+|---|---|---|
+| — | Intro | The claim — **what the statistics actually say about your occupation group, measured rather than forecast**. Not the canvas's "a year — not a probability": R14 means no year arrives, and an intro that promises one makes the result screen read as broken rather than finished. Three capability chips, one CTA |
+| 01 | Country | Pre-filled from locale; every row tagged `official series` / `no series` |
+| 02 | Occupation | Free-text title → one of the **nine ISCO-08 major groups**; the resolution is shown and overridable by chip, never silent |
+| 03 | Optional | Age band and education — both real cross-tabulated dimensions, landing on different published cells; skipping means the result is reported for the group as a whole. (No interval to widen — see below) |
+| 04 | Result | Two stat cards, the trend sparkline, and two accordions (method, back-test). **Not** the year, its interval or the scenario slider — see below |
+
+**The year apparatus does not ship.** The canvas's headline output is a projected
+replacement year, with an interval band and a three-notch adoption slider under
+it. Spec 0010 R13 is `[!] not feasible` — probed 2026-08-31, nothing publishes a
+displacement date per occupation — and R14 requires the result screen to read as
+finished without any of it: no year, no interval band, no scenario slider, no
+adoption assumption, and no placeholder where they sat. Everything else on the
+canvas's result screen ships. Treat the canvas as authoritative on layout and
+type, and this paragraph as authoritative on what is on the screen.
+
+A sticky header carries a pulsing live dot, the wizard title and `NN/04`, above a
+four-segment progress bar. Steps 01–03 carry a sticky footer CTA over a
+`linear-gradient(to top, #0D0C0A 62%, transparent)` fade.
+
+The canvas has **no map**, and spec 0010 R1 deletes it: `LaborMap`,
+`LaborSidebar`, `LaborDetailPanel`, `LaborTimeline`, `ScenarioPanel`,
+`LaborPage`, Leaflet and the corridor overlay all go. The wizard is the only
+surface, and its steps are internal state — there is no router. The map stays
+recoverable in git history.
+
+### Tokens
+
+```
+--bg           #0D0C0A   page
+--surface      #161411   cards, inputs, unselected options
+--fg           #E8E4DA   body text
+--fg-strong    #F2EFE6   display type; also the fill of a *selected* option
+--accent       #FF5A2B   primary, progress fill, focus ring, live dot
+--accent-hover #FF7A4D   hover state on the primary action
+--accent-soft  #FF9670   caveat text on accent-tinted panels
+```
+
+Borders and secondary text are `rgba(232,228,218,α)`: `0.09` hairlines, `0.10–0.18`
+card and control borders, `0.35–0.55` muted text, `0.72–0.85` body-on-dark.
+Accent-tinted panels are `rgba(255,90,43,0.08–0.14)` on a `rgba(255,90,43,0.28–0.40)`
+border. Selection inverts — `#F2EFE6` ground, `#0D0C0A` text.
+
+**Radii:** `14px` controls, inputs and small cards · `18px` stat and panel cards ·
+`99px` buttons, pills and badges.
+
+**Touch targets:** primary CTA `min-height: 60px` · options and secondary buttons
+`56px` · tertiary/skip `48px`. Nothing interactive goes below 48px.
+
+### Type
+
+Three families, each with one job. Load Geist, Geist Mono and Instrument Serif
+self-hosted or from Google Fonts; always ship a fallback stack.
+
+**Request them from `index.html`, not from a CSS `@import`.** Tailwind v4's
+processing drops a bare `@import url(...)`, so the built stylesheet carries no
+`@import` and no `@font-face` and the page renders in fallbacks — silently, with
+a clean build and a green suite. Spec 0010 shipped that for two rounds. A test
+that checks the URL is in `index.css` cannot see it; check what the browser is
+asked to fetch.
+
+- **Instrument Serif 400** — display only. `h1` 66px/0.9/`-0.025em`, `h2`
+  46px/0.98/`-0.02em`, stat figures 38px. Italic is the emphasis device
+  (`replaced.` in the headline). The canvas's 132px result year and its 25px
+  scenario sentence are **not** in this scale — neither element ships (R14) —
+  though `font-variant-numeric: tabular-nums` still applies to the stat figures.
+- **Geist** — body. 16px/1.5 base, 17.5px lede, 15px secondary, 12.5–13.5px
+  notes. `text-wrap: pretty` on every prose paragraph.
+- **Geist Mono** — every label, tier badge, eyebrow, chip and button face.
+  8–11.5px, `text-transform: uppercase`, `letter-spacing: 0.10–0.20em`. If text
+  is uppercase and small, it is mono; if it is a sentence, it is not.
+
+### Motion and focus
+
+**Four** keyframes, not the canvas's five: `stepin` (18px rise + fade, 0.4–0.5s
+`cubic-bezier(0.2,0.75,0.2,1)`) on every step mount · `fade` 0.3s on accordion
+bodies · `draw` 1.2s on the sparkline stroke · `pulse` 2.6s on the header dot.
+The canvas's `band` 0.6s `scaleX` does not ship — it animates the interval band
+(R14). Focus is **`2px solid #FF5A2B`, `outline-offset: 3px`** — never removed.
+Respect `prefers-reduced-motion`.
+
+### The result screen is where the data rules bite
+
+Everything in *The non-negotiable* above applies hardest here, because this
+screen is the one that states a number about the reader's own job:
+
+- **Every figure carries its tier badge** — `OFFICIAL`, `DERIVED`, `PROXY`,
+  `MODELED` — in the vocabulary of the table above. The canvas mockup says
+  "Placeholder" and "Missing"; those are mockup words. Ship `MODELED`, and a
+  genuinely absent term renders as absent, not as a number.
+- **A point estimate never ships without its uncertainty.** In the canvas this
+  was the year and its interval band, which had to render together or not at all.
+  Neither ships (R14), so what the rule governs now is coverage: a share is shown
+  with the coverage it rests on, and a figure whose basis is too thin is withheld
+  rather than shown bare (R9's coverage floor is this rule with a number).
+- **A stand-in says it is standing in.** The canvas already does this ("Clerical
+  series shown as a stand-in") — keep that behaviour, do not quietly substitute.
+- **No country without a series gets a number.** `no series` is a first-class
+  result: nulls stay null, the row says so.
+- **Know which mockup figures are real.** Probed 2026-08-31: the canvas's UK
+  numbers are the actual dataset — `isco4_clerical_pct` is 8.8633,
+  `clerical_employed` is 2,989,466, and the clerical series really does run
+  10.0% (2013) → 8.9% (2025). Those are `DERIVED` and may ship. What *is*
+  invented is the year (2041), the three scenario years and the 2028–2072 axis.
+  Those may not reach a build.
+- The canvas's own method panel marks **Duration** as not yet sourced. That probe
+  has now happened: spec 0010 R13 is `[!] not feasible` — the nearest published
+  work is US-only decadal occupational churn on US census classifications, which
+  is not ISCO-08, not per country, and not AI displacement. **No replacement year
+  ships, in any tier.** Reviving it as `MODELED` would need its own formula,
+  sensitivity analysis and issue, on the precedent of the exposure weights.
+
+## The component layer: shadcn/ui
+
+The rebuild uses **shadcn/ui** — copy-in components we own, not a dependency we
+theme from outside. That fits the repo: the design is opinionated enough that a
+styled component library would be fought, and Radix underneath gives keyboard and
+screen-reader behaviour we are not going to write by hand.
+
+### Setup, given what is already here
+
+Tailwind v4 is installed via `@tailwindcss/vite`, and the codebase is **JSX, not
+TSX**. So:
+
+```bash
+npx shadcn@latest init      # answer: no tailwind.config.js — v4 is CSS-first
+npx shadcn@latest add button card input badge toggle-group accordion
+```
+
+- `components.json` must carry **`"tsx": false`** or the CLI writes `.tsx` files
+  into a JS project. `"style": "new-york"`, `"iconLibrary": "lucide"`.
+- Path aliases are required: add `jsconfig.json` mapping `@/*` → `./src/*` **and**
+  a matching `resolve.alias` in `vite.config.js`. Vite does not read `jsconfig`
+  for resolution.
+- Init writes `src/lib/utils.js` (`cn`) and pulls `class-variance-authority`,
+  `clsx`, `tailwind-merge`, `lucide-react`, `tw-animate-css`. It also rewrites
+  `src/styles/index.css` — check the diff, it will want to drop what is there.
+- Under Tailwind v4 the theme lives in CSS: token custom properties plus an
+  `@theme inline` block. **Put our palette on `:root`, not only under `.dark`** —
+  the app is dark-only, so dark is the default, not a variant.
+- Pick any `baseColor` at init and then **overwrite every token** with the
+  palette above. Shipping a screen that still reads as default shadcn stone is a
+  review finding, not a style preference.
+
+### Which primitive does which job
+
+| Screen element | Component |
+|---|---|
+| Primary CTA, skip, "Start again" | `Button` (pill `variant`s added to the local `buttonVariants`) |
+| Stat cards, method panel | `Card` (not the canvas's scenario card — it holds the adoption slider, which does not ship) |
+| Job title field | `Input` (Instrument Serif 26px — restyled, not default) |
+| Tier badges, capability chips | `Badge` (not the canvas's `PROJECTED` badge — it labels a projection that does not ship) |
+| Country rows, ISCO override chips, age/education | `ToggleGroup` + `ToggleGroupItem` |
+| ~~Adoption scenario~~ | ~~`Slider`~~ — does not ship (R14), so `slider` is **not** installed |
+| "How the number is built", "Back-test & error" | `Accordion` |
+| Progress bar, sparkline | Hand-rolled — four `div`s and an SVG beat a dependency. The interval band does not ship (R14) |
+
+### Rules
+
+1. **Add only what a screen uses.** `npx shadcn@latest add <x>` when a
+   requirement needs `<x>`, never a speculative batch.
+2. **Restyle inside the component file** — extend its `cva` variants and the CSS
+   tokens. A wall of overriding `className`s at every call site is how the design
+   drifts.
+3. **Never strip the accessibility.** `aria-*`, `data-state`, focus management
+   and the Radix `asChild` plumbing stay. The focus ring is a token change, not a
+   deletion.
+4. **Generated components are ours, and edits are reviewable.** Note any
+   non-trivial divergence from upstream in a comment at the top of the file, so
+   the next `shadcn add` overwrite is a conscious choice.
+5. **Icons are `lucide-react`,** imported per-icon.
+6. shadcn changes nothing about the data contract. A `Badge` renders the tier it
+   is given; it never invents one, and there is no default tier.
+
 ## Layout
 
 ```
@@ -178,9 +367,12 @@ from 3.12.
 - `vite preview` caches `index.html` in memory; it can serve a stale page and
   look like a blank-page bug. Serve `dist/` with a plain static server when
   debugging the production build.
-- CARTO basemaps now require an API key and watermark every tile without one.
-  This project uses Esri's key-free light gray canvas. Note Esri tiles are
-  `{z}/{y}/{x}`, not `{z}/{x}/{y}`, and have no `{s}` or `{r}` tokens.
-- `src/data/port_data.json` and `sanctions_regimes.json` are a **static
-  snapshot** copied from the corridor-wars board for the R16 overlay. They do
-  not track changes made there.
+- Basemap tiles were a live gotcha while the map existed: CARTO now requires an
+  API key and watermarks every tile without one, so the project used Esri's
+  key-free light gray canvas, whose tiles are `{z}/{y}/{x}` rather than
+  `{z}/{x}/{y}` and carry no `{s}` or `{r}` tokens. Kept here for whoever
+  restores the map from history — spec 0010 R1 deletes it.
+- `src/data/port_data.json` and `sanctions_regimes.json` were a **static
+  snapshot** from the corridor-wars board for the R16 overlay, and never tracked
+  changes made there. Spec 0010 R1 deletes them, which closes that drift
+  (issue #20) rather than carrying it.

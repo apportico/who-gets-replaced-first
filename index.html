@@ -8,6 +8,25 @@
       name="description"
       content="Which countries and occupations sit in the work most exposed to AI — from official labour statistics, with proxies and modelled estimates labelled as such."
     />
+    <!-- Spec 0010 R2. The three families, requested here rather than through a
+         CSS `@import`.
+
+         The @import was in src/styles/index.css and it did not survive the
+         build: Tailwind v4's processing drops a bare `@import url(...)`, so the
+         emitted dist CSS contained no @import and no @font-face, and the app
+         shipped rendering entirely in the fallback stacks. Nothing errored, the
+         build was clean, and a test asserting the URL was in the source file
+         passed the whole time.
+
+         preconnect first, because the stylesheet and the font files come from
+         two different origins and the second request cannot start until the
+         first resolves. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300..600&family=Geist+Mono:wght@400..500&family=Instrument+Serif:ital@0;1&display=swap"
+    />
     <title>WHO GETS REPLACED FIRST</title>
   </head>
   <body>

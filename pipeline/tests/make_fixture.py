@@ -107,8 +107,11 @@ def main():
         print(f"  worldbank/{name:32s} {str(kept):>7s} obs   {size/1e6:5.2f}MB gz")
 
     print(f"\ntotal {total/1e6:.2f}MB gzipped")
-    if total > 1_000_000:
-        print("WARNING: over the 1MB bound spec 0004 R7 sets for this fixture")
+    if total > 2_000_000:
+        print("WARNING: over the 2MB bound for this fixture -- 0004 R7 set 1MB "
+              "against three ILO flows; 0010 R9 added a fourth and raised it. "
+              "See test_golden_master.FixtureShape for why it was raised rather "
+              "than met by slicing rule 1 away.")
 
 
 if __name__ == "__main__":

@@ -181,14 +181,18 @@ painted colour.
 Sticky header with the live dot, title and `NN/04` over a four-segment progress
 bar. Screens: intro, country, occupation, optional, result. Steps 01–03 carry
 the sticky footer CTA over the gradient fade. `stepin` on mount. Mounted by
-`App.jsx` per R1.
+`App.jsx` per R1. The intro carries the claim and one CTA, and **not** the
+canvas's three capability chips — see the second revision note below.
 
 **Acceptance (revised 2026-08-31):** `computed.test.jsx` renders the wizard
 with the real stylesheet injected and asserts on the elements themselves: the
 primary CTA computes a 60px floor, a country option 56px, the tertiary action
 48px, nothing interactive on the intro declares under 48px, and the column token
 is 480px. The focus ring and the four keyframes are asserted in
-`tokens.test.js`.
+`tokens.test.js`. For the chips: `wizard.render.test.jsx` renders the intro and
+asserts none of the three strings is in the rendered text and that the screen
+holds zero `.wz-chip` elements, while the claim and the CTA are both still
+there.
 
 **`[~]` revised.** The criterion assumed jsdom could not check any of this
 because it does no layout. That conflated layout with the cascade: `min-height`
@@ -197,6 +201,21 @@ means the browser will honour it. **Still outstanding and browser-only:** what a
 60px min-height actually paints against its content and box model, and whether
 the three fonts load — the second of which is why the `@import` position defect
 mattered and is now its own regression test.
+
+**`[~]` revised again 2026-09-01 — the capability chips are removed.** The
+canvas puts three pills under the intro headline: `9 occupation groups`, `Every
+figure tiered`, `Gaps shown as gaps`. Two of them assert the wizard's own
+virtues on the one screen that carries no figures and no gaps, so the reader has
+nothing to check them against — and both are demonstrated two screens later by
+the thing itself: R10 and R11 put a tier on every figure, and R15 says an
+absence in words. The third is a fact R7 teaches by showing the nine groups.
+
+This is a deviation from the canvas, which `CLAUDE.md` makes the authority on
+layout, so it is recorded here rather than argued in a code comment. Every other
+override in this spec is anchored the same way — R13 `[!]` for the year, R14 for
+the result screen without it, R3 `[~]` for the four unrendered components — and
+an override with no requirement behind it is the thing "no code without a
+requirement ID" exists to prevent, whether the code is being added or removed.
 
 ### R6. [x] Step 01 — country, tagged by what the data actually carries
 

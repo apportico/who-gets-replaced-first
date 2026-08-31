@@ -11,13 +11,8 @@
 // acceptance checks this copy for a year, a date or a countdown, in words as
 // well as digits.
 //
-// The canvas's three capability chips are not here. They asserted the wizard's
-// own virtues ("Every figure tiered", "Gaps shown as gaps") on the one screen
-// with no figures and no gaps on it yet — the reader has nothing to check them
-// against, and both are demonstrated two screens later by the tier badges and
-// the stated absences themselves. R5 lists them, so the screen table in
-// CLAUDE.md is updated with them rather than left describing a row that is
-// gone.
+// The canvas's three capability chips are deliberately not here — R5's second
+// revision note says why, and `wizard.render.test.jsx` holds them out.
 export default function IntroScreen({ onStart }) {
   return (
     <div

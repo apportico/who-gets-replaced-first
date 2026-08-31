@@ -56,6 +56,22 @@ describe('R5 — the shell renders and walks all five screens', () => {
     )
   })
 
+  // The chips the canvas puts under the headline are gone (R5, revised
+  // 2026-09-01). Asserted on the rendered tree rather than on the source,
+  // because the previous round of this spec produced five guards that could not
+  // fail for the case they named — a source sweep does not see inline JSX.
+  it('the intro carries the claim and one CTA, and no capability chips', () => {
+    render(<App />)
+    const text = document.body.textContent
+    expect(text).toContain('Measured, not forecast')
+    expect(screen.getByRole('button', { name: /start/i })).toBeTruthy()
+
+    for (const chip of ['9 occupation groups', 'Every figure tiered', 'Gaps shown as gaps']) {
+      expect(text).not.toContain(chip)
+    }
+    expect(document.querySelectorAll('.wz-chip').length).toBe(0)
+  })
+
   it('shows the step counter and fills the progress bar', () => {
     render(<App />)
     expect(document.body.textContent).toContain('01/04')

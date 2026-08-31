@@ -234,7 +234,10 @@ Two reasons this cannot instead be one shared field, both measured:
   records that a spread exists without saying which group sits where.
 
 Emit, per country and per ISCO major group, the employed share for `Y15-24`,
-`Y25-54` and `Y55-64`, over the `YGE15` denominator. Tier `DERIVED` (share = group-age count ÷ group
+`Y25-54` and `Y55-64`, over the `YGE15` denominator. **Field names are
+`isco<N>_age_<band>_pct` with companion `isco<N>_age_year`** — stated here so
+R20's exclusion has a name to bind to rather than a convention invented in its
+own criterion. Tier `DERIVED` (share = group-age count ÷ group
 `YGE15` count, both `OFFICIAL`), recorded in `field_tiers`.
 
 Per *The vintage rule* above, the value is taken at **each country's own most
@@ -250,7 +253,9 @@ every one of the nine groups carries at least 140** (measured floor 144, group
 1 — stated deliberately so a criterion cannot pass on clerical while failing on
 managers); no second reader over `DF_EMP_TEMP_SEX_AGE_OCU_NB` is introduced and
 `load_youth_occupation`'s existing outputs are unchanged; `field_tiers` names
-every new field; there are exactly **9** new age `_year` fields, one per group,
+every new field **in the cross-tab artefact's own tier block** (R20 excludes
+them from `global_labor.json`); there are exactly **9** new age `_year` fields,
+one per group,
 each non-null wherever that group's bands carry values, so the result screen can
 state a vintage for any of the nine groups;
 `npm run test:pipeline` passes with a case asserting an uncovered country stays
@@ -271,8 +276,10 @@ spreads (TUV runs 2016–2022 across its groups; CMR is 2014 at group 2 against
 requires each value to be shown with its own year, and one `data_year_edu_occupation`
 cannot say which group sits where. So: **9 new `_year` fields, one per group**,
 reconciled jointly over `BAS`/`INT`/`ADV` plus `EDU_AGGREGATE_TOTAL` for the same
-denominator reason as R8. A single `_range` may be kept as a summary; it is not
-the field R10 reads.
+denominator reason as R8. **Field names are `isco<N>_edu_<band>_pct` with
+companion `isco<N>_edu_year`.** A single `data_year_edu_occupation` / `_range`
+may be kept as a summary; it is explicitly not the field R10 states a vintage
+from.
 
 **The denominator is `EDU_AGGREGATE_TOTAL`, never the sum of the three bands.**
 `BAS`/`INT`/`ADV` do not partition the base: `EDU_AGGREGATE_LTB` and
@@ -329,6 +336,10 @@ non-null education band for group 4 after the coverage floor is applied
 (measured floor 134, group 8) — mirroring R8's two-part shape so the criterion
 cannot pass on clerical while failing on agricultural; the chips land on
 different published cells, demonstrable by the figure changing between them;
+there are exactly **9** new education `_year` fields, one per group, each
+non-null wherever that group's bands carry values, and a test asserts the result
+screen states its vintage from those and **not** from
+`data_year_edu_occupation`, which is the field an implementer reaches for first;
 unit tests (R19) assert the three named bands are divided by
 `EDU_AGGREGATE_TOTAL`, that their sum is strictly less than 100 for ETH, that
 **CMR yields the withheld branch rather than four chips**, and that **DJI does
@@ -539,24 +550,76 @@ in prose; `npm run verify` fails if any of them fails.
 ### R20. [ ] The per-group cross-tabs do not ship in the initial payload
 
 R8 and R9 together add **81 columns** to every row — 27 age shares plus 9 years,
-36 education shares plus 9 years — on top of the current 84. `global_labor.json`
-is **593 KB** today across 229 rows; carrying the cross-tabs in it lands the
-initial download near **1.2 MB**, and all but one row describes a country the
-reader did not pick.
+36 education shares plus 9 years — on top of the current 84.
+`src/data/global_labor.json` is **607,739 bytes** (593.5 KB) at `b4d7b0a` across
+229 rows; carrying the cross-tabs in it lands the initial download near
+**1.2 MB**, and all but one row describes a country the reader did not pick.
 
 This is the mobile-first spec, so it is the wrong place to let that happen
 silently. The per-group age and education cross-tabs ship in a **separate
 artefact fetched for the chosen country**, after step 01, rather than in the
-bundle the intro screen waits on. The existing payload keeps its current shape
-and roughly its current size.
+bundle the intro screen waits on.
+
+**The columns still enter `COLUMNS`.** They reach `global_labor_dataset.csv` and
+the SQLite like every other column — this project's output *is* the dataset, and
+keeping the cross-tabs out of it to save the app a download would be the wrong
+trade. What changes is one place: `export_app_json` gains an **explicit exclusion
+list**, because today `keep = [c for c in COLUMNS if not c.endswith("_range")]`
+(`run.py:252`) feeds both the `field_tiers` block (`:265`) and every row's keys
+(`:274`), so a column reaches both or neither and there is no third state.
+
+That exclusion has consequences this requirement owns rather than leaves to
+implementation:
+
+- **R8's `field_tiers` criterion moves to the new artefact.** Every emitted
+  number still carries a tier; the tier block it appears in is the cross-tab
+  artefact's, not `global_labor.json`'s.
+- **Spec 0009's two guards read `COLUMNS` and both would fail.**
+  `test_field_tiers_covers_every_key_a_row_ships`
+  (`pipeline/tests/test_app_payloads.py:201`) asserts `set().union(*rows) ==
+  set(field_tiers)` exactly, and `test_every_cell_matches_the_dataset_csv`
+  (`:334`) walks every non-`_range` column against the committed payload. Both
+  must learn the exclusion, and R17 means the alternative is finding out as a red
+  suite.
+- **The new artefact gets its own drift guard**, in the shape of
+  `CommittedRowsMatchTheDataset`. 0009 exists because a committed payload went
+  unregenerated for the life of the project while six tests appeared to cover it.
+  Shipping the first app-consumed payload with no guard would re-open exactly
+  that hole.
+
+**A failed fetch is not an absence.** Both payloads are static imports today, so
+a missing value has one meaning: the source does not carry it. A per-country
+fetch adds two states that look identical on screen — in flight, and failed — and
+three requirements render absence as a statement *about ILOSTAT*: R6's `no
+series`, R9's withheld-below-the-floor branch, R10's stated absence. A 404, a
+base-path mistake or an offline phone must never land in those branches and tell
+a reader that ILOSTAT does not publish something it does publish. That is the
+measured/constructed boundary from the other side — not an invented number, an
+**invented absence** — and R15 covers imputation without reaching it. The load
+carries its own state, and a pending or failed fetch renders as "could not load"
+with a retry.
+
+**Mechanism: a dynamic `import()`**, which Vite code-splits and resolves itself.
+Not a `fetch` of a file under `public/`: the production base is
+`/who-gets-replaced-first/` (`vite.config.js:8`), so a hand-built URL has to
+carry `import.meta.env.BASE_URL` and the failure mode is a working dev build and
+a 404 on Pages. Neither existing payload is fetched, so there is no in-repo
+precedent to follow here and the choice is recorded rather than inferred.
 
 This is not #26 (per-route data for the whole app); it is the narrower rule that
 this spec's own additions must not land in the initial load.
 
-**Acceptance:** `src/data/global_labor.json` grows by no more than 10% against
-its pre-R8 size; no `iscoN_*_age_*` or `iscoN_*_edu_*` field appears in it; the
-intro screen renders without having fetched any cross-tab; a unit test (R19)
-asserts the cross-tab loader is not called before a country is chosen.
+**Acceptance:** `src/data/global_labor.json` is **no larger than 668,000 bytes**
+(10% over its 607,739-byte pre-R8 size) and
+`python3 -c "import json;print([k for k in json.load(open('src/data/global_labor.json'))['field_tiers'] if '_age_' in k or '_edu_' in k])"`
+prints `[]` — binding to the `isco<N>_age_*` / `isco<N>_edu_*` names R8 and R9
+now state, in the `field_tiers` block as well as the rows; the same columns **are**
+present in `global_labor_dataset.csv`; `npm run test:pipeline` passes with 0009's
+two guards taught the exclusion and a new guard asserting the cross-tab artefact
+matches the dataset; the intro screen renders without having fetched any
+cross-tab; unit tests (R19) assert the cross-tab loader is not called before a
+country is chosen, and that **a failed fetch renders "could not load", not R9's
+withheld branch or R10's stated absence**.
 
 ## Verification section
 

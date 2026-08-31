@@ -141,6 +141,37 @@ describe('R20 — the cross-tabs are not fetched before a country is chosen', ()
   })
 })
 
+describe('R3 — every installed component is actually rendered', () => {
+  // The defect this guards hid for several rounds: six shadcn components were
+  // installed, R4's "restyle by extending the cva variants" was written against
+  // them, and nothing outside src/components/ui/ ever imported one. A CSS rule
+  // targeting their data-slots applied to nothing, and R3 looked satisfied
+  // because the files existed.
+  //
+  // `CLAUDE.md`: "Add only what a screen uses. `npx shadcn@latest add <x>` when
+  // a requirement needs `<x>`, never a speculative batch." An installed
+  // component nobody renders is that batch, arriving one file at a time.
+  it('no component sits in src/components/ui unused', () => {
+    const files = Object.keys(
+      import.meta.glob('@/components/ui/*.jsx', { eager: true }),
+    ).map((p) => p.split('/').pop().replace('.jsx', ''))
+    expect(files.length).toBeGreaterThan(0)
+
+    const consumers = Object.values(
+      import.meta.glob(['@/components/wizard/*.jsx', '@/*.jsx'], {
+        eager: true, query: '?raw', import: 'default',
+      }),
+    ).join('\n')
+
+    // `toggle` is exempt: toggle-group imports it internally, so it is a
+    // dependency of a rendered component rather than an unrendered one.
+    const unused = files
+      .filter((f) => f !== 'toggle')
+      .filter((f) => !consumers.includes(`components/ui/${f}`))
+    expect(unused).toEqual([])
+  })
+})
+
 describe('R7 — an unresolvable title is said out loud', () => {
   it('shows "not resolved" and pre-selects nothing', () => {
     startWizard()

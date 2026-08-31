@@ -11,7 +11,7 @@
 import { groupByNumber } from './isco'
 import { groupShare, groupHeadcount } from './groupFigures'
 import { trendFor } from './trend'
-import { PRESENT } from './absence'
+import { FLAG_WITHHELD, PRESENT } from './absence'
 
 /**
  * @returns {Array<{name, tier, sourced, desc}>} in the order the panel renders.
@@ -68,7 +68,7 @@ export function termsFor(row, group, crosstabs) {
         // No longer hedging "withheld or not published": the flag says which.
         desc: present
           ? 'ILOSTAT, cross-tabulated with occupation.'
-          : crosstabs.values?.[`isco${group}_${prefix}_flag`] === 'withheld_below_coverage_floor'
+          : crosstabs.values?.[`isco${group}_${prefix}_flag`] === FLAG_WITHHELD
             ? 'Withheld: the published bands describe too little of this group to report honestly.'
             : 'Not published for this country and group.',
       })

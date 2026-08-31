@@ -120,6 +120,13 @@ border. Selection inverts — `#F2EFE6` ground, `#0D0C0A` text.
 Three families, each with one job. Load Geist, Geist Mono and Instrument Serif
 self-hosted or from Google Fonts; always ship a fallback stack.
 
+**Request them from `index.html`, not from a CSS `@import`.** Tailwind v4's
+processing drops a bare `@import url(...)`, so the built stylesheet carries no
+`@import` and no `@font-face` and the page renders in fallbacks — silently, with
+a clean build and a green suite. Spec 0010 shipped that for two rounds. A test
+that checks the URL is in `index.css` cannot see it; check what the browser is
+asked to fetch.
+
 - **Instrument Serif 400** — display only. `h1` 66px/0.9/`-0.025em`, `h2`
   46px/0.98/`-0.02em`, stat figures 38px. Italic is the emphasis device
   (`replaced.` in the headline). The canvas's 132px result year and its 25px

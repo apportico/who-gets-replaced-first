@@ -96,7 +96,8 @@ returns nothing; `npm run build` succeeds.
 ### R2. [x] The canvas's tokens are the only source of colour, type and motion
 
 Define the palette, radii, type scale and the **four** keyframes from *The
-design* section of `CLAUDE.md` (`stepin`, `fade`, `draw`, `pulse` — not `band`,
+design* section of `CLAUDE.md` — as custom properties, with the font faces
+requested from `index.html` rather than through the stylesheet (`stepin`, `fade`, `draw`, `pulse` — not `band`,
 which animates the interval band R14 does not ship) as CSS custom properties in `src/styles/index.css`. Load
 Geist, Geist Mono and Instrument Serif (including Instrument Serif italic) with
 a fallback stack on every family.
@@ -105,22 +106,50 @@ a fallback stack on every family.
 `src/components/wizard/ResultScreen.jsx` exists **and**
 `grep -rEn '#[0-9A-Fa-f]{6}' src/components/wizard/` returns nothing (the file
 check keeps this from passing vacuously on a missing directory); the three
-families and the italic face are requested; `@media (prefers-reduced-motion:
-reduce)` disables the four animations.
+families and the italic face are **requested from `index.html`, and asserted
+there** — a CSS `@import url()` does not survive Tailwind v4's processing, so
+for two rounds the built stylesheet carried no `@import` and no `@font-face` and
+the app shipped in fallback faces while a test asserting the URL was in
+`index.css` passed; `@media (prefers-reduced-motion: reduce)` disables the four
+animations.
 
-### R3. [x] shadcn/ui is installed as JSX over Tailwind v4
+### R3. [~] shadcn/ui is installed as JSX over Tailwind v4
 
 Run the shadcn CLI against the existing Tailwind v4 setup. `components.json`
 must carry `"tsx": false` and an empty `tailwind.config`. Add `jsconfig.json`
 with `@/*` → `./src/*` **and** the matching `resolve.alias` in `vite.config.js`,
-because Vite does not read `jsconfig.json` for resolution. Add only the
-components the screens use: `button card input badge toggle-group accordion`.
-**Not `slider`**: its only consumer in the canvas is the adoption scenario, which
-R14 does not ship, and `CLAUDE.md` says to add only what a screen uses.
+because Vite does not read `jsconfig.json` for resolution. Add only the components the screens use: **`toggle-group` and `accordion`**.
+
+**`[~]` revised 2026-09-01.** The requirement originally listed six —
+`button card input badge toggle-group accordion` — and four of them were
+installed and never rendered. Nothing outside `src/components/ui/` imported
+them, so R4's "restyle by extending the `cva` variants" applied to nothing, and
+a CSS rule targeting their `data-slot`s matched no element. R3 looked satisfied
+because the files existed.
+
+`Button`, `Card`, `Input` and `Badge` are removed: the tokens plus plain
+elements already meet R5's floors and the focus ring, and `.wz-cta`, `.wz-card`,
+`.wz-badge` do the job without a dependency. The two that stay are the two where
+Radix carries behaviour worth importing rather than re-typing:
+
+- **`Accordion`** — `aria-expanded`, the `aria-controls`/`id` pairing and the
+  keyboard handling for the two method panels. Getting those wrong is silent:
+  a panel that looks right and cannot be operated without a mouse.
+- **`ToggleGroup`** — a roving tabindex and arrow-key navigation for the band
+  chips, which turns up to nine tab stops into one.
+
+Both are the class of failure spec 0008 was written about, which is the reason
+these two are worth the dependency and the other four were not. `slider` was
+never installed: its only consumer in the canvas is the adoption scenario, which
+R14 does not ship.
 
 **Acceptance:** `components.json` parses with `.tsx === false` and
 `.tailwind.config === ""`; every file under `src/components/ui/` ends `.jsx`;
-the build resolves an `@/` import; `npm run lint` and `npm run build` both pass.
+the build resolves an `@/` import; `npm run lint` and `npm run build` both pass;
+and **every component in `src/components/ui/` is imported by a screen** —
+asserted in `wizard.render.test.jsx`, since "the file exists" is what made the
+original six look installed. `toggle` is exempt as an internal dependency of
+`toggle-group`.
 
 ### R4. [~] The shadcn defaults are overwritten, not shipped
 

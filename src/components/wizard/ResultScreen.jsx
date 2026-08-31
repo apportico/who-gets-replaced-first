@@ -7,8 +7,15 @@
 // without one rather than as a page with a hole in it. The copy says so out
 // loud, because a reader who arrived expecting a date deserves to be told why
 // there isn't one rather than left to assume it failed to load.
-import { useState } from 'react'
-
+//
+// R3/R4 — this is one of the two places Radix earns its keep. `AccordionTrigger`
+// supplies the disclosure's `aria-expanded`, its `aria-controls`/`id` pairing
+// and its keyboard handling; getting those wrong is silent, producing a panel
+// that looks fine and cannot be operated without a mouse. Spec 0008 was entirely
+// about that class of failure. The hand-rolled button this replaced had
+// `aria-expanded` and nothing else.
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger }
+  from '@/components/ui/accordion'
 import Sparkline from '@/components/Sparkline'
 import { groupShare, groupHeadcount } from '@/utils/groupFigures'
 import { trendFor } from '@/utils/trend'
@@ -46,44 +53,8 @@ function Figure({ label, result, note }) {
   )
 }
 
-function Panel({ title, open, onToggle, children }) {
-  return (
-    <>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="wz-meta"
-        style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
-          width: '100%', padding: 18, minHeight: 'var(--tap-option)',
-          background: 'transparent', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-control)', color: 'var(--muted-strong)',
-          fontSize: 10, letterSpacing: '0.16em', cursor: 'pointer', textAlign: 'left',
-        }}
-      >
-        <span>{title}</span>
-        <span style={{ fontSize: 14, color: 'var(--accent)' }}>{open ? '−' : '+'}</span>
-      </button>
-      {open && (
-        <div
-          className="wz-step"
-          style={{
-            padding: 18, border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-control)', background: 'var(--surface)',
-          }}
-        >
-          {children}
-        </div>
-      )}
-    </>
-  )
-}
 
 export default function ResultScreen({ row, group, age, edu, cross, onRestart }) {
-  const [method, setMethod] = useState(false)
-  const [backtest, setBacktest] = useState(false)
-
   const g = groupByNumber(group)
   const share = groupShare(row, group)
   const head = groupHeadcount(row, group)
@@ -190,33 +161,41 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart })
       )}
 
       {/* R16 */}
-      <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Panel title="How the number is built" open={method} onToggle={() => setMethod(!method)}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {terms.map((t) => (
-              <div key={t.name}>
-                <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 16, color: 'var(--fg-strong)' }}>
-                  {t.name}
-                  <span
-                    className="wz-badge"
-                    style={t.unsourced || !t.sourced
-                      ? { background: 'var(--accent-tint)', color: 'var(--accent-soft)', borderColor: 'var(--accent-edge)' }
-                      : undefined}
-                  >
-                    {t.tier ?? 'not sourced'}
-                  </span>
-                  {t.year && <span className="wz-badge">{t.year}</span>}
-                </p>
-                <p className="wz-note" style={{ margin: '4px 0 0' }}>{t.desc}</p>
-              </div>
-            ))}
-          </div>
-        </Panel>
+      <Accordion type="multiple" className="wz-accordion" style={{ marginTop: 22 }}>
+        <AccordionItem value="method">
+          <AccordionTrigger>How the number is built</AccordionTrigger>
+          <AccordionContent>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {terms.map((t) => (
+                <div key={t.name}>
+                  <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 16, color: 'var(--fg-strong)' }}>
+                    {t.name}
+                    <span
+                      className="wz-badge"
+                      style={t.unsourced || !t.sourced
+                        ? { background: 'var(--accent-tint)', color: 'var(--accent-soft)', borderColor: 'var(--accent-edge)' }
+                        : undefined}
+                    >
+                      {t.tier ?? 'not sourced'}
+                    </span>
+                    {t.year && <span className="wz-badge">{t.year}</span>}
+                  </p>
+                  <p className="wz-note" style={{ margin: '4px 0 0' }}>{t.desc}</p>
+                </div>
+              ))}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
-        <Panel title="What this cannot tell you" open={backtest} onToggle={() => setBacktest(!backtest)}>
-          <p className="wz-body" style={{ margin: 0, color: 'var(--muted-strong)' }}>{BACKTEST_NOTE}</p>
-        </Panel>
-      </div>
+        <AccordionItem value="backtest">
+          <AccordionTrigger>What this cannot tell you</AccordionTrigger>
+          <AccordionContent>
+            <p className="wz-body" style={{ margin: 0, color: 'var(--muted-strong)' }}>
+              {BACKTEST_NOTE}
+            </p>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       <button
         type="button"

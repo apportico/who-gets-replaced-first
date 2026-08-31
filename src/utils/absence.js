@@ -15,6 +15,15 @@ export const WITHHELD = 'withheld'             // below R9's coverage floor
 export const NOT_LOADED = 'not_loaded'         // R20: the fetch has not resolved
 export const LOAD_FAILED = 'load_failed'       // R20: the fetch failed
 
+// The pipeline's own flag values, mirrored once here rather than written as a
+// bare string at each of the four JS sites that compared against them. The
+// pipeline side is `C.EDU_FLAG_*` in pipeline/config.py; if either end renames
+// a value the other now fails a test rather than silently reading undefined and
+// falling through to the wrong absence.
+export const FLAG_PRESENT = 'present'
+export const FLAG_WITHHELD = 'withheld_below_coverage_floor'
+export const FLAG_NOT_PUBLISHED = 'not_published'
+
 /**
  * The one distinction R20 exists to protect.
  *

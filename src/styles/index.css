@@ -1,15 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-/* Fonts, probed 2026-08-31: all three return 200 and Instrument Serif serves
-   its italic face, which the headline needs. Every family carries a real
-   fallback stack below, so a blocked request degrades to a system face.
+/* Fonts are requested from index.html, NOT from here.
 
-   POSITION IS LOAD-BEARING. CSS requires @import to precede every rule except
-   @charset and @layer, so a browser silently DROPS one that sits after the
-   :root blocks -- which is where this used to be, meaning none of the three
-   families loaded and the page rendered entirely in fallbacks. Nothing failed;
-   it just looked wrong. Keep this above the first rule. */
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300..600&family=Geist+Mono:wght@400..500&family=Instrument+Serif:ital@0;1&display=swap');
+   They were an `@import url(...)` at this spot. It did not survive the build:
+   Tailwind v4's processing drops a bare `@import url()`, so the emitted CSS
+   carried no @import and no @font-face and the app shipped in fallback faces.
+   Moving it above the first rule fixed the source ordering CSS requires and
+   changed nothing about delivery, which is the more useful lesson: the check
+   that mattered was "is the family in the built output", not "is the URL in
+   this file".
+
+   The fallback stacks below are load-bearing rather than decorative — see
+   --font-display, --font-body and --font-mono. */
 
 /* ===========================================================================
    Spec 0010 R2 / R4 — the design contract, in tokens.
@@ -198,16 +200,56 @@ html, body {
    src/components/wizard/ is what keeps that honest.
    --------------------------------------------------------------------------- */
 
-/* R5's floor, applied to the generated components too. shadcn ships h-9 (36px)
-   on button, toggle and input, which is under 48px on every one of them, and
-   the three tap tokens would otherwise sit in the file unused by anything
-   shadcn renders. Set here rather than by editing seven generated files that
-   `shadcn add` will overwrite. */
-button[class*="inline-flex"],
-[data-slot="toggle"],
+/* R5's floor on the generated components. shadcn ships h-9 (36px) on toggle and
+   on the accordion trigger, both under 48px.
+
+   An earlier version of this rule also listed button and input selectors and
+   applied to nothing at all: those four components were installed and never
+   rendered, so the whole block was dead. They are gone now, and what remains
+   here covers the two that do ship. Set through a selector rather than by
+   editing generated files that `shadcn add` will overwrite. */
 [data-slot="toggle-group-item"],
-[data-slot="input"] {
-  min-height: var(--tap-tertiary);
+[data-slot="accordion-trigger"] {
+  min-height: var(--tap-option);
+}
+
+/* The two Radix components, on the canvas. Restyled here rather than by
+   stacking classNames at every call site, which is what R4 asks for. */
+.wz-accordion { display: flex; flex-direction: column; gap: 8px; }
+
+[data-slot="accordion-item"] {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: transparent;
+  overflow: hidden;
+}
+[data-slot="accordion-trigger"] {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; padding: 18px; text-align: left; cursor: pointer;
+  background: transparent; border: 0;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted-strong);
+}
+[data-slot="accordion-trigger"]:hover { color: var(--fg); }
+[data-slot="accordion-trigger"] svg { color: var(--accent); }
+[data-slot="accordion-content"] {
+  padding: 0 18px 18px;
+  background: var(--surface);
+  animation: fade 0.3s ease both;
+}
+
+.wz-bandgroup [data-slot="toggle-group-item"] {
+  border-radius: var(--radius-control);
+  font-size: 12px;
+}
+/* Radix reports selection through data-state, not aria-pressed. Selection
+   inverts here exactly as it does for .wz-option -- the contract calls for an
+   #F2EFE6 ground with #0D0C0A text, and a selected chip that reads as
+   unselected is the defect this file already had once. */
+[data-slot="toggle-group-item"][data-state="on"] {
+  background: var(--fg-strong);
+  color: var(--bg);
+  border-color: var(--fg-strong);
 }
 
 .wz-step   { animation: stepin 0.45s cubic-bezier(0.2, 0.75, 0.2, 1) both; }

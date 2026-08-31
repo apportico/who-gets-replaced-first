@@ -17,6 +17,7 @@
 // works in dev, 404s on Pages, and the 404 then lands in one of the absence
 // branches below. Vite code-splits these and resolves the base itself.
 import {
+  FLAG_WITHHELD,
   LOAD_FAILED,
   NOT_LOADED,
   NOT_PUBLISHED,
@@ -97,13 +98,11 @@ function readBands(crosstabs, group, prefix, bands) {
     // R20 protects, pointed at the source instead of at the fetch.
     const flag = v[`isco${group}_${prefix}_flag`]
     return {
-      state: flag === 'withheld_below_coverage_floor' ? WITHHELD : NOT_PUBLISHED,
+      state: flag === FLAG_WITHHELD ? WITHHELD : NOT_PUBLISHED,
       bands: [],
       // A withholding names the survey year it judged; a non-publication has
       // none to name.
-      year: flag === 'withheld_below_coverage_floor'
-        ? (v[`isco${group}_${prefix}_year`] ?? null)
-        : null,
+      year: flag === FLAG_WITHHELD ? (v[`isco${group}_${prefix}_year`] ?? null) : null,
     }
   }
   return {

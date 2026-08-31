@@ -49,7 +49,7 @@ build-first-document-later approach.
 | [0007](0007-pipeline-typescript-port.md) | Port the pipeline Python → TypeScript, verified byte-identical against the committed outputs | approved — 11 requirements, none implemented |
 | [0008](0008-mobile-and-accessibility.md) | Mobile layout, keyboard access, screen-reader equivalents, contrast and colour-vision | done — 9 done · 2 revised · evaluated at 58cef78 |
 | [0009](0009-app-payload-drift.md) | The app payloads cannot drift from the code that writes them — regenerate `global_labor.json`, guard both | done — 6 done |
-| [0010](0010-mobile-first-redesign.md) | Mobile-first rebuild — the Replacement Date wizard on shadcn/ui, map and corridor overlay deleted | in-progress — 18 done · 2 revised · 1 not feasible |
+| [0010](0010-mobile-first-redesign.md) | Mobile-first rebuild — the Replacement Date wizard on shadcn/ui, map and corridor overlay deleted | in-progress — 17 done · 3 revised · 1 not feasible |
 
 ## Starting a new spec
 

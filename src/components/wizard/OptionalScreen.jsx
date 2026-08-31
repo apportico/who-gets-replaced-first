@@ -11,6 +11,7 @@
 // A band that is absent is not offered. For education that is R9's coverage
 // floor doing its job: below 90% of EDU_AGGREGATE_TOTAL the dimension is
 // withheld rather than rendered as chips describing a minority of the base.
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { ageBands, eduBands } from '@/utils/crossTabs'
 import { PRESENT, WITHHELD, LOAD_FAILED, NOT_LOADED, absenceMessage } from '@/utils/absence'
 
@@ -34,20 +35,24 @@ function BandRow({ title, result, value, onPick, columns }) {
   }
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 8 }}>
+      {/* R3/R4 — the second place Radix earns its keep. These are a single-select
+          group with a deselect, and ToggleGroup supplies the roving tabindex and
+          the arrow-key navigation that turns nine buttons into one stop. Nine
+          separate `aria-pressed` buttons are nine tab stops, which is the
+          keyboard failure spec 0008 was written about. */}
+      <ToggleGroup
+        type="single"
+        value={value ?? ''}
+        onValueChange={(v) => onPick(v || null)}
+        className="wz-bandgroup"
+        style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 8 }}
+      >
         {result.bands.map((b) => (
-          <button
-            key={b.key}
-            type="button"
-            className="wz-chip"
-            style={{ minHeight: 'var(--tap-option)', borderRadius: 'var(--radius-control)', fontSize: 12 }}
-            aria-pressed={value === b.key}
-            onClick={() => onPick(value === b.key ? null : b.key)}
-          >
+          <ToggleGroupItem key={b.key} value={b.key} className="wz-chip" aria-label={b.label}>
             {b.label}
-          </button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
       <p className="wz-note" style={{ margin: '8px 0 0' }}>
         {title} · {result.year} · {result.tier}
       </p>

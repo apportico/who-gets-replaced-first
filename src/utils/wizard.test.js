@@ -34,6 +34,7 @@ import { classificationNotice, isIsco88 } from './classification'
 import { termsFor, BACKTEST_NOTE } from './terms'
 import {
   NOT_PUBLISHED, PRESENT, WITHHELD, LOAD_FAILED, NOT_LOADED,
+  FLAG_PRESENT, FLAG_WITHHELD, FLAG_NOT_PUBLISHED,
   isSourceAbsence, isLoadProblem, absenceMessage,
 } from './absence'
 import { ageBands, eduBands } from './crossTabs'
@@ -372,7 +373,7 @@ describe('R8 / R9 — the cross-tabs as the screen reads them', () => {
     // The two absences are different facts and the flag is what separates them.
     // Reporting a non-publication as "withheld" tells a reader that published
     // bands describe too little of a workforce whose bands are not published.
-    const nothing = { values: { isco4_edu_flag: 'not_published' } }
+    const nothing = { values: { isco4_edu_flag: FLAG_NOT_PUBLISHED } }
     expect(eduBands(nothing, 4).state).toBe(NOT_PUBLISHED)
     expect(eduBands(nothing, 4).year).toBeNull()
   })
@@ -416,9 +417,27 @@ describe('R8 / R9 — the cross-tabs as the screen reads them', () => {
     expect(below).toEqual([])
   })
 
+  it('the JS flag constants match the values the pipeline actually writes', () => {
+    // The drift guard, which is the whole point of mirroring the constants
+    // rather than only de-duplicating the literal. If pipeline/config.py renames
+    // a flag, every JS comparison silently reads undefined and falls through to
+    // the wrong absence — a withheld group would start reporting itself as
+    // "not published", which is the invented-absence failure one layer down.
+    const seen = new Set(ALL_CROSS.flatMap(({ v }) =>
+      Object.entries(v).filter(([k]) => k.endsWith('_edu_flag')).map(([, x]) => x)))
+    expect(seen.size).toBeGreaterThan(0)
+    for (const value of seen) {
+      expect([FLAG_PRESENT, FLAG_WITHHELD, FLAG_NOT_PUBLISHED]).toContain(value)
+    }
+    // And each of the three is genuinely produced, so none is dead.
+    expect(seen).toContain(FLAG_PRESENT)
+    expect(seen).toContain(FLAG_WITHHELD)
+    expect(seen).toContain(FLAG_NOT_PUBLISHED)
+  })
+
   it('a withheld group still names the survey it judged', () => {
     const withheldNoYear = ALL_CROSS.filter(({ v }) =>
-      v.isco4_edu_flag === 'withheld_below_coverage_floor' && v.isco4_edu_year === null)
+      v.isco4_edu_flag === FLAG_WITHHELD && v.isco4_edu_year === null)
     expect(withheldNoYear.map(({ iso3 }) => iso3)).toEqual([])
   })
 

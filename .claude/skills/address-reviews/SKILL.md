@@ -142,6 +142,7 @@ For each **Actionable** thread:
    - **Does it breach a project non-negotiable?** A reviewer asking you to fill a null country, drop a tier, average country percentages, or add a figure without a citation is asking for something this project does not do. Reclassify as **Disagree** and explain, citing `CLAUDE.md`.
    - **Is the comment based on a misunderstanding?** The reviewer may not see the full picture — check if the concern is addressed elsewhere in the diff or codebase.
    - **Is the suggestion actually an improvement?** Some feedback is subjective or would make the code worse. Use your judgment.
+   - **Does the reviewer's steer survive a check of its own?** A steer that changes a *shape* — a schema, a field's cardinality, a threshold, which vintage a value carries — is checkable against the thing it describes: the loader, the payload, `pipeline/config.py`. Check it before complying. On PR #62 the reviewer retracted two confidently-stated steers ("the error was mine", "the steer toward it was mine, and it was wrong") only after each had been implemented, costing a round each. A steer that contradicts what the code already does is a **Disagree**, however confidently it is written.
 
 Reclassify threads based on this evaluation:
 - If the comment is **valid and actionable** → keep as **Actionable** with your planned fix.
@@ -162,9 +163,13 @@ Found <N> unresolved threads (<A> actionable, <D> disagree, <G> suggestions, <Q>
 
 ## Actionable Fixes
 
-| # | File | Line | Reviewer | Summary | Planned Fix |
-|---|------|------|----------|---------|-------------|
-| 1 | src/foo.ts | 42 | @reviewer | "Add null check" | Add null guard before access |
+| # | File | Line | Reviewer | Summary | Planned Fix | Also swept |
+|---|------|------|----------|---------|-------------|------------|
+| 1 | src/foo.ts | 42 | @reviewer | "Add null check" | Add null guard before access | Same guard missing in `bar.ts:88` |
+
+The **Also swept** column is the sibling instances of the same defect class found
+in Step 7b. They are approved in this same gate — do not come back for a second
+confirmation, and do not leave them for the reviewer to find.
 
 ## Disagree (will reply with explanation, no code change, thread left open)
 
@@ -195,7 +200,7 @@ Found <N> unresolved threads (<A> actionable, <D> disagree, <G> suggestions, <Q>
 - <count> bot comments
 ```
 
-Then ask: **"Proceed with these fixes and replies?"**
+Then ask: **"Proceed with these fixes, their sweeps, and the replies?"**
 
 Wait for user confirmation before continuing. If the user wants to exclude certain items, adjust the plan accordingly.
 
@@ -205,11 +210,85 @@ Step 4 already required reading code and spec. If any actionable or question thr
 
 ## Step 7 — Apply Fixes
 
+### 7a — Fix the site
+
 For each actionable thread (processing in file order to minimize conflicts):
 
 - **If the comment contains a suggestion block** (fenced code block with `suggestion` language tag): Skip it — these are best applied via GitHub's one-click "Apply suggestion" button. Note it in the report so the user can apply them manually on GitHub.
 
-- **Otherwise:** Understand what the reviewer is asking for, then make the code change using the Edit tool. Make the minimum change needed to address the feedback.
+- **Otherwise:** Understand what the reviewer is asking for, then make the code change using the Edit tool. Keep the change at the pointed-at site minimal — but *minimal at the site* is not *only at the site*. The class of defect gets swept, per 7b.
+
+### 7b — Sweep the class, do not patch the line
+
+**This is the step that collapses rounds.** A reviewer points at one instance of
+a defect; unless you sweep, they find the rest next round. On PR #62, 8 of the 14
+findings raised after round 1 were siblings of a fix already made: R8 gained a
+coverage floor and R9 did not (raised in round 3, still wrong in round 4), a
+suite list gained seven requirement IDs and missed the eighth, and a decision was
+corrected in the spec while `CLAUDE.md` was left telling an implementer the
+opposite.
+
+For each fix, before you make it:
+
+1. **Name the defect class in one sentence.** Not "R8's threshold is wrong" but
+   "a requirement states a coverage threshold measured on one ISCO group and
+   applies it to all nine". The class is what you search for; the line is not.
+2. **Find every other instance of that class**, in this order:
+   - **Sibling requirements in the same spec** — `grep -n '^### R' <spec>` and
+     read every requirement sharing the class's shape. R8 and R9 are siblings;
+     so are any two requirements citing the same flow or the same field.
+   - **Enumerations** — a requirement that lists other requirement IDs, a keep/
+     delete list, a shadcn add list, a table of screens. Check it *element by
+     element* against the set it claims to cover, and confirm the lists
+     partition rather than overlap or leave a remainder.
+   - **The rest of the same file** — after correcting a figure or a phrase,
+     `grep -n` the **old** value across the file. Two of PR #62's later findings
+     were a corrected number left standing fifteen lines below its own fix.
+   - **Cross-document** — `CLAUDE.md`, `REVIEW.md`, `specs/README.md`,
+     `pipeline/README.md`. A spec decision that contradicts the design contract
+     is one defect in two files, and `CLAUDE.md` says to fix it in the same
+     change.
+   - **The code the spec describes** — a spec claim about an export, a config
+     key or a lint rule is checkable. `grep` it rather than trusting the
+     sentence.
+3. **Fix every instance in this round.** If an instance is deliberately
+   different, say so in the reply rather than leaving it silent. Sweeps are
+   listed in the Step 5 plan table and approved in that same gate.
+
+### 7c — Verify every claim your own fix introduces
+
+A fix that writes a new fact makes a new claim, and it earns the same scrutiny as
+the original code. Three of PR #62's round-2 findings were exactly this — new
+cell-level counts that did not reproduce and "look like my previous comment's
+numbers re-labelled".
+
+Before committing, for anything the fix newly asserts:
+
+| The fix writes | What to do before commit |
+|---|---|
+| A figure from an API — row counts, byte sizes, area/country counts, coverage | Re-run the query at the exact URL and parameters the spec cites. **Never copy a number out of a review comment and re-label it** — the reviewer counted a different thing than your row claims |
+| A new row in a spec's *Source verification* table | Run the `source-prober` agent. `CLAUDE.md`: a requirement naming an unverified source is not ready to implement |
+| A file path, export name, config key or script name | `grep`/`ls` it at this SHA |
+| A count derived from the payload ("177 of 177 countries") | Compute it. An estimate presented as a count is a finding |
+| A claim about tooling ("lint would catch this") | Read the config and confirm the rule exists — `no-unused-vars` does not report an unused export |
+
+If a figure will not reproduce, leave it out and say so in the reply. An
+unverifiable number in a spec is the same Blocker as an unprobed source.
+
+### 7d — Run the reviewer's own contract over your diff
+
+`REVIEW.md` is what the reviewer is applying, so apply it yourself before
+pushing. Read `git diff` against Pass 1 (data non-negotiables), Pass 2 (unprobed
+sources), Pass 3 (a requirement marked `[x]` with no evidence its criterion was
+*run*) and Pass 7 (a UI change with no evidence the page was loaded). Anything
+you would flag, fix now rather than reading it back next round.
+
+For spec PRs, add one check `REVIEW.md` does not spell out: **every acceptance
+criterion this round adds must be checkable by something that exists in this
+repo.** Unverifiable criteria were found on PR #62 in rounds 2, 3 and 4 — one per
+round, because each round only fixed the one instance pointed at.
+
+### 7e — Run the checks
 
 After all edits are applied, run the checks the change warrants:
 ```bash
@@ -222,6 +301,14 @@ A fix that breaks a regression anchor is not a fix. Report it rather than pushin
 If a file referenced by a thread no longer exists at that path, skip it and note it in the report.
 
 ## Step 8 — Commit and Push
+
+### First, re-fetch
+
+Reviewers comment while you work. Re-run the Step 2a query and diff the thread
+ids against the set you planned. A thread that arrived mid-round is far cheaper
+to fold into this commit than to leave for another round — classify it (Steps
+3–4), sweep it (7b) and add it to this batch. Only stop and re-confirm with the
+user if the new thread contradicts a fix already applied.
 
 Stage all modified files (only the specific files that were edited):
 ```bash
@@ -368,6 +455,10 @@ Summarize what was done:
 ## Fixed (<count>)
 - [x] `src/foo.ts:42` — Added null check (@reviewer)
 - [x] `src/bar.ts:17` — Renamed to camelCase (@reviewer)
+
+## Swept (<count>) — same defect class, nobody pointed at these
+- [x] `src/bar.ts:88` — Same missing null guard as #1
+- [x] `CLAUDE.md:74` — Design contract said the opposite of the corrected R14
 
 ## Answered (<count>)
 - [x] `src/baz.ts:8` — Explained shared util choice (@reviewer)

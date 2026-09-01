@@ -1,6 +1,6 @@
 # 0015 — share card, methodology page, and an h1
 
-**Status:** draft
+**Status:** in-review
 **Depends on:** 0010 (the wizard and its result screen), 0011 (country search), 0012 (the 768px breakpoint)
 **Issue:** [#78](https://github.com/apportico/who-gets-replaced-first/issues/78)
 **Goal:** The result survives leaving the site, checked as:

@@ -317,6 +317,7 @@ improvising the steps:
 /evaluate         run the acceptance checks, verdict per requirement
 /review-pr        review a PR against its spec
 /address-reviews  fix, reply, resolve review threads
+/babysit          keep a PR moving — conflicts, red CI, review threads, on a loop
 /status           where every spec stands
 ```
 
@@ -324,14 +325,21 @@ improvising the steps:
 and `/update-spec` will not let a spec reach `done` while a requirement is still
 `[ ]`. That is the point. See `.claude/skills/README.md`.
 
-`/sdlc <ticket>` chains all of the above for one issue and runs unattended —
-`/babysit` between phases, `/address-reviews` on feedback, merge on approval. It
-opens the spec PR **ready rather than draft** and skips `/implement`'s
-confirmation prompt, and it stops on the ticket's **goal** — held in `/goal`,
-taken from the issue's `## Definition of done` or from `/sdlc 27 /goal <text>` —
-rather than on the merge. It relaxes nothing above: unprobed sources, unmarked
-requirements, an untiered number or a red `npm run verify` each stop the run
-rather than being worked around.
+`/sdlc <ticket>` chains all of the above for one issue and runs the work without
+prompting — `/babysit` between phases, `/address-reviews` on feedback, merge on
+approval. It opens the spec PR **ready rather than draft** and skips
+`/implement`'s confirmation prompt, and it stops on the ticket's **goal** — taken
+from the issue's `## Definition of done` or from `/sdlc 27 /goal <text>`, written
+to the spec's `**Goal:**` field and tracked with the `/goal` built-in — rather
+than on the merge.
+
+**It still waits on you twice.** Both review phases exit on an `APPROVED`
+decision, and nothing here can produce one: `claude-review.yml` is inert until
+#44, and its prompt reviews without approving. That is the design — the approval
+is the human in this loop — not a limitation to be engineered around. And it
+relaxes nothing above: unprobed sources, unmarked requirements, an untiered
+number or a red `npm run verify` each stop the run rather than being worked
+around.
 
 ### Intent lives in GitHub Issues
 

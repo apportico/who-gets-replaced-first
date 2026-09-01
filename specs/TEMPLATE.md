@@ -3,6 +3,9 @@
 **Status:** draft
 **Depends on:** <earlier spec numbers, or none>
 **Issue:** <link to the GitHub issue this implements, or "none">
+**Goal:** <the checkable clauses this spec must satisfy — from the issue's
+"Definition of done". Written by `/sdlc` phase A, and what a resumed run reads
+back. Omit for a spec written by hand outside that loop.>
 
 ## Objective
 

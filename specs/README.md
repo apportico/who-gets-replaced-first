@@ -7,6 +7,9 @@ This project is spec-driven: **no code without a requirement ID.**
 1. A spec is a numbered file here — `NNNN-short-name.md`.
 2. Every requirement gets an ID (`R1`, `R2`, …), a statement of what it must do,
    and **acceptance criteria** that can be checked, not just asserted.
+   The header carries `**Status:**`, `**Depends on:**` and `**Issue:**`, plus
+   `**Goal:**` — the checkable clauses the work must satisfy — when the spec was
+   opened by `/sdlc`, which reads that field back to resume a run.
 3. **Sources are probed before they are specified.** If a spec says "pull X from
    API Y", someone has already confirmed Y returns X. A spec is not a wishlist.
 4. Every requirement ends in one of three states, marked in the file itself:

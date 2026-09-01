@@ -20,12 +20,27 @@ genuinely the user's call. Everything else you decide and do.
 derived from the issue (title + `## Definition of done`, or the whole body if
 there is no such section) unless `/goal <text>` overrides it.
 
-**Use `/goal` to hold it — do not re-implement goal tracking here.** `/sdlc`
-sets the goal with `/goal` at Step 1, checks against it at every phase boundary,
-and asks it for the final verdict at Step 9. `/sdlc` also mirrors the goal into
-the spec's `**Goal:**` field and the PR body, because a loop iteration resumes in
-a fresh turn and the spec is what survives — the file is the durable copy, `/goal`
-is the tracker. A merged PR that does not meet the goal is not done.
+**The spec's `**Goal:**` field is the single source.** A loop iteration resumes
+in a fresh turn, so the file is what survives; every phase reads the goal from
+there. `/sdlc` also hands the contract to **`/goal`** — a Claude Code built-in,
+**not a skill in `.claude/skills/`**, so do not go looking for one — which tracks
+it across the run and gives the verdict at Step 9. Use it rather than
+re-implementing goal tracking here. If it does not resolve in a given session,
+the spec field still carries the goal and the loop is unaffected: say so once in
+the Step 10 block and carry on. A merged PR that does not meet the goal is not
+done.
+
+### What this depends on
+
+| Command | Where it lives |
+|---|---|
+| `/spec`, `/update-spec`, `/implement`, `/evaluate`, `/review-pr`, `/address-reviews`, `/babysit`, `/next` | `.claude/skills/` in this repo |
+| `/goal`, `/loop` | Claude Code built-ins — not repo skills, and not in `.claude/skills/` |
+
+`/babysit` was vendored into the repo in PR #74 for exactly this reason: phases B
+and F are built on it, and it was previously a personal skill a contributor would
+not have. Anything added to this file that invokes a command belongs in this
+table.
 
 ## Phases
 
@@ -53,6 +68,11 @@ is the tracker. A merged PR that does not meet the goal is not done.
 **Cadence default is 5 minutes (300s).** Convert to seconds: `m`→×60, `h`→×3600,
 clamp to `[60, 3600]`. Use the number the user gave; do not adjust it for cache
 windows.
+
+**A cadence needs a unit.** `/sdlc 27 3` is one ticket and one ambiguous integer,
+not a 3-minute cadence — read the bare number as part of the ticket argument and
+say you are using the 5-minute default, rather than guessing which row of the
+table it matched.
 
 If no ticket was given, run `/next` to pick one, tell the user which it picked,
 and continue — do not stop to ask.
@@ -84,10 +104,20 @@ in the output rather than merging the two silently. The last clause is always
 present: this project's data non-negotiables are part of every goal, whether or
 not the issue restates them.
 
-Hand that block to `/goal`, and mirror it into the spec under `**Issue:**` (Step
-3) and the PR body. It is now fixed for the whole run — **on resume, recover it
-from the spec's `**Goal:**` field**, never by re-reading the issue, and re-arm
-`/goal` with it if the loop has re-entered in a fresh session.
+Hand that block to `/goal`, and write it into the spec's `**Goal:**` field (Step
+3) and the PR body. `specs/TEMPLATE.md` carries the field, so a spec written by
+phase A has somewhere to put it.
+
+**On resume, recover the goal from the spec's `**Goal:**` field**, and re-arm
+`/goal` with it if the loop has re-entered in a fresh session. Do not re-read the
+issue to rebuild a goal that is already recorded — a `/goal <text>` override
+would be silently overwritten by the issue it deliberately replaced.
+
+**If the field is absent** — a spec predating this skill, or a phase A run that
+did not write it — re-derive from the issue, write the field, and **say so in the
+Step 10 block**: `Goal: re-derived from issue #<n>, spec field was missing`. Loud
+re-derivation beats both alternatives: stopping a run over a missing header, and
+continuing with no goal at all when the goal is the stop condition.
 
 ## Step 2 — Detect where this run already is
 
@@ -101,7 +131,9 @@ gh pr list --search "<issue-number> in:body" --json number,headRefName,state --l
 gh pr view --json number,url,state,isDraft,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup 2>/dev/null
 ```
 
-Resolve the phase from what exists:
+Resolve the phase from what exists. **The table is first match wins, read top
+down** — several rows can describe one PR, and the order is what disambiguates
+them:
 
 | Found | Phase |
 |---|---|
@@ -112,7 +144,7 @@ Resolve the phase from what exists:
 | Plan exists, requirements still `[ ]`, or `verify` not green | D (build) |
 | All requirements marked, no evaluation comment on the PR | E |
 | Evaluation posted, PR not approved | F |
-| PR `APPROVED` + CI green | G |
+| PR `APPROVED` + CI green, spec `in-progress`, no requirement `[ ]` | G |
 
 Announce the phase in one line, then run it. Phases are resumable and each is
 idempotent — re-running a phase must not duplicate a commit, a comment or a
@@ -180,6 +212,15 @@ suppress its re-schedule, and schedule the `/sdlc` re-entry yourself (Step 11).
 
 Phase B exits when `gh pr view <pr> --json reviewDecision` is `APPROVED`.
 `CHANGES_REQUESTED` keeps the loop running through `/address-reviews`.
+
+**That approval can only come from a human.** `claude-review.yml` is inert until
+the Claude GitHub App is installed (#44) — its own header says so, and it *passes
+when it skips*, so a green `review` check is not evidence a review ran. Even once
+#44 lands, the workflow's prompt ends "you review; you do not approve". So phase B
+always ends in a wait on a person, and the loop should say which person it is
+waiting on rather than implying it can clear the gate itself. While the App is
+uninstalled, `/review-pr <pr>` is what actually puts findings on the PR — run it
+once on entering phase B so the human has something to react to.
 
 ## Step 5 (Phase C) — Approve the spec
 
@@ -281,15 +322,30 @@ gh pr comment <pr> --body-file <path>
 ```
 
 If a requirement comes back `Fail` or `Unclear`, do **not** advance to phase F —
-go back to phase D, fix it, and re-evaluate. Re-posting an evaluation replaces
-the previous comment (edit it via `gh api -X PATCH`) rather than stacking a
-third and fourth copy on the PR.
+go back to phase D, fix it, and re-evaluate.
+
+Re-posting an evaluation **replaces** the previous comment rather than stacking a
+third and fourth copy on the PR — Step 2's idempotency promise is easiest to
+break right here, under a 5-minute cadence. Find it and patch it:
+
+```bash
+gh api repos/<owner>/<repo>/issues/<pr>/comments \
+  --jq '[.[] | select(.body | startswith("# Evaluation — <NNNN>"))] | last | .id'
+gh api -X PATCH repos/<owner>/<repo>/issues/comments/<id> --field body=@<path>
+```
+
+Post fresh only when that returns nothing or `null`. Both calls are REST on
+purpose: `gh pr view --json comments` hands back a **GraphQL node id**
+(`IC_kwDO…`), and `/issues/comments/{id}` needs the numeric REST id — mixing them
+404s. There is also no `gh pr comment-list`; `gh pr` has only `comment`, which
+always creates.
 
 ## Step 8 (Phase F) — Babysit the implementation PR
 
 Same mechanics as phase B: one `/babysit <pr> <cadence>` tick per loop
 iteration, `/address-reviews <pr>` for anything substantive, `/sdlc` owns the
-re-schedule.
+re-schedule, `/review-pr <pr>` once on entry to put findings on the PR, and the
+same wait on a **human** approval at the end of it.
 
 Two things to watch that phase B does not have:
 
@@ -323,6 +379,11 @@ gh pr merge <pr> --squash --delete-branch
 gh issue close <n> --comment "Done in #<pr>. <one-line goal check>"
 ```
 
+**If any of the four fails, do not hold in G.** Re-run Step 2 and continue from
+whatever phase it returns — a spec PR that is approved but carries no
+implementation is a phase-detection miss, not a stuck merge, and sitting here
+until Step 12's "same phase three times" fires reads to the user as a hang.
+
 `/update-spec` refuses `in-progress → done` while any requirement is `[ ]`. If it
 refuses, it is right and you merged too early — mark the requirement honestly.
 
@@ -352,7 +413,8 @@ Next:   R5 per-sex coverage columns, then npm run verify
 - **prompt** — the original invocation, verbatim, including the cadence and any
   `/goal` text: `/sdlc 27 3m` or `/sdlc 27 /goal ship per-sex coverage only`.
   Step 2 re-detects the phase, so the same prompt resumes correctly at any point.
-  Never pass the `<<autonomous-loop>>` sentinels — those belong to `/loop`.
+  Never pass the `<<autonomous-loop>>` sentinels — those belong to the `/loop`
+  built-in, which owns its own re-fire semantics.
 - **delaySeconds** — the parsed cadence (default 300). While a phase is
   compute-bound rather than waiting on anyone (phase D building, phase E
   evaluating), do not sleep at all: continue straight into the next phase in the

@@ -298,6 +298,9 @@ pipeline/         TypeScript data pipeline (zero runtime dependencies)
   data/           CSV, SQLite, cross-checks, outlier queue
   README.md       every field, its source, its limitations
 src/              React + Vite app (the wizard)
+.snapshots/       per-spec evaluation screenshots, committed — /sdlc posts these
+                  into the PR comment by raw URL; outside src/ and public/, so
+                  they never reach a build
 ```
 
 ## The workflow
@@ -306,6 +309,7 @@ Project skills in `.claude/skills/` drive the spec loop. Use them rather than
 improvising the steps:
 
 ```
+/sdlc             run the whole loop below for one ticket, end to end
 /next             pick the next task off the GitHub board
 /spec             probe the sources, write requirements, open a draft PR
 /update-spec      approve; later, mark requirements [x] / [!] / [~]
@@ -313,12 +317,29 @@ improvising the steps:
 /evaluate         run the acceptance checks, verdict per requirement
 /review-pr        review a PR against its spec
 /address-reviews  fix, reply, resolve review threads
+/babysit          keep a PR moving — conflicts, red CI, review threads, on a loop
 /status           where every spec stands
 ```
 
 `/spec` will not let you write a requirement against a source it has not probed,
 and `/update-spec` will not let a spec reach `done` while a requirement is still
 `[ ]`. That is the point. See `.claude/skills/README.md`.
+
+`/sdlc <ticket>` chains all of the above for one issue and runs the work without
+prompting — `/babysit` between phases, `/address-reviews` on feedback, merge on
+approval. It opens the spec PR **ready rather than draft** and skips
+`/implement`'s confirmation prompt, and it stops on the ticket's **goal** — taken
+from the issue's `## Definition of done` or from `/sdlc 27 /goal <text>`, written
+to the spec's `**Goal:**` field and tracked with the `/goal` built-in — rather
+than on the merge.
+
+**It still waits on you twice.** Both review phases exit on an `APPROVED`
+decision, and nothing here can produce one: `claude-review.yml` is inert until
+#44, and its prompt reviews without approving. That is the design — the approval
+is the human in this loop — not a limitation to be engineered around. And it
+relaxes nothing above: unprobed sources, unmarked requirements, an untiered
+number or a red `npm run verify` each stop the run rather than being worked
+around.
 
 ### Intent lives in GitHub Issues
 

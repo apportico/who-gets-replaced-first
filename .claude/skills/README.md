@@ -8,6 +8,12 @@ requirement IDs, the `[x]` / `[!]` / `[~]` marks, and the data-tier rules in
 ## The loop
 
 ```
+/sdlc <ticket>  run the whole loop below for one ticket, end to end
+```
+
+Or drive it a step at a time:
+
+```
 /next          pick the next task off the GitHub board
 /spec          probe the sources, write requirements, open a draft PR
 /update-spec   approve it — then later mark requirements [x] / [!] / [~]
@@ -16,8 +22,47 @@ requirement IDs, the `[x]` / `[!]` / `[~]` marks, and the data-tier rules in
 /evaluate      run the acceptance checks, verdict per requirement
 /review-pr     review a PR against its spec
 /address-reviews  fix, reply and resolve review threads
+/babysit       keep a PR moving — conflicts, red CI, review threads, on a loop
 /status        where everything stands
 ```
+
+## `/sdlc` — the loop as one command
+
+`/sdlc 27` takes a ticket from the board and runs the whole thing: `/spec`,
+review, `/update-spec`, `/implement`, build, `/evaluate`, review, merge — polling
+the PR with `/babysit` between phases and fixing feedback with
+`/address-reviews`. It stops when the ticket's **goal** is met, not when the PR
+merges.
+
+**It is not unattended end to end**, and does not claim to be. Both review phases
+exit on an `APPROVED` decision, and nothing in this repo can produce one:
+`claude-review.yml` is inert until the Claude GitHub App lands (#44), and even
+then its prompt says it reviews but never approves. So `/sdlc` runs the work and
+waits on you twice — at the spec review and at the code review. That is the
+intended shape, not a gap: the Guardrails put it as "the approval is the human in
+this loop".
+
+Three things it changes about the individual skills, deliberately:
+
+- **No draft PRs.** `/spec` opens one; `/sdlc` opens it ready. The review
+  workflow gates on `draft == false || spec-review`, so a ready PR is reviewed
+  either way — and it does not sit in a state nobody looks at.
+- **No confirmation prompts.** `/implement` normally waits before executing its
+  plan; under `/sdlc` the invocation *was* the confirmation. It asks only at the
+  stop conditions in its Step 12.
+- **The goal is the stop condition.** Derived from the issue's `## Definition of
+  done`, or given as `/sdlc 27 /goal <text>`, and written to the spec's
+  `**Goal:**` field — now part of `specs/TEMPLATE.md` — which is what a resumed
+  iteration reads back. `/goal`, the Claude Code built-in, tracks it across the
+  run; it is not a skill in this directory, so do not look for one here.
+
+`/sdlc 27 3 min` changes the babysit cadence from the 5-minute default. What it
+does *not* relax: source probing, the tier rules, `npm run verify`, and the
+requirement marks — a run that cannot satisfy one of those stops and says so.
+
+`/babysit` lives here rather than in a personal `~/.claude/skills/` because
+`/sdlc` phases B and F are built on it; the top of that file records what was
+adapted for this repo.
 
 ## What was deliberately not ported
 

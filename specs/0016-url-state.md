@@ -1,6 +1,6 @@
 # 0016 — the wizard's state lives in the URL
 
-**Status:** approved
+**Status:** in-progress
 **Depends on:** 0010 (the wizard is the app), 0011 (the country search and its named absence), 0012 (the one breakpoint)
 **Issue:** [#79](https://github.com/apportico/who-gets-replaced-first/issues/79)
 **Approved:** Daniele Zanni, 2026-09-02 — **given directly, not as a GitHub
@@ -284,6 +284,98 @@ shows no change to `src/utils/groupFigures.js`, `laborMetrics.js`, `trend.js`,
 and `wizard.render.test.jsx` and `computed.test.jsx` pass **with no assertion in
 them modified**, which is what makes their green a statement about the figures
 rather than about a rewritten test.
+
+## Implementation Plan
+
+**Planned:** 2026-09-02
+
+### Files to create
+
+| Path | Purpose |
+|---|---|
+| `src/utils/urlState.js` | The codec. `STEPS`, `encode(state)`, `decode(search, rows)`, `noticeFor(result)`. Pure — no DOM, no React — which is what puts R1, R5 and R6 inside vitest rather than in a manual browser walk. |
+| `src/utils/urlState.test.js` | R1, R5, R6 and R7's decode half, against the committed payload. |
+| `src/components/wizard/CopyLink.jsx` | R8. Kept out of `ResultScreen.jsx`, which is already 221 lines. |
+
+### Files to modify
+
+| Path | Change |
+|---|---|
+| `src/components/wizard/WizardShell.jsx` | The five `useState` atoms become one state object; `go(step, patch)` / `set(patch)` / `back()` become the only transitions (R10); mount normalises the URL with `replaceState`; a `popstate` listener re-decodes (R4); an effect strips a band the resolved cross-tab does not publish (R7). |
+| `src/utils/crossTabs.js` | Export `AGE_BAND_KEYS` and `EDU_BAND_KEYS` from the existing `AGE_BANDS` / `EDU_BANDS` so `urlState` validates against the same list the screens render from, rather than a second copy that can drift. |
+| `src/components/wizard/CountryScreen.jsx` | Accept a `notice` prop, rendered as `.wz-note` under the lede (R6). The existing `excluded` prop and 0011 R5's wording are untouched — a separate slot, so 0011's tests keep asserting what they assert. |
+| `src/components/wizard/OccupationScreen.jsx` | Same `notice` prop, same slot. |
+| `src/components/wizard/ResultScreen.jsx` | Render `<CopyLink />` above "Start again" (R8). |
+| `src/components/wizard/wizard.render.test.jsx` | **Add** cases for R2, R3, R4 and R8. No existing assertion is modified — R11's acceptance depends on that. |
+
+### Sequence
+
+1. **R1** — `urlState.js` with `encode`/`decode`, and `crossTabs.js` exporting the band keys. Tests first, since the codec is pure.
+2. **R5, R6** — the validation and clamp rules inside `decode`, plus `noticeFor`. These are the same code path, so they land together.
+3. **R2, R3, R4, R10** — `WizardShell` consolidation: one state object, the `go`/`set`/`back` seam, the lazy decode initialiser, the mount-time `replaceState` normalisation, and the `popstate` listener.
+4. **R6 (render half)** — the `notice` prop through `CountryScreen` and `OccupationScreen`.
+5. **R7** — the band-strip effect, gated on a resolved *source* absence.
+6. **R8** — `CopyLink.jsx` into `ResultScreen`.
+7. **R9, R11** — `npm run verify`, then a built `dist/` served under a `/who-gets-replaced-first/` prefix by a plain static server, walked in a browser.
+
+Steps 1–2 gate 3; 3 gates 4–6. Step 7 gates the phase.
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | `encode`/`decode` over five params against closed vocabularies; `STEPS` moves here so there is one list | `src/utils/urlState.js`, `crossTabs.js` | vitest asserts both literal strings; `grep` for `#` in the module |
+| R2 | `go()` pushes, `set()` replaces | `WizardShell.jsx` | browser: `history.length` delta is 4 over the walk; unchanged across three country taps |
+| R3 | Lazy `useState` initialiser decodes before first paint | `WizardShell.jsx` | browser at 1440×900 and 390×844 on a cold deep link; vitest asserts the intro never renders |
+| R4 | `popstate` listener re-decodes; the URL is the source of truth | `WizardShell.jsx` | browser: 4× Back then 4× Forward, checking step + `location.search` each press |
+| R5 | A no-series country decodes to `iso3: null` + `absent`, clamping to step 01 | `urlState.js`, `CountryScreen.jsx` | vitest for CHN/SAU/NZL; browser shows the named absence and no figure |
+| R6 | Per-param validation, then clamp to the deepest supported step, then `noticeFor` | `urlState.js`, both screens | vitest asserts `dropped` for all five URLs; browser console clean on each |
+| R7 | Effect gated on a resolved source absence, `replaceState` only | `WizardShell.jsx` | vitest both halves — stripped on `NOT_PUBLISHED`, **kept** on `LOAD_FAILED` |
+| R8 | `CopyLink.jsx`, `writeText` with a selectable-field fallback | `CopyLink.jsx`, `ResultScreen.jsx` | vitest with a stubbed clipboard, both resolve and reject; browser measures `min-height` |
+| R9 | URLs written as `location.pathname + encode(...)`; the path is never reconstructed | `WizardShell.jsx` | built `dist/` served under the prefix, deep link opened, network log read |
+| R10 | `go`/`set`/`back` are the only transitions | `WizardShell.jsx` | `grep -n "setState(" WizardShell.jsx` shows only the seam |
+| R11 | No dependency, no figure module touched | — | `git diff origin/main...HEAD` on `package.json` and the five figure modules |
+
+### Tier and vintage handling
+
+**This plan produces no numbers, so it assigns no tiers and records no vintages.**
+That is R11, and it is the reason the mapping table above has no tier column. The
+tier and year badges already on the result screen are rendered by
+`groupFigures.js`, `trend.js` and `crossTabs.js`' `readBands`, none of which this
+plan modifies — `git diff --stat` over those five modules is the check.
+
+The one place the data rules do bite is R5, and it bites hard: the URL is a new
+door into the result screen that does not pass through the country search, so
+without R5 a deep link would be the one path in the app that could reach a
+result for a country with no series. `decode` returning `iso3: null` for those 41
+is what closes it, and it is asserted rather than reasoned about.
+
+### Validation
+
+`[validate]`, `[crosscheck]` and `[outliers]` do not apply — nothing under
+`pipeline/` changes, and the pilot self-skips in this worktree for want of a
+`pipeline/raw/` cache. The checks that do apply are vitest (which `verify` runs
+unconditionally) and a browser walk, which is what CLAUDE.md requires for a UI
+change: a clean build is not evidence the page renders.
+
+New coverage: `urlState.test.js` for the codec, and four cases added to
+`wizard.render.test.jsx` for the shell. Existing assertions are not touched.
+
+### Risks
+
+- **R7 may have no cell to test against.** Its acceptance already says the suite
+  locates a country and group that omits a band from the committed files, and
+  that the requirement is marked `[!]` with that query if none exists. This is
+  the requirement most likely not to end `[x]`.
+- **`history.length` is a coarse instrument.** Forward history is truncated by a
+  Back, so R2's delta measure would mislead if reused for R4. R4 asserts step and
+  `location.search` per press instead; the two must not be conflated.
+- **`WizardShell`'s state consolidation is the one real refactor here**, and #77
+  is editing the same file in parallel. R10's seam is what keeps that a merge
+  rather than a rewrite, and whichever lands second wires into `go`/`back`.
+- **jsdom does not navigate.** `pushState`/`popstate` exist there but the
+  browser's own Back button does not, so R4's acceptance stays a browser check;
+  vitest covers the decode side only.
 
 ## Non-goals
 

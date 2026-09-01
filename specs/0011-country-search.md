@@ -92,7 +92,7 @@ rather than retype it**, and label the residue as ours.
 
 ## Requirements
 
-### R1. [x] Step 01 lists only the countries that carry an official series
+### R1. [~] Step 01 lists only the countries that carry an official series
 
 `countryOptions` filters to rows where `hasAnyIscoGroup` is true — 177 at the
 probed vintage — and step 01 renders no others. No new coverage predicate is
@@ -113,6 +113,22 @@ Vitest: 218 country rows, 177 options, every option's row reports a group,
 `CHN`/`SAU`/`NZL` absent, `excludedCountries` returns the 41 and contains `CHN`.
 Rendered: headless Chrome at `localhost:5174` reports
 `document.querySelectorAll('[role=option]').length === 177`.
+
+**`[~]` revised 2026-09-01 by [spec 0013](0013-country-fold.md) R5.** The
+requirement is unchanged and still met — the list is the 177 and no other row is
+pickable. What was wrong was its **render acceptance**: *"a render test asserts
+the number of option elements on step 01 equals `countryOptions(rows).length`"*,
+and the `=== 177` measured above.
+
+Both are satisfied *only* by rendering every row before the reader has typed,
+which is issue #76: 12,754px and fifteen viewport heights on a phone. The check
+ran, produced the number it asked for, and nobody asked whether the number was
+right.
+
+`countryOptions(rows).length === 177` stays, in `wizard.test.js`, as the **data**
+claim it always should have been. The render assertion is now 0013 R1's — the
+resting state renders the *selected* country alone — and the option count is
+bounded by 0013 R2's cap of 12 rather than by the size of the dataset.
 ### R2. [x] The payload carries `iso2`, from the World Bank, tiered as an identifier
 
 `run.py` keeps the `iso2Code` already present in the cached World Bank country
@@ -178,7 +194,7 @@ are recorded rather than quietly edited: `test_columns` (the pilot CSV header),
 `test_golden_master` (the fixture), and `test_tiers`' literal `84 → 85`. That
 literal is the assertion that fails when a column ships without a tier, so it
 moves by hand, in the change that adds one. `npm run test:pipeline`: 137 OK.
-### R3. [x] The search predicate folds, and matches name, code and alternate
+### R3. [~] The search predicate folds, and matches name, code and alternate
 
 A pure function in `src/utils/` takes a query and returns the matching subset of
 R1's options, **in `countryOptions`' own alphabetical order**. There is no
@@ -239,6 +255,22 @@ which broke: `korea`→`KOR` (name),
 `turkey`/`uk` (alias), `cote d'ivoire`→`CIV` (the fold), `''`→177, `zzzz`→0,
 and the ordering assertion — a multi-hit query returns rows in
 `countryOptions`' order, not a ranked one.
+
+**`[~]` revised 2026-09-01 by [spec 0013](0013-country-fold.md) R5.** One
+sentence here does not survive: *"An empty query returns all 177, so the screen
+opens as a list and narrows."*
+
+The first half is correct and stays. `searchCountries(rows, '')` returns all 177,
+because everything matches an empty query, and `hit('') === 177` is still
+asserted. The second half is the defect stated as a requirement: it takes a true
+claim about a **predicate** and makes it a claim about a **screen**. Rendering
+the predicate's answer verbatim is what produced a 12,294px listbox.
+
+0013 splits them. `searchCountries` is unchanged in meaning and gains only the
+caps; a new `renderedCountries` decides what appears, and at rest that is the
+selected country alone. The routes, the fold, the ordering and the alias table
+are all untouched — the only thing that moved is who answers "what does the
+screen show".
 ### R4. [x] The residual alias table is ours, small, and says so
 
 Whatever neither the payload nor `Intl` supplies is hand-authored in one
@@ -415,7 +447,7 @@ unused-component guard is unchanged and still exempts `toggle` alone.
 R9's keyboard work did not turn out heavier than this trade assumed — the
 combobox is ~20 lines — so the `[~]` escape hatch back to `command` was not
 needed.
-### R9. [x] The search is operable by keyboard and meets the touch and focus tokens
+### R9. [~] The search is operable by keyboard and meets the touch and focus tokens
 
 **Nothing is active until the reader makes it so.** The screen opens with no
 active descendant and no ring: on open the reader has expressed nothing, so
@@ -533,7 +565,7 @@ asserted:
 
 | Check | Measured |
 |---|---|
-| Options rendered | **177** |
+| Options rendered | **177** — see the note below; this row is the defect, recorded as a pass |
 | The list's own sentence | "The 177 countries that report an ISCO-08 occupation breakdown to ILOSTAT" |
 | Option target | `min-height: 56px`, painting **62px** |
 | Search input target | `min-height: 56px`, painting **62px** |
@@ -546,6 +578,22 @@ asserted:
 | `aria-activedescendant` | set, and resolves to an element |
 | `prefers-reduced-motion: reduce` | animation duration `1e-06s` |
 | **Console** | `[vite] connecting…`, the React DevTools notice, `[vite] connected.` — **no errors, no warnings, no exceptions** |
+
+**The first row of that table is the defect** ([spec 0013](0013-country-fold.md)
+R5, 2026-09-01). "Options rendered: 177" is not a passing measurement, it is
+issue #76: this screen is described throughout as a *folded* search, and 177
+rendered options is 12,754px and fifteen viewport heights on a phone before the
+reader has typed anything.
+
+Nothing about the check was faulty. It ran in a real browser, it measured the
+right property, and it returned the right number. What was missing is that
+nobody asked whether the number should have been 177 — the value was compared
+against `countryOptions(rows).length`, which it necessarily equals whenever the
+screen renders everything. A measurement is only as good as the expectation it
+is compared to, and an expectation derived from the implementation cannot fail.
+
+Kept in place rather than corrected, because the corrected number is in 0013 and
+what is useful here is the shape of the miss.
 
 The open-state rows were measured in the wrong place first — after the `china`
 query rather than before it — and reported a ring on open that was really a ring

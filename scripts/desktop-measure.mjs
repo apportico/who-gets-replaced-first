@@ -99,6 +99,12 @@ const NO_SERIES_COUNTRY = 'New Zealand';
 const WITHDRAWAL = 'reports no occupation breakdown';
 const R9_VIEWPORTS = ['375', '1440'];
 
+// Spec 0013. The fold: how much of step 01 renders before the reader has typed,
+// and how much a query is allowed to render. These are the numbers a green
+// `npm run verify` could not see -- the suite counts DOM nodes and jsdom does no
+// layout, so `body.scrollHeight` has to come from a real browser or from nowhere.
+const FOLD = { matchLimit: 12, absentLimit: 3, maxViewports: 2 };
+
 // Every screen mounts with `stepin` (0.4-0.5s) and `.wz-option` carries
 // `transition: all 0.18s`, so a measurement taken the instant a screen appears
 // reads the *start* of an animation. Both cost a real debugging round here: the
@@ -186,8 +192,36 @@ const stepOne = () => {
   return {
     h2: parseFloat(getComputedStyle(document.querySelector('.wz-h2')).fontSize),
     ctaHeight: Math.round(cta.getBoundingClientRect().height),
-    minOptionHeight: Math.min(...options.map((o) => Math.round(o.getBoundingClientRect().height))),
+    // `null`, not `Math.min(...[])`. An empty spread is Infinity, which sails
+    // through a `>= 56` check while measuring nothing -- a tap-target check that
+    // passes by having no targets, which is the same shape of false green that
+    // let a 12,754px step 01 ship. Under 0013 this screen can legitimately
+    // render zero options, so the empty case has to be explicit.
+    minOptionHeight: options.length
+      ? Math.min(...options.map((o) => Math.round(o.getBoundingClientRect().height)))
+      : null,
     optionCount: options.length,
+  };
+};
+
+// Spec 0013 R1, R2, R7. What step 01 costs the page.
+//
+// `body.scrollHeight / innerHeight` is the measurement the issue is written in,
+// and the one no offline check can take. The absence count is measured off the
+// rendered copy rather than off a class, because 0011 R6 renders those as plain
+// text on purpose -- they are statements, not controls.
+const fold = () => {
+  const list = document.querySelector('[role=listbox]');
+  const notes = [...document.querySelectorAll('p')]
+    .filter((n) => n.textContent.includes('reports no occupation breakdown, so'));
+  return {
+    options: document.querySelectorAll('[role=option]').length,
+    absences: notes.length,
+    listHeight: list ? Math.round(list.getBoundingClientRect().height) : 0,
+    scrollHeight: document.body.scrollHeight,
+    innerHeight: window.innerHeight,
+    viewports: +(document.body.scrollHeight / window.innerHeight).toFixed(2),
+    live: (document.querySelector('[aria-live="polite"]')?.textContent ?? '').trim(),
   };
 };
 
@@ -358,9 +392,26 @@ for (const vp of VIEWPORTS) {
   await page.waitForTimeout(MOUNT_SETTLE);
   const row = await page.evaluate(intro);
   await page.click('.wz-cta');
-  await page.waitForSelector('.wz-option');
+  // The combobox, not `.wz-option`. Spec 0013 folds this list, so a context
+  // whose locale resolves to nothing renders zero options at rest and a wait on
+  // an option hangs until it times out -- the one place the fold can break an
+  // already-green check, and a change to this script rather than to the app.
+  await page.waitForSelector('input[role="combobox"]');
   await page.waitForTimeout(MOUNT_SETTLE);
   Object.assign(row, await page.evaluate(stepOne));
+
+  // 0013. Three states, in the order the reader meets them: the resting screen,
+  // a one-character query (the worst case for both caps), and a settled one.
+  row.fold = { rest: await page.evaluate(fold) };
+  await page.locator('input[role="combobox"]').fill('a');
+  await page.waitForTimeout(TRANSITION_SETTLE);
+  row.fold.oneChar = await page.evaluate(fold);
+  await page.locator('input[role="combobox"]').fill('united');
+  await page.waitForTimeout(TRANSITION_SETTLE);
+  row.fold.settled = await page.evaluate(fold);
+  await page.locator('input[role="combobox"]').fill('');
+  await page.waitForTimeout(TRANSITION_SETTLE);
+
   await page.keyboard.press('Tab');
   await page.waitForTimeout(TRANSITION_SETTLE);
   Object.assign(row, await page.evaluate(ring));
@@ -447,7 +498,40 @@ for (const vp of VIEWPORTS) {
     : r.spark.dash >= r.spark.needed),
   `${at} the trend dash is ${r.spark?.dash} against a rendered path of ${r.spark?.needed} (normalised: ${r.spark?.normalised}, non-scaling-stroke: ${r.spark?.nonScalingStroke}) — the line would be clipped`);
   check('R8', r.ctaHeight >= TAP.cta, `${at} the CTA is ${r.ctaHeight}px, want >= ${TAP.cta}`);
-  check('R8', r.minOptionHeight >= TAP.option, `${at} the shortest option is ${r.minOptionHeight}px, want >= ${TAP.option}`);
+  check('R8', r.minOptionHeight === null || r.minOptionHeight >= TAP.option,
+    `${at} the shortest option is ${r.minOptionHeight}px, want >= ${TAP.option}`);
+
+  // ---- spec 0013: the fold ----
+  //
+  // Reported per state so a failure says WHICH one grew, rather than "step 01 is
+  // too tall". The resting count is 0 or 1 by construction: `renderedCountries`
+  // returns the selected country alone, and the selection on a cold load is
+  // whatever the locale pre-filled, which is 1 for a context Chrome gives a
+  // resolvable locale and 0 otherwise. Both are correct; 2 is not.
+  const f = r.fold;
+  check('0013 R1', f.rest.options <= 1,
+    `${at} step 01 rests on ${f.rest.options} options, want 0 or 1`);
+  check('0013 R1', f.rest.live === '',
+    `${at} the live region reads "${f.rest.live}" at rest, want empty`);
+  check('0013 R1', f.rest.viewports < FOLD.maxViewports,
+    `${at} the resting page is ${f.rest.scrollHeight}px = ${f.rest.viewports} viewports, want < ${FOLD.maxViewports}`);
+
+  check('0013 R2', f.oneChar.options <= FOLD.matchLimit,
+    `${at} a one-character query renders ${f.oneChar.options} options, want <= ${FOLD.matchLimit}`);
+  check('0013 R2', f.oneChar.absences <= FOLD.absentLimit,
+    `${at} a one-character query renders ${f.oneChar.absences} absence lines, want <= ${FOLD.absentLimit}`);
+  check('0013 R2', f.oneChar.viewports < FOLD.maxViewports,
+    `${at} a one-character query makes the page ${f.oneChar.scrollHeight}px = ${f.oneChar.viewports} viewports, want < ${FOLD.maxViewports}`);
+  // The count is still announced, and the truncation with it -- the half of
+  // 0011 R6 that a cap could have silently swallowed.
+  check('0013 R3', /^150 of 177 countries match/.test(f.oneChar.live)
+    && f.oneChar.live.includes('showing the first 12'),
+    `${at} the live region reads "${f.oneChar.live}"`);
+
+  check('0013 R2', f.settled.options === 3 && !f.settled.live.includes('showing the first'),
+    `${at} "united" renders ${f.settled.options} options and announces "${f.settled.live}"`);
+  check('0013 R1', f.settled.viewports < FOLD.maxViewports,
+    `${at} a settled query makes the page ${f.settled.viewports} viewports, want < ${FOLD.maxViewports}`);
   check('R8', r.ringWidth === RING.width && r.ringColor === RING.color && r.ringOffset === RING.offset,
     `${at} the focus ring on ${r.ringOn} is ${r.ringWidth} ${r.ringColor} at ${r.ringOffset}, want ${RING.width} ${RING.color} at ${RING.offset}`);
 }
@@ -525,6 +609,13 @@ for (const vp of VIEWPORTS) {
   const docks = ['01', '02', '03']
     .map((st) => `${st}:${r.steps[st].dock.slice(0, 4)}${r.steps[st].onScreen ? '' : '!OFF'}`).join(' ');
   console.log(`${vp.name.padStart(4)}  column ${String(r.column).padStart(3)}  h1 ${r.h1}  h2 ${r.h2}  stat ${r.stat}  ${docks}  cta ${r.ctaHeight}  errors ${r.errors.length}`);
+  // 0013. Printed rather than only checked: the numbers are the evidence the
+  // issue is written in, and a bound that only ever prints "passed" tells you
+  // nothing about how close it came.
+  const f = r.fold;
+  console.log(`      fold  rest ${f.rest.options}opt ${String(f.rest.scrollHeight).padStart(5)}px ${f.rest.viewports}vp`
+    + ` | "a" ${f.oneChar.options}opt ${f.oneChar.absences}abs ${String(f.oneChar.scrollHeight).padStart(5)}px ${f.oneChar.viewports}vp`
+    + ` | "united" ${f.settled.options}opt ${String(f.settled.scrollHeight).padStart(5)}px ${f.settled.viewports}vp`);
 }
 
 if (failures.length) {

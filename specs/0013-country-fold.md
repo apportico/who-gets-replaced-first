@@ -1,6 +1,6 @@
 # 0013 — the step 01 country list folds
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** 0011 (the search, its four match routes, the locale pre-fill and
 the stated absences — this spec tightens three of its acceptance criteria rather
 than replacing them) · 0012 (R4's anchored dock on step 01 is justified by a

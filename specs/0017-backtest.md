@@ -92,12 +92,15 @@ the same terms as every other emitted number — this is pipeline output, and
 `run.ts` calls it with the in-memory panel rows during a full run and writes
 `pipeline/data/backtest.csv`.
 
-**Acceptance:** `npm run pipeline` writes `pipeline/data/backtest.csv` with
-**574** data rows spanning **64** distinct `iso3` values and 9 distinct `group`
-values (62 rows for `isco6_agricultural_pct`, 64 for the other eight). Every row
-carries a non-null `retrodicted_2025_pct`, `observed_2025_pct` and
-`error_pp`. `grep -c '^JPN,' pipeline/data/backtest.csv` returns 0, and so does
-`^IND,`.
+**Acceptance:** run against the **committed** `pipeline/data/global_labor_panel.csv`,
+so the check reproduces in a fresh clone with no `pipeline/raw/` cache — the
+environment CI and every worktree actually have. The back-test emits **574** rows
+spanning **64** distinct `iso3` values and 9 distinct `group` values (62 rows for
+`isco6_agricultural_pct`, 64 for the other eight; `62 + 64x8 = 574`). Every row
+carries a non-null `retrodicted_2025_pct`, `observed_2025_pct` and `error_pp`,
+and no row exists for `JPN` or `IND`. `npm run pipeline` writes the same content
+to `pipeline/data/backtest.csv` as its integration path — that run is how the
+artefact ships, not how the requirement is evidenced.
 
 ### R2. [ ] Every back-test field carries a tier, and `MODELED` never blurs into `DERIVED`
 
@@ -112,10 +115,18 @@ columns (`iso3`, `country_name`, `group`). It is a separate registry because
 `tiers.test.ts` asserts `FIELD_TIERS` is *equal* to `run.COLUMNS`, so extending
 that one would fail on a column the snapshot does not have.
 
+The same registry drives the app payload. `src/data/backtest.json` (R7) carries
+a `field_tiers` block on the terms `exportAppJson` already uses for
+`global_labor.json`, because the payload is the copy the reader actually sees and
+a tier that stops at the CSV is a tier the screen cannot render.
+
 **Acceptance:** a test asserts `BACKTEST_FIELD_TIERS` keys are exactly the
 back-test CSV header, that every value is in `TIERS ∪ {NOT_A_MEASUREMENT}`, that
 `retrodicted_2025_pct` and `error_pp` are `MODELED`, and that
-`observed_2025_pct` is `DERIVED`. `npm run test:pipeline` green.
+`observed_2025_pct` is `DERIVED`. A second assertion covers
+`src/data/backtest.json`: its `field_tiers` keys equal the keys it actually
+emits, and agree with `BACKTEST_FIELD_TIERS` on every shared key.
+`npm run test:pipeline` green.
 
 ### R3. [ ] Publish the error distribution, not a headline mean
 
@@ -128,12 +139,19 @@ A mean alone hides the shape — the clerical mean signed error is −0.055pp, w
 reads as an almost unbiased model while the median absolute error is 0.66pp and
 the worst country is out by 5.06pp.
 
-**Acceptance:** `npm run pipeline` prints `[backtest]` with a row per group plus
-a pooled row. The pooled row reads MAE **1.806**, RMSE **3.867**, n **574**; the
-`isco4_clerical_pct` row reads MAE **0.940**, RMSE **1.295**, n **64**, max
-**5.057** (`GEO`). Figures are quoted from the 2026-09-01 probe and are what the
-committed fixture must reproduce; a moved figure is a real change and must be
-explained, not re-baselined silently.
+**Acceptance:** the summary carries a row per group plus a pooled row, each with
+all seven statistics, and `npm run pipeline` prints them as `[backtest]`. The
+figures **reproduce the committed R6 fixture exactly**, and match the 2026-09-01
+probe to **±0.005pp**: pooled MAE 1.806, RMSE 3.867, n 574; `isco4_clerical_pct`
+MAE 0.940, RMSE 1.295, n 64, max 5.057 (`GEO`).
+
+The tolerance is not slack, it is the probe's own precision. The probe used
+plain JavaScript arithmetic while R1 requires `pipeline/pynum.ts`, and those two
+layers differ by design — `pipeline/README.md` tabulates by how much. The
+committed fixture, produced by the implementation, is the pass condition; the
+probe figures are the 2026-09-01 measurement the fixture has to agree with. A
+figure that moves beyond the tolerance is a real change and must be explained,
+never re-baselined silently.
 
 ### R4. [ ] Name every country whose direction is wrong, individually
 
@@ -163,10 +181,18 @@ invites the reader to judge whether that is good; "MAE 1.8pp against 1.3pp for
 predicting no change at all" does not.
 
 **Acceptance:** the `[backtest]` pooled row carries persistence MAE **1.292**,
-RMSE **2.046**, and the share of pairs on which the trend beats persistence:
-**234/574 (40.8%)**. A test asserts persistence MAE < trend MAE pooled — the
-finding, expressed as an assertion, so a future change that reverses it fails
-loudly rather than quietly invalidating the published conclusion.
+RMSE **2.046** (same ±0.005pp tolerance and same committed-fixture rule as R3),
+and the share of pairs on which the trend beats persistence: **234/574 (40.8%)**.
+A test asserts persistence MAE < trend MAE pooled — the finding, expressed as an
+assertion, so a future change that reverses it fails loudly rather than quietly
+invalidating the published conclusion.
+
+**If that assertion ever fails, the fix is not to bump the number.** It would go
+red on a data refresh that touched no code, and the correct response is to work
+out what moved in the panel and republish the conclusion — including retiring it,
+if the trend genuinely started winning. Re-baselining the test to green would
+leave the result screen still asserting a finding the data no longer supports,
+which is the exact failure this requirement exists to prevent.
 
 ### R6. [ ] Regression-test it offline, with a committed expected fixture
 
@@ -211,12 +237,13 @@ reads as a licence to publish the year it was back-testing toward. It is not —
 the issue says so explicitly, and CLAUDE.md's *"no replacement year ships, in any
 tier"* is unchanged by a measurement that argues against one.
 
-**Acceptance:** no emitted back-test column names a replacement, displacement or
-halving year; a test asserts the back-test CSV header and
-`src/data/backtest.json` contain no key matching
-`/replacement|displacement|halv|_year$/` other than the literal fit-window and
-target-year metadata. The accordion states the conclusion in words and offers no
-date.
+**Acceptance:** a test asserts that every key in the back-test CSV header and in
+`src/data/backtest.json` matching `/replacement|displacement|halv|_year$/` is a
+member of an explicit allowlist — `fit_start_year`, `fit_end_year`,
+`target_year` — and fails on anything else. An **allowlist a new column has to be
+added to** is a guard; a prose exemption for "fit-window and target-year
+metadata" is a suggestion, and any column ending `_year` could be argued into it.
+The accordion states the conclusion in words and offers no date.
 
 ### R9. [ ] Say which countries the back-test cannot score, and name the two that motivated it
 

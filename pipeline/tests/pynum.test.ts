@@ -33,7 +33,7 @@ import {
   toBigInt,
   type PyNum,
 } from '../pynum.ts';
-import { asInt, type Int } from '../schema.ts';
+import { asInt, isIntColumn, type Int } from '../schema.ts';
 import { readCsv } from '../csvio.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -107,6 +107,15 @@ test('R1: pyRound is half-to-even, not half-away-from-zero', () => {
 
 // -------------------------------------------------------------------- pyStr
 test('R1: pyStr reproduces every numeric string in the six committed CSVs', () => {
+  // R1's criterion is "pyStr reproduces all 78,257 numeric strings in the
+  // committed CSVs from their parsed doubles, 0 mismatches".
+  //
+  // The escape has to select on the COLUMN, not on the answer. An earlier
+  // version skipped any cell `String()` already reproduced, which short-circuits
+  // the assertion: `pyStr` was reached on 6,287 cells of 71,799, so a
+  // regression on an ordinary value like `8.8633` left it green. Selecting on
+  // `isIntColumn` is the real distinction -- int columns are written with
+  // `String(value)` and never through `pyStr` (columns.ts).
   const files = [
     'global_labor_dataset.csv',
     'global_labor_panel.csv',
@@ -115,33 +124,40 @@ test('R1: pyStr reproduces every numeric string in the six committed CSVs', () =
     'outliers_for_review.csv',
     'pilot_labor_dataset.csv',
   ];
-  let total = 0;
+  let floatCells = 0;
+  let intCells = 0;
   let dotZero = 0;
   let negZero = 0;
   for (const name of files) {
     const rows = readCsv(readFileSync(path.join(DATA, name), 'utf8'));
-    for (const row of rows) {
-      for (const cell of row) {
-        // A numeric cell is one that survives a round trip; anything else is a
-        // label. `Number("")` is 0, so empties are excluded first.
-        if (cell === '' || !/^-?(\d|\.)/.test(cell)) continue;
+    const header = rows[0];
+    for (const row of rows.slice(1)) {
+      row.forEach((cell, i) => {
+        // A numeric cell is one that parses; anything else is a label.
+        // `Number("")` is 0, so empties are excluded first.
+        if (cell === '' || !/^-?(\d|\.)/.test(cell)) return;
         const v = Number(cell);
-        if (!Number.isFinite(v)) continue;
-        if (String(v) !== cell && pyStr(v) !== cell) {
-          assert.fail(`${name}: ${cell} -> pyStr ${pyStr(v)}`);
+        if (!Number.isFinite(v)) return;
+        if (isIntColumn(header[i])) {
+          // written by String(value), not pyStr -- assert that instead
+          assert.equal(String(v), cell, `${name}.${header[i]}: ${cell}`);
+          intCells++;
+          return;
         }
+        assert.equal(pyStr(v), cell, `${name}.${header[i]}: ${cell}`);
+        floatCells++;
         if (cell.endsWith('.0')) dotZero++;
         if (cell === '-0.0') negZero++;
-        total++;
-      }
+      });
     }
   }
   // The counts from the spec's source verification, asserted rather than
   // trusted: if a future vintage stops carrying them, this test would still be
   // green while checking nothing about the two shapes it exists for.
-  assert.ok(total > 70_000, `only ${total} numeric cells scanned`);
+  assert.ok(floatCells > 70_000, `only ${floatCells} float cells asserted through pyStr`);
   assert.ok(dotZero > 6_000, `only ${dotZero} integral floats`);
-  assert.ok(negZero > 0, `no -0.0 values`);
+  assert.ok(negZero > 0, 'no -0.0 values');
+  assert.ok(intCells > 0, 'no Int-column cells seen');
 });
 
 test('R1: pyStr keeps the two shapes String() loses', () => {

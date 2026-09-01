@@ -19,9 +19,13 @@ re-review of `f07fd01`**: a second reviewer on R1 specifically, and
 implementing the summation helpers against the real committed columns
 **first**, so R1 is validated by execution rather than by review.
 
-**R6 is blocked** on [#54](https://github.com/apportico/who-gets-replaced-first/issues/54)
-— `summary_report.md` labels a `MODELED` composite `DERIVED`, a tier defect on
-`main` that R6's own acceptance criterion surfaced.
+**R6's blocker is cleared.** It was blocked on
+[#54](https://github.com/apportico/who-gets-replaced-first/issues/54) —
+`summary_report.md` labelled a `MODELED` composite `DERIVED`, a tier defect on
+`main` that R6's own acceptance criterion surfaced. That landed in `33fdcc5`
+(PR [#56](https://github.com/apportico/who-gets-replaced-first/pull/56)), so
+`summary_report.md:231` now reads `MODELED composite` and the generator emits
+the same string. R6 asserts against the corrected file and is marked `[x]`.
 
 ## Objective
 
@@ -473,16 +477,24 @@ under `pipeline/raw/` stays byte-compatible so re-runs remain offline and free.
   the criterion, or a contributor takes the documented path and gets a 3-line
   diff that has nothing to do with the port.
 
-  **Blocked on [#54](https://github.com/apportico/who-gets-replaced-first/issues/54)
-  until the committed report is regenerated.** Reproduced on this branch:
-  regenerating from the *current* Python and diffing with the `Generated` line
-  removed gives **4 differing lines, not 0**. Two are the invocation gap above.
-  The other two are tier drift on `main`: `summary_report.md:231` says
-  `DERIVED composite` where `report.py:363` says `MODELED composite`, changed in
-  `ff507b0` and never regenerated. **That is not excluded here.** A second
-  exclusion would launder exactly the tier drift `CLAUDE.md` exists to prevent,
-  in the one document written for humans to quote from. It is fixed on `main`
-  under #54, and R6 asserts against the corrected file.
+  **This was blocked on
+  [#54](https://github.com/apportico/who-gets-replaced-first/issues/54), and no
+  longer is.** When this spec was written, regenerating from the *current*
+  Python and diffing with the `Generated` line removed gave **4 differing lines,
+  not 0**: two from the invocation gap above, and two from tier drift on `main`
+  — `summary_report.md:231` said `DERIVED composite` where `report.py:363` said
+  `MODELED composite`, changed in `ff507b0` and never regenerated. Excluding
+  those would have laundered exactly the tier drift `CLAUDE.md` exists to
+  prevent, in the one document written for humans to quote from, so R6 refused
+  to.
+
+  Both causes are fixed on `main`: `33fdcc5`
+  (PR [#56](https://github.com/apportico/who-gets-replaced-first/pull/56))
+  corrected the tier and regenerated the report through `run.py`, closing the
+  invocation gap in the same change. **That measurement no longer reproduces**
+  — the diff is 0 lines with `Generated` removed, which
+  `pipeline/tests/report.test.ts` now asserts on every run. The exclusion below
+  stays at exactly one named line.
 
 ### R7. [x] A shared schema module, consumed on both sides
 
@@ -762,6 +774,43 @@ Two Python files did not simply disappear, and neither is a dual implementation:
   run by `verify` or by CI, and nothing imports it. It is the one thing a
   contributor needs if the toolchain pin ever changes.
 
+### Review round 1 (`b825837`, @syymza — `CHANGES_REQUESTED`)
+
+Six threads, all correct, all addressed. Two were gaps between what R1's
+acceptance *says* and what the suite *asserted* — both closed with tests, no
+pipeline change:
+
+- **The override criterion's second half was not exercised.** The committed test
+  built a `PyNum[]` by hand and called `pySum` directly, which is the
+  fixture-only shape R1's "end to end on a real column" sentence exists to rule
+  out. Nothing asserted that `sumColumn` consults `overrideKinds` and takes the
+  mixed branch. Added, and **probed for vacuity**: with the registry lookup
+  stubbed out — the route `JSON.parse` would have forced — the new test fails
+  and the other eleven pass.
+- **`pyStr` was asserted on a twelfth of its criterion.** `String(v) !== cell &&`
+  short-circuited, so `pyStr` ran on 6,287 cells of 71,799; a regression on an
+  ordinary value like `8.8633` left it green. The escape exists because `Int`
+  columns are written with `String(value)`, so it now selects on `isIntColumn`
+  rather than on the answer: **71,799 float-column cells through `pyStr` and
+  18,744 `Int` cells through `String()`, 0 mismatches.**
+
+The two `Consider:` items were both taken:
+
+- `sumColumn` took `intColumn` as a literal at all ten call sites, a second
+  source of truth beside `INT_COLUMNS`. It now derives it from `isIntColumn`,
+  which is still call-site selection from the declared type — the declaration
+  has moved to where it was already written down. All eleven outputs re-verified
+  byte-identical after the change.
+- `pyjson.dumps`'s comment claimed insertion order, which `Object.entries` does
+  not give for integer-like keys. Corrected to state the divergence, and the
+  dependency it rests on — `panel.ts` sorting its year keys before inserting —
+  is now named at both ends.
+
+`flattenVintage` and `DatasetRow` were named as unconsumed. They stay: R7 asks
+for the vintage pair type and for a module "consumed on both sides", and the
+Non-goals put the app's adoption in #22. Removing them would leave R7's exported
+surface smaller than the requirement describes.
+
 ### R9 — every place the Python was described
 
 `CLAUDE.md` (layout, the stdlib rule, the command list, the toolchain section,
@@ -778,15 +827,33 @@ pipeline/run.ts` runs the pipeline directly. `tsconfig.json` sets
 `erasableSyntaxOnly`, which refuses the constructs Node's stripper cannot erase
 — so nothing can type-check here and fail to start there.
 
-### A finding, recorded rather than fixed
+### Findings, recorded rather than fixed
 
-Per the Non-goals, the port fixes nothing. One thing is worth naming: the
-`_range` companions and `data_year_context` are computed but `data_year_context`
-is never assigned by any loader — `load_worldbank` writes `data_year_*` for
-`population`, `labor` and `sector` only, though `WB_INDICATORS` maps five
-indicators to a `context` group. The column is therefore always null. The port
-reproduces that exactly. It is a latent gap in provenance rather than a wrong
-number, and it belongs in its own issue.
+Per the Non-goals, the port fixes nothing. Two things are worth naming, and both
+want their own issue.
+
+**`generated_from` still names `pipeline/run.py`, a file this branch deletes.**
+The string is a literal in `exportAppJson` and in `exportCrosstabs`, so it ships
+in `src/data/global_labor.json` and in all 218 per-country cross-tab files.
+From `a6e45ce` the published payloads therefore carry a provenance pointer to a
+path that no longer exists.
+
+It cannot be corrected here. R3 and R4 require byte identity and this string is
+inside both payloads, so editing it would destroy the evidence the whole spec
+rests on — the same reason no other value in those files moves. It corrects
+itself the next time the data is regenerated for a real reason, and the point of
+writing it down is that the next vintage fixes the field rather than carrying
+`run.py` forward indefinitely. Provenance is the one thing this project cannot
+let drift quietly, and until this paragraph existed the only place it was
+recorded was the diff. Filed as
+[#71](https://github.com/apportico/who-gets-replaced-first/issues/71).
+
+**`data_year_context` is computed but never assigned.** The
+`loadWorldbank` writes `data_year_*` for `population`, `labor` and `sector`
+only, though `WB_INDICATORS` maps five indicators to a `context` group. The
+column is therefore always null. The port reproduces that exactly. It is a
+latent gap in provenance rather than a wrong number. Filed as
+[#72](https://github.com/apportico/who-gets-replaced-first/issues/72).
 
 ## Non-goals
 

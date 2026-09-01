@@ -20,7 +20,7 @@ import { readFileSync } from 'node:fs';
 import * as C from './config.ts';
 import * as fetch from './fetch.ts';
 import { overrideKinds } from './overrides.ts';
-import { asInt } from './schema.ts';
+import { asInt, isIntColumn } from './schema.ts';
 
 export type RowValue = number | string | null | undefined | string[];
 export type Row = Record<string, RowValue>;
@@ -848,7 +848,16 @@ export function wavg(rows: Row[], field: string, wfield: string): [number | null
  * with no `num()` call, so an override written `15000000` makes an otherwise
  * float column mixed -- and Python's `sum()` returns a different number for it.
  */
-function sumColumn(rows: Row[], field: string, intColumn: boolean): number {
+function sumColumn(rows: Row[], field: string): number {
+  // The branch comes from `isIntColumn`, the same registry `columns.ts` uses to
+  // decide how the value is SPELLED. Passing a literal here would be a second
+  // source of truth for one fact, and the drift it allows is the one the `Int`
+  // brand exists to make impossible: a column printed `2989466` while its
+  // aggregate is summed through `pySumFloat`, byte identity gone and nothing
+  // naming the cause. Still call-site selection from the declared type, which
+  // is what R1 asks for -- the declaration has simply moved to where it is
+  // already written down.
+  const intColumn = isIntColumn(field);
   const present = rows.filter((r) => truthy(r[field] ?? null));
   const kinds = present.map((r) => overrideKinds.get(r)?.get(field));
   if (kinds.some((k) => k !== undefined && k !== (intColumn ? 'int' : 'float'))) {
@@ -880,9 +889,9 @@ export function makeAggregate(iso3: string, name: string, members: Row[], kind: 
     iso2: null,
   };
 
-  const totalPop = sumColumn(rows, 'population_total', false);
-  const totalEmp = sumColumn(rows, 'employed_total', true);
-  const totalLf = sumColumn(rows, 'labor_force_total', false);
+  const totalPop = sumColumn(rows, 'population_total');
+  const totalEmp = sumColumn(rows, 'employed_total');
+  const totalLf = sumColumn(rows, 'labor_force_total');
   agg.population_total = totalPop || null;
   agg.employed_total = totalEmp || null;
   agg.labor_force_total = totalLf || null;
@@ -905,14 +914,14 @@ export function makeAggregate(iso3: string, name: string, members: Row[], kind: 
     }
   }
 
-  for (const [f, isInt] of [
-    ['clerical_employed', true], ['professionals_employed', true],
-    ['young_white_collar_employed', true], ['population_15_24', false],
-    ['exposed_wage_bill_ppp', true], ['ict_service_exports_usd', true],
-    ['service_exports_usd', false],
-  ] as const) {
+  for (const f of [
+    'clerical_employed', 'professionals_employed',
+    'young_white_collar_employed', 'population_15_24',
+    'exposed_wage_bill_ppp', 'ict_service_exports_usd',
+    'service_exports_usd',
+  ]) {
     const any = rows.some((r) => truthy(r[f] ?? null));
-    agg[f] = any ? sumColumn(rows, f, isInt) : null;
+    agg[f] = any ? sumColumn(rows, f) : null;
   }
 
   agg.employed_share_of_population_pct =

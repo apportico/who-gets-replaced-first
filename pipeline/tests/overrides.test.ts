@@ -188,11 +188,11 @@ test('R1: the same field written 15000000 and 15000000.0 gets int and float', ()
   assert.equal(overrideKinds.get(b)?.get('population_15_24'), 'float');
 });
 
-test('R1: an aggregate over a column carrying an override reproduces sum()', () => {
-  // The expected values come from the pinned CPython 3.13:
-  //   sum([84.84239393266276, 387, 570])            -> 1041.8423939326626
-  //   sum([387, 84.84239393266276, 570])            -> 1041.8423939326626
-  // and the all-float fold of the same elements differs.
+test('R1: pySum reached only through its own fixture is the shape R1 rules out', () => {
+  // Kept as the unit half of the criterion: these are the CPython values the
+  // mixed path has to hit. The half that matters is the next test, which
+  // reaches pySum through a real column instead.
+  //   sum([84.84239393266276, 387, 570]) -> 1041.8423939326626
   const mixed: PyNum[] = [
     { kind: 'float', value: 84.84239393266276 },
     { kind: 'int', value: 387n },
@@ -203,6 +203,57 @@ test('R1: an aggregate over a column carrying an override reproduces sum()', () 
   // a different published number.
   assert.notEqual(pySumFloat(mixed.map((m) => Number(m.value))), pySum(mixed));
   // And the pure-int path is exact where a double fold is not.
-  assert.equal(pySumInt([387n, 570n].map((v) => v)), 957n);
+  assert.equal(pySumInt([387n, 570n]), 957n);
   assert.equal(toBigInt(asInt(957)), 957n);
+});
+
+/**
+ * R1's override criterion, second half -- the load-bearing one.
+ *
+ * "an aggregate over a column carrying one of them reproduces `sum()` against a
+ * committed expected value generated from the pinned interpreter ... it
+ * exercises `pySum` end to end on a real column instead of only through its own
+ * fixture."
+ *
+ * Building a `PyNum[]` by hand and calling `pySum` is the fixture-only shape
+ * that sentence exists to rule out. This drives the real path:
+ * `applyOverrides` reads integer TOKENS out of a real overrides file, records
+ * the kind, and `makeAggregate` -> `sumColumn` has to consult that record and
+ * select the mixed branch. Nothing else in the suite can cover it, and R3
+ * cannot: `overrides` is `{}` today, so byte identity passes whatever this
+ * does, and the first override anyone fills in would be the first to diverge.
+ */
+test('R1: an aggregate over a column carrying an override reproduces sum() end to end', () => {
+  // `population_15_24` is a FLOAT column (it comes through `num()`), so an
+  // override written as a bare integer token makes it genuinely mixed -- which
+  // is the shape `sum()` answers differently.
+  const body = JSON.stringify({
+    overrides: {
+      BBB: { population_15_24: { ...COMPLETE, value: '@387@' } },
+      CCC: { population_15_24: { ...COMPLETE, value: '@570@' } },
+    },
+  })
+    .replace('"@387@"', '387')
+    .replace('"@570@"', '570');
+
+  // Row order is the summation order, and the float has to come first for the
+  // transition add to land where CPython puts it.
+  const a = fixtures.country('AAA', { population_15_24: 84.84239393266276 });
+  const b = fixtures.country('BBB');
+  const c = fixtures.country('CCC');
+  apply(body, fixtures.byIso(a, b, c));
+
+  assert.equal(overrideKinds.get(b)?.get('population_15_24'), 'int');
+  assert.equal(overrideKinds.get(c)?.get('population_15_24'), 'int');
+
+  const agg = build.makeAggregate('TST', 'Test', [a, b, c], 'group');
+
+  // From the pinned CPython 3.13:
+  //   sum([84.84239393266276, 387, 570])  -> 1041.8423939326626
+  assert.equal(agg.population_15_24, 1041.8423939326626);
+
+  // And the route `JSON.parse` would have forced -- treating the column as
+  // homogeneous floats -- publishes a different number for the same file.
+  assert.equal(pySumFloat([84.84239393266276, 387, 570]), 1041.8423939326628);
+  assert.notEqual(agg.population_15_24, pySumFloat([84.84239393266276, 387, 570]));
 });

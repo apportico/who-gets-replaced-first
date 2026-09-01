@@ -93,8 +93,19 @@ export function dumps(value: PyJson): string {
     if (isPyNum(value)) {
       return value.kind === 'int' ? value.value.toString() : encodeNumber(value.value);
     }
+    // NOT insertion order in general, and the difference is real. A Python
+    // dict with `sort_keys=False` preserves insertion order for every key;
+    // `Object.entries` returns integer-like keys first, in ascending numeric
+    // order, whenever they were inserted. So this module -- whose entire job is
+    // byte fidelity to `json.dump` -- genuinely disagrees with it on one shape:
+    // an object keyed by numeric strings inserted out of order.
+    //
+    // It is inert today because the one such payload sorts before inserting:
+    // `panel.ts`'s year keys go in ascending, so the two orders coincide. That
+    // dependency is load-bearing and is named at both ends; unsort it and the
+    // timeseries payload reorders silently, surfacing only as an unexplained
+    // `cmp` diff. Nothing else in the pipeline keys an object by a number.
     const entries = Object.entries(value as Record<string, PyJson>);
-    // Insertion order, like a Python dict with sort_keys=False.
     return '{' + entries.map(([k, v]) => escapeAscii(k) + ':' + dumps(v)).join(',') + '}';
   }
   throw new TypeError(`not JSON serialisable: ${String(value)}`);

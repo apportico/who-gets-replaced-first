@@ -235,6 +235,12 @@ export function exportPanel(
   const seriesOut: Record<string, PyJson> = {};
   for (const [k, vals] of series) {
     const inner: Record<string, PyJson> = {};
+    // The sort is load-bearing for byte fidelity, not cosmetic. These keys are
+    // numeric strings, and `pyjson.dumps` walks them with `Object.entries`,
+    // which returns integer-like keys in ascending numeric order regardless of
+    // insertion -- where Python's `json.dump` writes them in insertion order.
+    // Sorting first makes the two agree. Remove it and the timeseries payload
+    // reorders silently. See the matching note in `pyjson.ts`.
     for (const y of [...vals.keys()].sort((a, b) => a - b)) inner[String(y)] = vals.get(y) as PyJson;
     seriesOut[k] = inner;
   }

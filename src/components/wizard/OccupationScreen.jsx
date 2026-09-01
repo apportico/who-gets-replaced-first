@@ -18,7 +18,7 @@
 import { resolveTitle } from '@/utils/resolveTitle'
 import { GROUPS, groupDisplay } from '@/utils/isco'
 
-export default function OccupationScreen({ group, occ, onOcc, onPick, onNext, onBack }) {
+export default function OccupationScreen({ group, notice, occ, onOcc, onPick, onNext, onBack }) {
   const { title, tried, echo } = occ
 
   const attempt = () => {
@@ -39,11 +39,18 @@ export default function OccupationScreen({ group, occ, onOcc, onPick, onNext, on
     >
       <div style={{ paddingTop: 40 }}>
         <p className="wz-eyebrow">Question 02</p>
-        <h2 className="wz-h2">What do you do?</h2>
+        <h1 className="wz-h2">What do you do?</h1>
         <p className="wz-body" style={{ margin: '16px 0 0' }}>
           Type a title. It resolves to one of nine groups — the resolution is
           shown, never hidden, and you can override it.
         </p>
+
+        {/* 0016 R6. Same slot and same wording rules as step 01. */}
+        {notice && (
+          <p className="wz-note" style={{ margin: '14px 0 0', color: 'var(--muted-strong)' }}>
+            {notice}
+          </p>
+        )}
 
         <input
           value={title}

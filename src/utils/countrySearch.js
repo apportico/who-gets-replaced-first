@@ -121,27 +121,95 @@ export function matches(option, query) {
   return ROUTES.some((route) => route(option, q))
 }
 
+// R2 (spec 0013). How much of a result set reaches the screen.
+//
+// Both numbers are bounded by measurement rather than taste, from opposite
+// sides. 12: at 390x844 the listbox starts 356px down and a row costs 70px, so
+// 17 rows is the most that keeps the page under two viewport heights — and
+// every three-character prefix already returns 7 matches or fewer, so the cap
+// is unreachable from three characters on. It can only bite at one or two,
+// where the reader has not yet said enough to be shown a list.
+//
+// 3: the first draft of 0013 R2 exempted the absences, reasoning there are only
+// ever a few. Probed, that is false — `a` matches 39 of the 41, which is ~2,300px
+// of note text on its own. 99% of three-character queries and 100% of
+// four-character ones return three or fewer, and every full country name returns
+// exactly one, so a reader who typed a name never loses the named statement.
+export const MATCH_LIMIT = 12
+export const ABSENT_LIMIT = 3
+
 /**
- * R3 + R6. Partition a query into what the reader can pick and what we have to
- * explain.
+ * R3 + R6 (0011), R2 (0013). Partition a query into what the reader can pick
+ * and what we have to explain, and cap both.
  *
  *   - `matches` — options from R1's 177, **in `countryOptions`' own
  *     alphabetical order**. There is no relevance ranking: a match is a match,
  *     and a reader scanning a narrowed list should find it where the alphabet
- *     puts it rather than where a scoring function does.
+ *     puts it rather than where a scoring function does. The cap takes the
+ *     first `limit` of that order, so it narrows the list without reordering it.
  *   - `absent` — countries the query matched that carry no series. Not options.
  *     The screen renders them as a statement, so typing `china` says why China
  *     is not there instead of returning an empty box that reads as broken.
  *
- * An empty query returns all 177 and nothing absent, so the screen opens as a
- * list and narrows.
+ * `matchCount` and `absentCount` are the sizes **before** truncation. They are
+ * returned rather than left to the caller to recompute, because the live region
+ * announces one and the list renders the other, and two independent counts is
+ * how those drift apart.
+ *
+ * An empty query returns all 177 and nothing absent. That is a statement about
+ * the *predicate* — everything matches an empty query — and 0011 R3 is right
+ * about it. What the *screen* renders at rest is a different question, answered
+ * by `renderedCountries` below rather than by conflating the two here.
  */
-export function searchCountries(rows, query) {
+export function searchCountries(rows, query, { limit = MATCH_LIMIT, absentLimit = ABSENT_LIMIT } = {}) {
   const q = fold(query)
   const options = countryOptions(rows)
-  if (!q) return { matches: options, absent: [] }
+  if (!q) {
+    return {
+      matches: options,
+      absent: [],
+      matchCount: options.length,
+      absentCount: 0,
+      truncated: false,
+      absentTruncated: false,
+    }
+  }
+  const hits = options.filter((o) => matches(o, q))
+  const missing = excludedCountries(rows).filter((o) => matches(o, q))
   return {
-    matches: options.filter((o) => matches(o, q)),
-    absent: excludedCountries(rows).filter((o) => matches(o, q)),
+    matches: hits.slice(0, limit),
+    absent: missing.slice(0, absentLimit),
+    matchCount: hits.length,
+    absentCount: missing.length,
+    truncated: hits.length > limit,
+    absentTruncated: missing.length > absentLimit,
+  }
+}
+
+/**
+ * R1 (spec 0013). What step 01 *renders*, as opposed to what matches.
+ *
+ * These were the same function until 0013, and that is precisely how a screen
+ * described as "a folded search" shipped rendering all 177 rows: the predicate
+ * says everything matches an empty query, the screen rendered the predicate's
+ * answer, and 0011's own acceptance criteria asserted the result.
+ *
+ * At rest the answer is **the selected country and nothing else** — which on
+ * arrival is the locale pre-fill, since that is what seeds the selection. Keyed
+ * to the selection rather than to the locale, because `Escape` returns here: a
+ * reader in the UK who picks France and presses `Escape` would otherwise see
+ * United Kingdom rendered while France drove `Continue`.
+ */
+export function renderedCountries(rows, query, selectedIso3, opts) {
+  if (fold(query)) return { ...searchCountries(rows, query, opts), resting: false }
+  const selected = countryOptions(rows).filter((o) => o.iso3 === selectedIso3)
+  return {
+    matches: selected,
+    absent: [],
+    matchCount: selected.length,
+    absentCount: 0,
+    truncated: false,
+    absentTruncated: false,
+    resting: true,
   }
 }

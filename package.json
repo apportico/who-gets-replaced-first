@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p pipeline/tsconfig.json",
     "check:brand": "node scripts/check-schema-brand.mjs",
+    "check:meta": "node scripts/check-meta.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "pipeline": "node pipeline/run.ts",

@@ -17,14 +17,21 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger }
   from '@/components/ui/accordion'
 import Sparkline from '@/components/Sparkline'
+import CopyLink from './CopyLink'
 import { groupShare, groupHeadcount } from '@/utils/groupFigures'
 import { trendFor } from '@/utils/trend'
 import { classificationNotice } from '@/utils/classification'
-import { termsFor, BACKTEST_NOTE } from '@/utils/terms'
+import { termsFor } from '@/utils/terms'
+import {
+  BACKTEST_NOTE, backtestFor, tierFor, pct, signedPp, POOLED,
+  FIT_START_YEAR, FIT_END_YEAR, TARGET_YEAR,
+  ELIGIBLE_COUNTRIES, COUNTRIES_WITH_SERIES,
+} from '@/utils/backtest'
 import { groupByNumber } from '@/utils/isco'
 import { ageBands, eduBands } from '@/utils/crossTabs'
 import { qualityTone } from '@/utils/laborMetrics'
 import { PRESENT, LOAD_FAILED, NOT_LOADED, absenceMessage } from '@/utils/absence'
+import ShareCardButton from './ShareCardButton'
 
 function Figure({ label, result, note }) {
   return (
@@ -63,6 +70,7 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart, o
   const data = cross?.state === PRESENT ? cross.data : null
   const terms = termsFor(row, group, data)
   const quality = qualityTone(row?.data_quality_flag)
+  const backtest = backtestFor(row?.iso3, group)
 
   const ages = data ? ageBands(data, group) : null
   const edus = data ? eduBands(data, group) : null
@@ -77,11 +85,11 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart, o
         {subject}
       </p>
 
-      <h2 className="wz-h2" style={{ marginTop: 14, fontSize: 40 }}>
+      <h1 className="wz-h2" style={{ marginTop: 14, fontSize: 40 }}>
         {share.state === PRESENT
           ? <>{share.display} of {row.country_name}&apos;s workers</>
           : <>No published figure</>}
-      </h2>
+      </h1>
 
       {/* R14. Said plainly, at the top, rather than left as an absence the
           reader has to notice. */}
@@ -201,16 +209,106 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart, o
             <p className="wz-body" style={{ margin: 0, color: 'var(--muted-strong)' }}>
               {BACKTEST_NOTE}
             </p>
+
+            {/* 0017 R7. The measurement behind the refusal, and R14 still
+                holds: there is no year in here either. */}
+            <div className="wz-card" style={{ marginTop: 16 }}>
+              {/* wrap, not nowrap: `.wz-meta` does not wrap by default, and this
+                  eyebrow is long enough to push the badge past the card edge at
+                  375px — it clipped to "MODEL" before this. */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                gap: 10, flexWrap: 'wrap',
+              }}>
+                <span className="wz-meta" style={{ color: 'var(--muted)', whiteSpace: 'normal' }}>
+                  Fit {FIT_START_YEAR}–{FIT_END_YEAR}, predict {TARGET_YEAR}
+                </span>
+                <span className="wz-badge">{tierFor('retrodicted_2025_pct')}</span>
+              </div>
+
+              {backtest.scored ? (
+                <>
+                  <p className="wz-body" style={{ margin: '12px 0 0', color: 'var(--fg)' }}>
+                    For {g?.label.toLowerCase()} in {row.country_name}, the trend fitted to{' '}
+                    {FIT_START_YEAR}–{FIT_END_YEAR} predicted{' '}
+                    <strong>{pct(backtest.retrodicted_2025_pct)}</strong> for {TARGET_YEAR}.
+                    <span className="wz-badge" style={{ marginLeft: 8 }}>
+                      {tierFor('retrodicted_2025_pct')}
+                    </span>
+                  </p>
+                  <p className="wz-body" style={{ margin: '8px 0 0', color: 'var(--fg)' }}>
+                    The published figure is <strong>{pct(backtest.observed_2025_pct)}</strong>.
+                    <span className="wz-badge" style={{ marginLeft: 8 }}>
+                      {tierFor('observed_2025_pct')}
+                    </span>
+                  </p>
+                  <p className="wz-note" style={{ margin: '10px 0 0' }}>
+                    Out by {signedPp(backtest.error_pp)}
+                    {backtest.direction_correct === false
+                      ? ', and in the wrong direction — the model expected this group to move the other way.'
+                      : '.'}
+                  </p>
+                </>
+              ) : (
+                <p className="wz-body" style={{ margin: '12px 0 0', color: 'var(--muted-strong)' }}>
+                  {row?.country_name ? `${row.country_name} cannot be back-tested` : 'This country cannot be back-tested'}
+                  {' '}for this group: it has no published {TARGET_YEAR} figure to score a
+                  prediction against, or too short a run of years to fit one. Only{' '}
+                  {ELIGIBLE_COUNTRIES} of the {COUNTRIES_WITH_SERIES} countries with an
+                  occupation series can be. No figure is shown here rather than one
+                  borrowed from elsewhere.
+                </p>
+              )}
+
+              <p className="wz-note" style={{ margin: '14px 0 0', color: 'var(--accent-soft)' }}>
+                Across all {POOLED.n} country-and-group pairs that can be scored, that
+                model is out by {POOLED.mae_pp.toFixed(2)}pp on average — worse than the{' '}
+                {POOLED.persistence_mae_pp.toFixed(2)}pp you get by assuming nothing changes
+                at all — and it gets the direction of travel wrong{' '}
+                {POOLED.direction_wrong_n} times out of {POOLED.n}.
+              </p>
+              <p className="wz-note" style={{ margin: '10px 0 0' }}>
+                The share is a net figure: it bundles displacement with demand growth,
+                offshoring, ageing and reclassification. A model reading the net and
+                calling it displacement measures the wrong thing, which is why this page
+                gives you no date.
+              </p>
+            </div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
 
+      {/* 0016 R8. Above "Start again" on purpose: this screen's whole output is
+          the cell the reader landed on, and sending it to someone is the thing
+          they are most likely to want next. Starting over is the retreat. */}
+      <CopyLink />
+
+      {/* 0015 R5. Above "start again", because the reader who has just read
+          the figures is the one who wants to keep them. */}
+      <ShareCardButton row={row} group={group} />
+
+      {/* 0015 R8. A real link with an href, not a scripted navigation: it has
+          to survive being opened in a new tab, and be followed by a crawler.
+          One click from the result, which is what #78 asks for and what a
+          third accordion would not have been. */}
+      <a
+        href="methodology.html"
+        className="wz-option"
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          marginTop: 10, minHeight: 'var(--tap-option)', textDecoration: 'none',
+        }}
+      >
+        How these numbers are made, and what we refuse to say →
+      </a>
+
       {/* 0014 R1. Back and Start again are different moves and sit side by side
           rather than one replacing the other: back returns to step 03 with every
           answer intact, Start again clears the occupation, age and education.
-          (It leaves the country — probed 2026-09-01, and left alone: changing
+          (It leaves the country -- probed 2026-09-01, and left alone: changing
           that is this spec's Non-goal.) This screen has no `wz-footer`, so the
-          row stays inline where Start again already was. */}
+          row stays inline where Start again already was, below the three things
+          0015 and 0016 put between the figures and the retreat. */}
       <div className="wz-actions" style={{ marginTop: 22 }}>
         <button
           type="button"

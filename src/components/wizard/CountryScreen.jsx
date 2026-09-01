@@ -17,16 +17,26 @@
 // The combobox keeps focus in the input and moves an *active descendant*,
 // rather than moving DOM focus into the list. Typing therefore keeps working
 // while arrowing, which is the whole point of a search box.
+//
+// 0013 folded it. The screen above renders `renderedCountries`, not
+// `searchCountries`: at rest it shows the selected country alone, and a query
+// renders at most 12 matches and 3 stated absences, with both truncations said
+// out loud. Until then this screen rendered the predicate's answer to an empty
+// query — all 177 rows, 12,754px, fifteen viewport heights on a phone — and
+// three of 0011's own acceptance criteria asserted that it did.
 import { useId, useMemo, useRef, useState } from 'react'
-import { searchCountries } from '@/utils/countrySearch'
+import { renderedCountries } from '@/utils/countrySearch'
+import { countryOptions } from '@/utils/countryList'
 
 // 0014 R5. `query` is a prop now, owned by WizardShell: this screen unmounts on
 // every step change, so a locally-held search string meant a reader who came
-// back to step 01 found all 177 rows again with their own selection somewhere
-// below the fold. `active` stays local on purpose -- an arrow-key position is
+// back to step 01 found the folded list again rather than the search they had
+// just run. `active` stays local on purpose -- an arrow-key position is
 // transient, not an answer, and restoring it would paint a focus ring nobody
 // asked for on arrival.
-export default function CountryScreen({ rows, iso3, excluded, query, onQuery, onPick, onNext, onBack }) {
+export default function CountryScreen({
+  rows, iso3, excluded, notice, query, onQuery, onPick, onNext, onBack,
+}) {
   // -1, not 0: on open the reader has expressed nothing, so painting the accent
   // ring around Afghanistan — with no element focused — claims a keyboard
   // position nobody took, and `Enter` on an empty box would select it. Typing
@@ -37,8 +47,10 @@ export default function CountryScreen({ rows, iso3, excluded, query, onQuery, on
   const optionId = (i) => `${listId}-opt-${i}`
   const listRef = useRef(null)
 
-  const { matches, absent } = useMemo(() => searchCountries(rows, query), [rows, query])
-  const total = useMemo(() => searchCountries(rows, '').matches.length, [rows])
+  const { matches, absent, matchCount, absentCount, truncated, absentTruncated, resting } =
+    useMemo(() => renderedCountries(rows, query, iso3), [rows, query, iso3])
+  const total = useMemo(() => countryOptions(rows).length, [rows])
+  const absentRemaining = absentCount - absent.length
 
   function move(delta) {
     if (matches.length === 0) return
@@ -74,7 +86,7 @@ export default function CountryScreen({ rows, iso3, excluded, query, onQuery, on
     >
       <div style={{ paddingTop: 40 }}>
         <p className="wz-eyebrow">Question 01</p>
-        <h2 className="wz-h2">Where do you work?</h2>
+        <h1 className="wz-h2">Where do you work?</h1>
         {/* R10. The provenance the per-row tag used to carry. Every row in this
             list has a series, so tagging all 177 identically said nothing; what
             is worth saying is what the list *is*. */}
@@ -82,6 +94,16 @@ export default function CountryScreen({ rows, iso3, excluded, query, onQuery, on
           The {total} countries that report an ISCO-08 occupation breakdown to
           ILOSTAT. Pre-filled from your locale where we can match it.
         </p>
+
+        {/* 0016 R6. What the link asked for and did not get. Above the locale
+            note on purpose: this one explains why the reader is on this screen
+            at all, and the locale note explains a country they have not asked
+            about yet. */}
+        {notice && (
+          <p className="wz-note" style={{ margin: '14px 0 0', color: 'var(--muted-strong)' }}>
+            {notice}
+          </p>
+        )}
 
         {/* R5. The reader's own country resolved, and has no series. Say so
             before they go looking for it — and stop saying it once they have
@@ -96,7 +118,7 @@ export default function CountryScreen({ rows, iso3, excluded, query, onQuery, on
 
         <input
           value={query}
-          onChange={(e) => { onQuery(e.target.value); setActive(0) }}
+          onChange={(e) => { onQuery(e.target.value); setActive(e.target.value ? 0 : -1) }}
           onKeyDown={onKeyDown}
           placeholder="Search countries…"
           aria-label="Search countries"
@@ -114,9 +136,23 @@ export default function CountryScreen({ rows, iso3, excluded, query, onQuery, on
           }}
         />
 
-        {/* R9. The count, announced rather than only shown. */}
+        {/* R9 (0011) + R3 (0013). The count, announced rather than only shown —
+            and now the truncations with it, because a screen-reader user is
+            exactly the reader who cannot see that a list was cut.
+
+            Empty at rest, deliberately. `{total} of {total} countries match` is
+            true of the predicate and false of the screen, and the gap between
+            those two is the whole of issue #76. Empty is also the right
+            `aria-live` semantic: nothing has changed yet, so the first keystroke
+            produces the first announcement. */}
         <p className="wz-sr-only" aria-live="polite">
-          {matches.length} of {total} countries match
+          {resting ? '' : (
+            <>
+              {matchCount} of {total} countries match
+              {truncated && `, showing the first ${matches.length}`}
+              {absentTruncated && `. ${absentRemaining} more matching countries report no occupation breakdown`}
+            </>
+          )}
         </p>
 
         <div
@@ -143,6 +179,16 @@ export default function CountryScreen({ rows, iso3, excluded, query, onQuery, on
           ))}
         </div>
 
+        {/* R3 (0013). A cap that hides matches says so. A truncated list
+            presented as a whole list is a false statement about the data, which
+            is the user-interface form of this project's first rule. */}
+        {truncated && (
+          <p className="wz-note" style={{ margin: '14px 0 0' }}>
+            {matchCount} matches — showing the first {matches.length}. Keep
+            typing to narrow.
+          </p>
+        )}
+
         {/* R6. A country we cannot answer for is named, not silently missing.
             Text, not a control: it is not tappable, not focusable, and carries
             no option semantics, so arrowing through the list never lands on it. */}
@@ -153,7 +199,30 @@ export default function CountryScreen({ rows, iso3, excluded, query, onQuery, on
           </p>
         ))}
 
-        {matches.length === 0 && absent.length === 0 && (
+        {/* R2 + R3 (0013). The absences are capped at 3, and the remainder is
+            stated as a count rather than dropped. CLAUDE.md allows dropping the
+            row and forbids dropping the statement — a count is a statement, and
+            it is the only reason capping these is available at all. */}
+        {absentTruncated && (
+          <p className="wz-note" style={{ margin: '14px 0 0' }}>
+            {absentRemaining} more {absentRemaining === 1 ? 'country' : 'countries'} matching
+            that search {absentRemaining === 1 ? 'is' : 'are'} in the dataset but
+            {' '}report no occupation breakdown.
+          </p>
+        )}
+
+        {/* R1 (0013). The resting state is not a failed search, and must not be
+            reported as one. Before the fold this branch was unreachable — an
+            empty query returned all 177 — so "No country matches that." would
+            have become the greeting for every reader whose locale does not
+            resolve. It is gated on a real query now. */}
+        {resting && matches.length === 0 && (
+          <p className="wz-note" style={{ margin: '14px 0 0' }}>
+            Start typing to search all {total} countries.
+          </p>
+        )}
+
+        {!resting && matches.length === 0 && absent.length === 0 && (
           <p className="wz-note" style={{ margin: '14px 0 0' }}>
             No country matches that.
           </p>
@@ -162,9 +231,12 @@ export default function CountryScreen({ rows, iso3, excluded, query, onQuery, on
 
       {/* 0012 R4: `--anchored` keeps this dock sticky at every width. Steps 02
           and 03 un-dock above the breakpoint because their screens fit the
-          viewport. This one does not: an empty query lists all 177 countries,
-          and a static footer after that list puts "Continue" thousands of
-          pixels below the fold on the step with no other way forward. */}
+          viewport. This one still does not, and 0013 R6 re-derived that rather
+          than inheriting it: the fold cut the miss from 12,739px to roughly
+          1,250px at 1440x900, but the listbox starts 341px down and twelve rows
+          cost 832px, so a full result set is still taller than a 900px window
+          and a static footer would still put "Continue" below the fold on the
+          step with no other way forward. Smaller miss, same direction. */}
       <div className="wz-footer wz-footer--anchored">
         <button type="button" className="wz-cta" onClick={onNext} disabled={!iso3}>
           Continue →

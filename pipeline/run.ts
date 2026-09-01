@@ -23,6 +23,7 @@ import * as B from './build.ts';
 import type { Row, RowValue } from './build.ts';
 import * as fetch from './fetch.ts';
 import * as P from './panel.ts';
+import * as BT from './backtest.ts';
 import * as X from './crosscheck.ts';
 import * as report from './report.ts';
 import { pyFormatFixed } from './pynum.ts';
@@ -386,6 +387,104 @@ export function exportAppJson(rows: Row[], filePath: string): void {
 }
 
 /**
+ * 0017 R1/R2/R3/R5. Write the back-test, its summary, and the app payload.
+ *
+ * The `[backtest]` block prints the pooled row beside the persistence baseline,
+ * because the pooled error on its own is the number that invites a reader to
+ * decide 1.8pp sounds tolerable. Set against 1.3pp for predicting no change,
+ * there is nothing left to decide, and that is the finding this whole spec
+ * exists to publish.
+ */
+export function exportBacktest(panelRows: Row[], dataDir: string, appPath: string): void {
+  const rows = BT.backtest(panelRows);
+  const summary = BT.backtestSummary(rows);
+  const cov = BT.coverage(panelRows, rows);
+
+  const untiered = [...BT.BACKTEST_COLUMNS, ...BT.BACKTEST_SUMMARY_COLUMNS].filter(
+    (c) => !C.BACKTEST_FIELD_TIERS.has(c),
+  );
+  if (untiered.length) {
+    throw new Error(
+      `back-test columns with no tier in config.BACKTEST_FIELD_TIERS: ` +
+        `['${untiered.join("', '")}']. Every emitted number carries a tier ` +
+        '(CLAUDE.md); add these to the registry, using NOT_A_MEASUREMENT for ' +
+        'identity/provenance fields.',
+    );
+  }
+
+  const rowsPath = path.join(dataDir, 'backtest.csv');
+  writeFileSync(
+    rowsPath,
+    writeCsv(
+      BT.BACKTEST_COLUMNS,
+      rows.map((r) => BT.BACKTEST_COLUMNS.map((k) => BT.formatBacktestCell(k, r[k]))),
+    ),
+    'utf8',
+  );
+  out(`      wrote ${rowsPath} (${rows.length} rows)`);
+
+  const summaryPath = path.join(dataDir, 'backtest_summary.csv');
+  writeFileSync(
+    summaryPath,
+    writeCsv(
+      BT.BACKTEST_SUMMARY_COLUMNS,
+      summary.map((r) => BT.BACKTEST_SUMMARY_COLUMNS.map((k) => BT.formatBacktestCell(k, r[k]))),
+    ),
+    'utf8',
+  );
+  out(`      wrote ${summaryPath} (${summary.length} rows)`);
+
+  const pooled = summary.find((r) => r.group === BT.POOLED);
+  if (pooled) {
+    const f = (k: string) => pyFormatFixed(pooled[k] as number, 3);
+    out(
+      `      pooled n=${pooled.n}  trend MAE=${f('mae_pp')}pp RMSE=${f('rmse_pp')}pp  ` +
+        `persistence MAE=${f('persistence_mae_pp')}pp RMSE=${f('persistence_rmse_pp')}pp`,
+    );
+    out(
+      `      trend beats persistence on ${pooled.trend_beats_persistence_n}/${pooled.n}; ` +
+        `direction wrong on ${pooled.direction_wrong_n}/${pooled.n}`,
+    );
+    out(
+      `      scored ${cov.eligibleCountries} of ${cov.countriesWithSeries} countries ` +
+        `with an ISCO series (${cov.unscorable} unscorable)`,
+    );
+  }
+
+  const fieldTiers: Record<string, PyJson> = {};
+  for (const c of [...BT.BACKTEST_COLUMNS, ...BT.BACKTEST_SUMMARY_COLUMNS]) {
+    fieldTiers[c] = C.BACKTEST_FIELD_TIERS.get(c) as string;
+  }
+  const series: Record<string, PyJson> = {};
+  for (const r of rows) {
+    const iso3 = r.iso3 as string;
+    const byGroup = (series[iso3] ??= {}) as Record<string, PyJson>;
+    byGroup[r.group as string] = BT.BACKTEST_COLUMNS.map((k) => BT.backtestCellJson(k, r[k]));
+  }
+  const payload: PyJson = {
+    generated_from: 'pipeline/run.ts',
+    fit_start_year: BT.FIT_START,
+    fit_end_year: BT.FIT_END,
+    target_year: BT.TARGET_YEAR,
+    min_fit_obs: BT.MIN_FIT_OBS,
+    countries_with_series: cov.countriesWithSeries,
+    eligible_countries: cov.eligibleCountries,
+    // 0004 R3 / 0017 R2. The payload the screen renders carries its own tiers,
+    // so a badge never has to be inferred from a column name.
+    field_tiers: fieldTiers,
+    fields: BT.BACKTEST_COLUMNS,
+    summary_fields: BT.BACKTEST_SUMMARY_COLUMNS,
+    summary: summary.map((r) =>
+      BT.BACKTEST_SUMMARY_COLUMNS.map((k) => BT.backtestCellJson(k, r[k])),
+    ),
+    series,
+  };
+  mkdirSync(path.dirname(appPath), { recursive: true });
+  writeFileSync(appPath, dumps(payload), 'utf8');
+  out(`      wrote ${appPath} (${statSync(appPath).size.toLocaleString('en-US')} bytes)`);
+}
+
+/**
  * 0010 R20. One artefact per country, fetched after step 01.
  *
  * One file per country and not one combined file: a single artefact would
@@ -539,6 +638,9 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     [...panelRows, ...panelAggs],
     path.join(DATA, 'global_labor_dataset.sqlite'),
   );
+
+  out('\n[backtest] retrodict 2025 from 2013-2019 (0017)');
+  exportBacktest(panelRows, DATA, path.join(APP_DATA, 'backtest.json'));
 
   report.write(report.load(), path.join(HERE, 'summary_report.md'), sens);
   consoleSummary(rows);

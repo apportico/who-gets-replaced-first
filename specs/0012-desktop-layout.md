@@ -136,6 +136,23 @@ dock keeps the CTA at `top: 840` in a 900px viewport. The modifier stays, and
 the end-state note is withdrawn rather than left as a promise the merge already
 falsified.
 
+**Measurement corrected 2026-09-01 by [spec 0013](0013-country-fold.md) R6. The
+rule is unchanged, the answer is unchanged, and the dock stays.** The paragraph
+above is now the only place in the repo claiming step 01 is 12,739px tall, and
+it is not: 0013 folded the list, and the same script measures **900px at rest and
+1,446px on the worst query** at 1440x900.
+
+Re-derived rather than assumed, because the numbers moving by an order of
+magnitude is exactly when an inherited conclusion should be re-checked. The rule
+here is *"a screen that does not fit the viewport keeps its dock"*, and step 01
+still does not fit: the listbox starts 341px down and twelve rows cost 832px, so
+a full result set is ~1,250px against a 900px window. The miss shrank from
+13.8 viewport heights to 1.6; it did not change sides, and a static footer would
+still put `Continue` below the fold on the one step with no other way forward.
+
+`scripts/desktop-measure.mjs` checks it at all seven viewports on every run, so
+this is a measured conclusion rather than a re-argued one.
+
 Neither of this requirement's original criteria could see it. `position: static`
 and "the dock's box bottom is not `innerHeight`" are *exactly* what an
 unreachable CTA looks like, and R7 could not see it either — nothing overflows

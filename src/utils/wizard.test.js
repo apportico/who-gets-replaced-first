@@ -34,7 +34,11 @@ import {
 import { groupShare, groupHeadcount } from './groupFigures'
 import { trendFor, CLERICAL_GROUP } from './trend'
 import { classificationNotice, isIsco88 } from './classification'
-import { termsFor, BACKTEST_NOTE } from './terms'
+import { termsFor } from './terms'
+import {
+  BACKTEST_NOTE, backtestFor, tierFor, groupColumn, POOLED,
+  ELIGIBLE_COUNTRIES, COUNTRIES_WITH_SERIES,
+} from './backtest'
 import {
   NOT_PUBLISHED, PRESENT, WITHHELD, LOAD_FAILED, NOT_LOADED,
   FLAG_PRESENT, FLAG_WITHHELD, FLAG_NOT_PUBLISHED,
@@ -531,9 +535,57 @@ describe('R16 — the method panel tells the truth about the model', () => {
     }
   })
 
-  it('claims no back-test, and states the nine-group floor', () => {
+  it('states the nine-group floor, and now claims a back-test (0017 R7)', () => {
     expect(BACKTEST_NOTE).toMatch(/nine major groups/)
-    expect(BACKTEST_NOTE).toMatch(/No back-test is claimed/)
+    // The sentence this replaced read "No back-test is claimed here, because no
+    // displacement model ships". Spec 0017 makes that false: a back-test is
+    // claimed, and it is the evidence for the refusal rather than a substitute
+    // for it. Asserted as an absence too, so the old copy cannot creep back.
+    expect(BACKTEST_NOTE).not.toMatch(/No back-test is claimed/)
+    expect(BACKTEST_NOTE).toMatch(/measured, not assumed/)
+    expect(BACKTEST_NOTE).toMatch(/states none/)
+  })
+})
+
+// ------------------------------------------------ 0017 R7, read from the app
+describe('0017 R7 — the back-test as the result screen reads it', () => {
+  it('GBR clerical is scored, and carries both tiers', () => {
+    const bt = backtestFor('GBR', 4)
+    expect(bt.scored).toBe(true)
+    expect(bt.group).toBe('isco4_clerical_pct')
+    expect(typeof bt.retrodicted_2025_pct).toBe('number')
+    expect(typeof bt.observed_2025_pct).toBe('number')
+    expect(tierFor('retrodicted_2025_pct')).toBe('MODELED')
+    expect(tierFor('observed_2025_pct')).toBe('DERIVED')
+  })
+
+  it('JPN is absent rather than given a borrowed number', () => {
+    // Japan's clerical series ends in 2023, so there is no 2025 value to score
+    // a prediction against. The screen must say so, not fall back to the pooled
+    // figure and let it read as national.
+    const bt = backtestFor('JPN', 4)
+    expect(bt.scored).toBe(false)
+    expect(bt.retrodicted_2025_pct).toBeUndefined()
+    expect(backtestFor('IND', 4).scored).toBe(false)
+  })
+
+  it('an unknown country or group is an absence, never a throw', () => {
+    expect(backtestFor(undefined, 4).scored).toBe(false)
+    expect(backtestFor('GBR', 99).scored).toBe(false)
+    expect(backtestFor('ZZZ', 4).scored).toBe(false)
+  })
+
+  it('the pooled finding is that persistence wins', () => {
+    expect(POOLED.n).toBe(574)
+    expect(POOLED.persistence_mae_pp).toBeLessThan(POOLED.mae_pp)
+    expect(POOLED.direction_wrong_n).toBe(241)
+    expect(ELIGIBLE_COUNTRIES).toBe(64)
+    expect(COUNTRIES_WITH_SERIES).toBe(177)
+  })
+
+  it('every group the wizard can pick maps to a panel column', () => {
+    for (let g = 1; g <= 9; g++) expect(groupColumn(g)).toMatch(/^isco\d_/)
+    expect(groupColumn(0)).toBeNull()
   })
 })
 

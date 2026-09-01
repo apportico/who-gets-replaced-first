@@ -1,6 +1,6 @@
 # 0017 — back-test the trend, publish the error
 
-**Status:** approved
+**Status:** in-progress
 **Depends on:** 0004 (regression suite), 0006 (panel + time series), 0010 (result screen)
 **Issue:** [#80](https://github.com/apportico/who-gets-replaced-first/issues/80)
 **Goal:** Publish a measured retrodiction error that says plainly why this site
@@ -268,6 +268,90 @@ back-test can score.
 coverage sentence and names Japan and India with their reasons. A test asserts
 `JPN` and `IND` are absent from the artefact, so the README's claim and the data
 agree.
+
+## Implementation Plan
+
+**Planned:** 2026-09-02
+
+### Files to create
+
+| Path | Purpose |
+|---|---|
+| `pipeline/backtest.ts` | The whole computation. Pure functions over panel rows: `backtest()` returns the per-country-per-group rows, `backtestSummary()` the per-group and pooled statistics. Zero runtime dependencies, arithmetic through `pynum.ts`. |
+| `pipeline/tests/backtest.test.ts` | R1, R2, R4, R5, R8, R9 acceptance, offline, driven from the committed panel. |
+| `pipeline/tests/fixtures/expected/backtest.csv` | The committed golden master R3 and R5 are scored against. |
+| `src/utils/backtest.js` | App-side reader: `backtestFor(iso3, group)`, `BACKTEST_SUMMARY`, and the rewritten `BACKTEST_NOTE`. |
+| `pipeline/data/backtest.csv`, `pipeline/data/backtest_summary.csv`, `src/data/backtest.json` | Emitted artefacts. |
+
+### Files to modify
+
+| Path | Change |
+|---|---|
+| `pipeline/config.ts` | Add `BACKTEST_FIELD_TIERS`, covering the union of both CSV headers. Separate from `FIELD_TIERS`, which `tiers.test.ts:44` asserts equal to `run.COLUMNS`. |
+| `pipeline/run.ts` | Call the back-test in `main()` after `exportPanel`, print `[backtest]`, write the two CSVs and the app payload. |
+| `pipeline/README.md` | The back-test section: method, the error distribution, all 31 wrong-direction clerical countries by name, and the 64-of-177 coverage with Japan and India named. |
+| `src/utils/terms.js` | `BACKTEST_NOTE` re-exported from `backtest.js`; the "No back-test is claimed here" sentence goes. |
+| `src/components/wizard/ResultScreen.jsx` | The existing `backtest` accordion renders the measurement instead of the note alone. |
+| `src/utils/wizard.test.js` | Replace the two `BACKTEST_NOTE` assertions. |
+
+### Sequence
+
+1. `pipeline/backtest.ts` — the computation, and the column lists both CSVs use.
+2. `BACKTEST_FIELD_TIERS` in `config.ts` (R2 depends on the column lists from 1).
+3. Wire into `run.ts`; generate the artefacts by running the back-test against the committed panel.
+4. Commit `pipeline/tests/fixtures/expected/backtest.csv` from that output, then `pipeline/tests/backtest.test.ts` against it.
+5. `pipeline/README.md` — the numbers come from step 3, so this follows it.
+6. App: `src/utils/backtest.js`, the accordion, the test updates.
+7. `npm run verify`.
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | OLS on observed 2013–2019 years, evaluated at 2025; `>=3` fit obs and a non-null 2025 value or the pair is absent | `pipeline/backtest.ts` | Run against the committed panel: 574 rows, 64 iso3, 9 groups, no `JPN`/`IND` |
+| R2 | `BACKTEST_FIELD_TIERS` + `field_tiers` in the app payload | `pipeline/config.ts`, `run.ts` | `backtest.test.ts` asserts key equality and the four specific tiers |
+| R3 | Seven statistics per group plus pooled | `backtestSummary()`, `[backtest]` block | Fixture equality, and ±0.005pp against the probe figures |
+| R4 | `direction_correct` per row, null on a zero observed change; every wrong-direction country named in the README | `backtest.ts`, `pipeline/README.md` | Test asserts 31 clerical / 241 pooled, and that the README names all 31 |
+| R5 | `persistence_error_pp` per row; MAE/RMSE and the win rate in the summary | `backtest.ts` | Test asserts persistence MAE < trend MAE pooled |
+| R6 | Golden-master test against a committed fixture, no network | `pipeline/tests/backtest.test.ts` | `npm run test:pipeline` with `pipeline/raw/` absent; count rises from **159** |
+| R7 | Accordion renders the reader's own pair, or says it has none | `src/utils/backtest.js`, `ResultScreen.jsx` | Browser screenshots at 375×812 and 1440×900 for `GBR` and `JPN` |
+| R8 | Allowlist test over both artefacts | `backtest.test.ts` | Only `fit_start_year`, `fit_end_year`, `target_year` may match the pattern |
+| R9 | Coverage sentence and the two named countries | `pipeline/README.md`, accordion | Test asserts `JPN`/`IND` absent and the README names them |
+
+### Tier and vintage handling
+
+| Column | Tier | Why |
+|---|---|---|
+| `iso3`, `country_name`, `group` | `NOT_A_MEASUREMENT` | Identity |
+| `fit_start_year`, `fit_end_year`, `target_year`, `fit_obs` | `NOT_A_MEASUREMENT` | Provenance, not a claim about the world |
+| `last_fit_pct`, `observed_2025_pct` | `DERIVED` | Panel ISCO shares, arithmetic on official statistics |
+| `retrodicted_2025_pct` | `MODELED` | An analyst-chosen model's output |
+| `error_pp`, `persistence_error_pp`, `direction_correct` | `MODELED` | A difference is only as measured as its least-measured term |
+
+Vintage is explicit in the column names rather than a sibling `data_year_*`: the
+fit window and the target year are the same for every row by construction, and
+they are emitted per row so the artefact cannot be read without them.
+
+### Validation
+
+`[backtest]` prints on every full run beside `[validate]`, `[crosscheck]` and
+`[outliers]`. It does **not** gate the build on the error figures themselves —
+those are a published finding, not an anchor. The one assertion that does gate is
+R5's persistence-beats-trend comparison, in the test suite rather than the run,
+for the reason R5 records.
+
+### Risks
+
+- **`pipeline/raw/` is absent and ILOSTAT's SDMX endpoint was unreachable on
+  2026-09-02**, so `npm run pipeline` cannot be executed end to end here. This is
+  why R1 and R3's acceptance were re-anchored to the committed panel in review
+  round 1; the `run.ts` wiring is verified by construction and by the unit tests,
+  not by a full run.
+- **`pynum` arithmetic may shift the last decimal** against the probe figures.
+  R3's ±0.005pp tolerance covers it; a larger move is a real finding.
+- **The 2025 column is the thinnest year in the panel** (69 countries against 115
+  in 2019). If a future refresh backfills 2025, the eligible set grows and every
+  committed figure moves. That is a real change and R3 requires it be explained.
 
 ## Non-goals
 

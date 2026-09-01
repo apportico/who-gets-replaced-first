@@ -1,6 +1,6 @@
 # 0012 — desktop layout
 
-**Status:** draft
+**Status:** approved
 **Depends on:** 0010 (the wizard this widens), 0008 (the touch-target, focus and
 reduced-motion floors this must not regress)
 **Issue:** [#67](https://github.com/apportico/who-gets-replaced-first/issues/67)
@@ -185,9 +185,15 @@ desktop display sizes and the un-docked CTA, and names the canvas divergence
 explicitly. Spec 0010 R5's acceptance clause *"the column token is 480px"* is
 re-marked `[~]` pointing at this spec.
 
-**Acceptance:** `CLAUDE.md` contains `768px`, `640px` and a sentence naming the
-canvas as mobile-only and this spec as the desktop authority; `grep -c "480px
-centred" CLAUDE.md` returns 0; spec 0010 R5 carries a `[~]` note linking 0012.
+**Acceptance:** `CLAUDE.md` line 65's *Shape* sentence — currently the
+unconditional `` `max-width: 480px` centred `` — names **both** widths and the
+breakpoint, so `grep -n "max-width: 480px" CLAUDE.md` returns a line that also
+contains `768px`; the section carries a sentence naming the canvas as
+mobile-only and this spec as the desktop authority; and spec 0010 R5 carries a
+`[~]` note linking 0012. (Written as "the line also contains 768px" rather than
+as a count of a prose phrase: `grep -c "480px centred"` returns 0 **today**,
+because the file writes it as `` `max-width: 480px` centred `` with backticks —
+a criterion that passes before the work is done is not a criterion.)
 
 ## Non-goals
 

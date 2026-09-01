@@ -29,7 +29,8 @@ import { resolveTitle } from './resolveTitle'
 import { GROUPS, groupDisplay } from './isco'
 import { countryOptions, excludedCountries, hasAnyIscoGroup, localeCountry } from './countryList'
 import {
-  ALIASES, fold, intlName, matches, searchCountries,
+  ABSENT_LIMIT, ALIASES, MATCH_LIMIT, fold, intlName, matches,
+  renderedCountries, searchCountries,
 } from './countrySearch'
 import { groupShare, groupHeadcount } from './groupFigures'
 import { trendFor, CLERICAL_GROUP } from './trend'
@@ -177,6 +178,11 @@ describe('0011 R3 — the query folds, and four routes can match it', () => {
     expect(hit('uk')).toContain('GBR')
   })
 
+  // 0013 R5 keeps this one exactly as it was. "An empty query returns all 177"
+  // is a correct statement about a search *predicate*, and it is the assertion
+  // 0011 R3 should have stopped at. What was wrong was the screen rendering the
+  // predicate's answer verbatim, which is now `renderedCountries`' business and
+  // is asserted separately below.
   it('an empty query is the whole list, and a nonsense one is empty', () => {
     expect(hit('').length).toBe(177)
     expect(hit('zzzz').length).toBe(0)
@@ -728,5 +734,88 @@ describe('R8 / R9 — the cross-tabs as the screen reads them', () => {
         if (e.state === PRESENT) expect(e.year).not.toBeNull()
       }
     }
+  })
+})
+
+// ------------------------------------------- 0013 R1/R2 — the fold and the caps
+describe('0013 R2 — both result sets are capped, and both counts survive', () => {
+  it('caps the matches at 12 and reports what it cut', () => {
+    const r = searchCountries(rows, 'a')
+    expect(r.matchCount).toBe(150)
+    expect(r.matches.length).toBe(MATCH_LIMIT)
+    expect(r.matches.length).toBe(12)
+    expect(r.truncated).toBe(true)
+  })
+
+  it('caps the stated absences at 3 and reports what it cut', () => {
+    // The finding the self-review on #87 caught: the first draft of R2 exempted
+    // these on the reasoning that there are only ever a few. There are 39.
+    const r = searchCountries(rows, 'a')
+    expect(r.absentCount).toBe(39)
+    expect(r.absent.length).toBe(ABSENT_LIMIT)
+    expect(r.absent.length).toBe(3)
+    expect(r.absentTruncated).toBe(true)
+  })
+
+  it('takes the first N of the existing order rather than reordering', () => {
+    const uncapped = searchCountries(rows, 'a', { limit: 1000, absentLimit: 1000 })
+    const capped = searchCountries(rows, 'a')
+    expect(capped.matches).toEqual(uncapped.matches.slice(0, 12))
+    expect(capped.absent).toEqual(uncapped.absent.slice(0, 3))
+  })
+
+  it('does not truncate, or claim to, when everything fits', () => {
+    const r = searchCountries(rows, 'united')
+    expect(r.matchCount).toBe(3)
+    expect(r.matches.length).toBe(3)
+    expect(r.truncated).toBe(false)
+    expect(r.absentTruncated).toBe(false)
+  })
+
+  it('leaves 0011 R6 flagship partition untouched by either cap', () => {
+    const r = searchCountries(rows, 'china')
+    expect(r.matches.map((c) => c.iso3)).toEqual(['HKG', 'MAC', 'TWN'])
+    expect(r.absent.map((c) => c.iso3)).toEqual(['CHN'])
+    expect(r.truncated).toBe(false)
+    expect(r.absentTruncated).toBe(false)
+  })
+
+  it('every full country name stays inside both caps', () => {
+    // The claim that makes a cap of 3 on the absences safe: a reader who typed
+    // a country's name never loses the named statement to a summary count.
+    for (const q of ['china', 'saudi', 'new zea', 'uzbek', 'oman']) {
+      const r = searchCountries(rows, q)
+      expect(r.absentCount).toBe(1)
+      expect(r.absentTruncated).toBe(false)
+    }
+  })
+})
+
+describe('0013 R1 — what the screen renders at rest is not what the predicate matches', () => {
+  it('rests on the selected country alone', () => {
+    const r = renderedCountries(rows, '', 'GBR')
+    expect(r.resting).toBe(true)
+    expect(r.matches.map((c) => c.iso3)).toEqual(['GBR'])
+    expect(r.absent).toEqual([])
+  })
+
+  it('rests on nothing at all when nothing is selected', () => {
+    const r = renderedCountries(rows, '', null)
+    expect(r.resting).toBe(true)
+    expect(r.matches).toEqual([])
+    expect(r.matchCount).toBe(0)
+  })
+
+  it('never rests on a country the list does not carry', () => {
+    // CHN has no series, so it is not selectable and must not appear as a row
+    // even if something hands it in. 0011 R5 states its absence in copy instead.
+    const r = renderedCountries(rows, '', 'CHN')
+    expect(r.matches).toEqual([])
+  })
+
+  it('delegates to the predicate the moment there is a query', () => {
+    const r = renderedCountries(rows, 'united')
+    expect(r.resting).toBe(false)
+    expect(r.matches.map((c) => c.iso3).sort()).toEqual(['ARE', 'GBR', 'USA'])
   })
 })

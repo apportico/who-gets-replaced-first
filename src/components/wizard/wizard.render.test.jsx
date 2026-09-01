@@ -276,9 +276,16 @@ describe('R7 — an unresolvable title is said out loud', () => {
 // text rather than a control, that the keyboard reaches the list, and that the
 // screen no longer carries the vocabulary it stopped earning.
 describe('0011 R1 + R10 — the list is the 177, and says what it is', () => {
-  it('renders one option per listed country and no per-row tag', () => {
+  // 0013 R5 revised this one. It used to assert 177 rendered options, which is
+  // the assertion that made a 12,754px step 01 look correct: the count was
+  // right, and nobody asked whether the number was. `countryOptions(rows).length
+  // === 177` is the *data* claim it should always have been, and lives in
+  // wizard.test.js; what a render test can say is that every rendered row is a
+  // listed country carrying no per-row tag.
+  it('renders listed countries only, and no per-row tag', () => {
     startWizard()
-    expect(document.querySelectorAll('[role=option]').length).toBe(177)
+    fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'united' } })
+    expect(document.querySelectorAll('[role=option]').length).toBe(3)
     expect(document.body.textContent).not.toContain('official series')
     expect(document.body.textContent).not.toContain('no series')
   })
@@ -370,19 +377,26 @@ describe('0011 R9 — the search is operable by keyboard', () => {
       .toBe(names()[names().length - 1])
   })
 
-  it('escape clears the query and restores the whole list', () => {
+  // 0013 R5 revised this one too: `Escape` used to restore all 177, which is the
+  // same defect stated as a keyboard behaviour. It returns to the resting state,
+  // and under jsdom navigator.language is en-US, so that state is one row.
+  it('escape clears the query and returns to the resting state', () => {
     startWizard()
     const input = screen.getByLabelText('Search countries')
     fireEvent.change(input, { target: { value: 'zzzz' } })
     expect(document.querySelectorAll('[role=option]').length).toBe(0)
     fireEvent.keyDown(input, { key: 'Escape' })
-    expect(document.querySelectorAll('[role=option]').length).toBe(177)
+    const rows = [...document.querySelectorAll('[role=option]')]
+    expect(rows.length).toBe(1)
+    expect(rows[0].textContent).toBe('United States')
   })
 
-  it('announces the match count politely', () => {
+  // And 0013 R3 revised the third: the live region used to open on
+  // `177 of 177`, a sentence true of the predicate and false of the screen.
+  it('announces the match count politely, and says nothing at rest', () => {
     startWizard()
     const live = document.querySelector('[aria-live=polite]')
-    expect(live.textContent).toContain('177 of 177')
+    expect(live.textContent.trim()).toBe('')
     fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'china' } })
     expect(live.textContent).toContain('3 of 177')
   })
@@ -453,5 +467,119 @@ describe('0011 R8 — the search cost no dependency and no fourth ui file', () =
       .map((p) => p.split('/').pop().replace('.jsx', ''))
       .sort()
     expect(files).toEqual(['accordion', 'toggle', 'toggle-group'])
+  })
+})
+
+// ------------------------------------------------------------ spec 0013
+//
+// The fold. Everything here is about what the screen renders *before* the
+// reader has typed, and how much it renders once they have — the half of issue
+// #76 a green `verify` could not see, minus the heights, which need a browser
+// and live in `scripts/desktop-measure.mjs`.
+describe('0013 R1 — step 01 opens folded', () => {
+  const stubLocale = (value) => {
+    Object.defineProperty(globalThis.navigator, 'language', { value, configurable: true })
+    return () => { delete globalThis.navigator.language }
+  }
+
+  it('renders the locale pre-fill alone, not a wall of 177', () => {
+    const restore = stubLocale('en-GB')
+    try {
+      startWizard()
+      const rows = [...document.querySelectorAll('[role=option]')]
+      expect(rows.length).toBe(1)
+      expect(rows[0].textContent).toBe('United Kingdom')
+      expect(rows[0].getAttribute('aria-selected')).toBe('true')
+      expect(screen.getByRole('button', { name: /continue/i }).disabled).toBe(false)
+    } finally {
+      restore()
+    }
+  })
+
+  it('renders nothing, and invites a search, when the locale resolves to nothing', () => {
+    const restore = stubLocale('xx')
+    try {
+      startWizard()
+      expect(document.querySelectorAll('[role=option]').length).toBe(0)
+      expect(document.body.textContent).toContain('Start typing to search all 177 countries')
+      // The branch this replaced. Before the fold it was unreachable, because an
+      // empty query returned all 177; after it, it would have been the greeting.
+      expect(document.body.textContent).not.toContain('No country matches that')
+    } finally {
+      restore()
+    }
+  })
+
+  it('still names a no-series locale on arrival, now against an empty list', () => {
+    const restore = stubLocale('zh-CN')
+    try {
+      startWizard()
+      expect(document.querySelectorAll('[role=option]').length).toBe(0)
+      expect(document.body.textContent).toContain(
+        'China reports no occupation breakdown to ILOSTAT',
+      )
+    } finally {
+      restore()
+    }
+  })
+
+  // The bug the self-review on #87 caught before it shipped. Keyed to the locale
+  // rather than the selection, this renders "United States" — jsdom's locale —
+  // while France drives Continue: one country shown, another acted on.
+  it('rests on the country the reader picked, not the one their locale gave', () => {
+    startWizard()
+    pickCountry('France')
+    fireEvent.keyDown(screen.getByLabelText('Search countries'), { key: 'Escape' })
+    const rows = [...document.querySelectorAll('[role=option]')]
+    expect(rows.length).toBe(1)
+    expect(rows[0].textContent).toBe('France')
+    expect(rows[0].getAttribute('aria-selected')).toBe('true')
+  })
+})
+
+describe('0013 R2 + R3 — both caps bite, and both say so', () => {
+  it('caps a one-character query at 12 rows and 3 absences, and states each', () => {
+    startWizard()
+    fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'a' } })
+
+    expect(document.querySelectorAll('[role=option]').length).toBe(12)
+
+    const live = document.querySelector('[aria-live=polite]')
+    expect(live.textContent).toContain('150 of 177 countries match')
+    expect(live.textContent).toContain('showing the first 12')
+    expect(live.textContent).toContain('36 more matching countries report no occupation breakdown')
+
+    // Visible, not only announced: the same claim outside the sr-only region.
+    const seen = [...document.querySelectorAll('p')]
+      .filter((p) => !p.classList.contains('wz-sr-only'))
+      .map((p) => p.textContent)
+      .join(' ')
+    expect(seen).toContain('showing the first 12')
+    expect(seen).toContain('36 more countries')
+
+    // Three named absences, and only three.
+    const named = [...document.querySelectorAll('p')]
+      .filter((p) => p.textContent.includes('reports no occupation breakdown, so'))
+    expect(named.length).toBe(3)
+  })
+
+  it('says nothing about truncation when nothing was truncated', () => {
+    startWizard()
+    fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'united' } })
+    expect(document.querySelectorAll('[role=option]').length).toBe(3)
+    const live = document.querySelector('[aria-live=polite]')
+    expect(live.textContent.trim()).toBe('3 of 177 countries match')
+    expect(document.body.textContent).not.toContain('showing the first')
+    expect(document.body.textContent).not.toContain('more countries matching')
+  })
+
+  it('leaves 0011 R6 flagship case untouched by either cap', () => {
+    startWizard()
+    fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'china' } })
+    expect(document.querySelectorAll('[role=option]').length).toBe(3)
+    expect(document.body.textContent).toContain(
+      'China is in the dataset but reports no occupation breakdown',
+    )
+    expect(document.body.textContent).not.toContain('showing the first')
   })
 })

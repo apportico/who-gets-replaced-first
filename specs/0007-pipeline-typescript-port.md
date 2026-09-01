@@ -56,7 +56,7 @@ Python 3.13.1. CI pins `node-version: 24` and `python-version: '3.13'`
 | Third-party Python deps | AST walk of all imports vs `sys.stdlib_module_names` | **None.** Stdlib only: `argparse`, `collections`, `csv`, `datetime`, `gzip`, `io`, `json`, `os`, `sqlite3`, `sys`, `time`, `urllib`. The issue's claim holds. |
 | `node:sqlite` on Node 24 | `new DatabaseSync(':memory:')`, create/insert/select | **Works unflagged**, no warning, exit 0. Confirms the issue's "no dependency" assumption. |
 | CSV dialect | `grep` + `head` of the committed CSVs | Default dialect, `newline=""` → **CRLF (`\r\n`) line endings in all 6 CSVs**. `csv.field_size_limit(10_000_000)` is set in `build.py:10`. |
-| Float repr, Python vs JS | Parsed the numeric values in the 6 committed CSVs, compared `str()` to `String()` | **6,286 differ**: 6,256 integral floats (`79.0` → `79`) and **30 negative zeros** (`-0.0` → `0`). **Zero other disagreements** — shortest-round-trip repr agrees on the rest. **The population this was measured over was recorded as 78,257 and that figure was wrong** — see the correction below. |
+| Float repr, Python vs JS | Parsed the numeric values in the 6 committed CSVs, compared `str()` to `String()` | **6,287 differ**: 6,257 integral floats (`79.0` → `79`) and **30 negative zeros** (`-0.0` → `0`). **Zero other disagreements** — shortest-round-trip repr agrees on the rest. **All three counts here were re-derived and two were wrong as first recorded** (6,286 / 6,256), as was the 78,257 population — see the correction below. |
 | `round()` semantics | 8 hand-picked cases in both languages | Python `round` matches **neither** `Math.round(x*10**n)/10**n` **nor** `toFixed(n)`. `round(2.675,2)=2.67` (naive JS: 2.68); `round(2.5)=2` (naive: 3); `round(-2.5)=-2` (`toFixed`: -3). **37 call sites: 33 in `build.py`, 4 in `crosscheck.py:69,71,73,134`** — the latter inside R6's scope. |
 | A Python-compatible `pyRound` in JS | Implemented via `toFixed(20)` + decimal-string half-to-even; **20,000 randomised differential cases against Python** | **0 mismatches.** The algorithm is proven before being specified. |
 | `sum()` over floats | 20,000 random 6-element sums drawn `uniform(0, 1e12)`, `sum()` vs naive left fold, Python 3.13.1 | **33.1% differ.** Python 3.12 moved `sum()` to **Neumaier compensated summation**; a JS `reduce((a,b) => a+b)` is a naive fold. The rate is distribution-dependent — a different sampling gives 23.8% — so the percentage is illustrative and the *existence* of the divergence is the finding. |
@@ -354,12 +354,13 @@ they can be regenerated if the pin moves.
   distinguish the integer branch from the thing that branch exists to replace.
   Dropping those cases would not shrink this criterion, it would empty it.
 - `pyStr` reproduces every numeric string in the committed CSVs from its
-  parsed double, including the **6,256** `.0` and **30** `-0.0` values, 0
+  parsed double, including the **6,257** `.0` and **30** `-0.0` values, 0
   mismatches. (Already fixture-backed: it reads the committed CSVs.) The
   population is **71,799** float-column cells; the **18,744** `Int`-column cells
   are written by `String(value)` rather than by `pyStr`, so they are asserted
-  against `String()` instead. This criterion originally said "all 78,257", which
-  was wrong in both directions — see the correction below.
+  against `String()` instead. This criterion originally said "all 78,257 ...
+  including the 6,256 `.0`", and both figures were wrong — see the correction
+  below.
 - **The override loader types numbers from the raw JSON token text**, checked
   by a committed fixture overrides file rather than by inspection. The same
   field written `15000000` for one country and `15000000.0` for another yields
@@ -851,12 +852,29 @@ CSVs carry **78,257** numeric values. They carry **90,543**. Re-derived on
 | **total** | **71,799** | **18,744** |
 
 The gap is 12,286, and the `Int`-column cells of the five non-dataset CSVs
-total 12,276 — so `78,257 + 12,276 = 90,533`, ten short of 90,543. The original
-probe appears to have counted `Int` columns in `global_labor_dataset.csv` only.
+total 12,276 — so `78,257 + 12,276 = 90,533`, ten short of 90,543. Counting
+`Int` columns in `global_labor_dataset.csv` only is the nearest reading, and it
+does not quite fit either: `71,799 + 6,468 = 78,267`, ten *more* than what was
+recorded.
 
-**Nothing published moves, and the probe's finding is untouched.** The 6,256
-integral floats and 30 negative zeros are all float-column cells, and they are
-the whole point of the row. What changed is that the criterion now names the
+**The ten are not accounted for, and the original probe could not be
+reconstructed.** Ruled out by re-derivation: excluding `-0.0` (that moves it 30,
+not 10), excluding exponential notation (there is none — 0 float cells use it),
+and requiring a decimal point (that gives 71,799, not 78,257). So the residual
+is recorded as unexplained rather than papered over with a reading that happens
+to land close.
+
+**Nothing published moves. The probe's finding survives in substance, but its
+counts did not survive re-derivation.** The integral floats and negative zeros
+are all float-column cells, which is the whole point of the row — but the
+integral-float count was **6,257**, not 6,256, and the differing total **6,287**,
+not 6,286, so those are corrected above too. Re-deriving the neighbours rather
+than carrying them forward is the actual lesson here: the population was noticed
+because it was load-bearing for a test, and the two counts beside it were not,
+which is exactly how the first figure went unchecked.
+
+The two classes partition cleanly — 6,257 + 30 = 6,287, with no third shape —
+and every differing cell ends in `.0`. What changed is that the criterion now names the
 right population and the suite asserts *both* classes — 71,799 through `pyStr`
 and 18,744 through `String()`, 0 mismatches — which is strictly more than "all
 78,257" ever asked for. The in-tree test superseded the recorded figure before

@@ -56,7 +56,7 @@ a file goes through `pyStr`. Reaching for `Math.round`, `toFixed`, `reduce` or
 |---|---|
 | `pyRound(2.675, 2)` → `2.67` | `Math.round(x*100)/100` → `2.68` |
 | `pyRoundInt(2.5)` → `2` | `Math.round` → `3`; `toFixed(0)` → `3` |
-| `pyStr(79.0)` → `"79.0"` | `String(79.0)` → `"79"` (6,256 cells) |
+| `pyStr(79.0)` → `"79.0"` | `String(79.0)` → `"79"` (6,257 cells) |
 | `pyStr(-0.0)` → `"-0.0"` | `String(-0.0)` → `"0"` (30 cells) |
 | `pySumFloat` (Neumaier) | a naive fold differs on ~33% of 6-element sums |
 | `pySumInt` (exact BigInt) | a double fold loses precision past 2^53 |

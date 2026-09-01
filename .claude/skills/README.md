@@ -8,6 +8,12 @@ requirement IDs, the `[x]` / `[!]` / `[~]` marks, and the data-tier rules in
 ## The loop
 
 ```
+/sdlc <ticket>  run the whole loop below for one ticket, end to end
+```
+
+Or drive it a step at a time:
+
+```
 /next          pick the next task off the GitHub board
 /spec          probe the sources, write requirements, open a draft PR
 /update-spec   approve it — then later mark requirements [x] / [!] / [~]
@@ -18,6 +24,30 @@ requirement IDs, the `[x]` / `[!]` / `[~]` marks, and the data-tier rules in
 /address-reviews  fix, reply and resolve review threads
 /status        where everything stands
 ```
+
+## `/sdlc` — the loop as one command
+
+`/sdlc 27` takes a ticket from the board and runs the whole thing: `/spec`,
+review, `/update-spec`, `/implement`, build, `/evaluate`, review, merge — polling
+the PR with `/babysit` between phases and fixing feedback with
+`/address-reviews`. It stops when the ticket's **goal** is met, not when the PR
+merges.
+
+Three things it changes about the individual skills, deliberately:
+
+- **No draft PRs.** `/spec` opens one; `/sdlc` opens it ready. The review
+  workflow gates on `draft == false || spec-review`, so a ready PR is reviewed
+  either way — and it does not sit in a state nobody looks at.
+- **No confirmation prompts.** `/implement` normally waits before executing its
+  plan; under `/sdlc` the invocation *was* the confirmation. It asks only at the
+  stop conditions in its Step 12.
+- **The goal is the stop condition**, held in `/goal`. Derived from the issue's
+  `## Definition of done`, or given as `/sdlc 27 /goal <text>`, and mirrored into
+  the spec's `**Goal:**` field so a resumed iteration can recover it.
+
+`/sdlc 27 3 min` changes the babysit cadence from the 5-minute default. What it
+does *not* relax: source probing, the tier rules, `npm run verify`, and the
+requirement marks — a run that cannot satisfy one of those stops and says so.
 
 ## What was deliberately not ported
 

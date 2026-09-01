@@ -201,7 +201,7 @@ rendered text. Recorded rather than quietly swapped, because a spec that says
 `getComputedStyle` while the check does something else is the failure mode
 `CLAUDE.md` keeps warning about.
 
-### R9. [x] No router and no URL state
+### R9. [~] No router, and no URL state **of this change's own**
 
 The browser Back button still leaves the site after this change, and that is
 correct: URL and history state is issue #79 / spec 0016, owned by a different
@@ -211,6 +211,37 @@ boundary is checkable rather than assumed.
 **Acceptance:** `grep -rniE "react-router|history\.(push|replace)|pushState|replaceState|location\.hash" src/` returns nothing; `package.json` gains no
 dependency; `location.href` is unchanged after walking to step 04 and back.
 
+**Revised (2026-09-02) — the boundary held, and then it moved.** Spec 0016
+merged to `main` on 2026-09-01 while this branch was open, and it puts the
+wizard's state in the URL. So the requirement as written is now unsatisfiable by
+anyone: `pushState` is in `src/utils/urlState.js` and `WizardShell.jsx` because
+0016 put it there, and `location.href` changes on every step because that is
+0016's whole point. Deleting the requirement would be the wrong move — the thing
+it was protecting still matters — so it is narrowed rather than dropped:
+
+- **This change adds no routing dependency.** `react-router`, `react-router-dom`
+  and `wouter` are all absent from `package.json`, asserted in
+  `wizard.render.test.jsx`. Still true, still checked.
+- **This change adds no URL state of its own.** `query` and `occ` are component
+  state and deliberately do not join 0016's five URL atoms: `group` is the
+  answer and belongs in a shared link, `occ` is *how the reader reached it* and
+  does not. A cold load from a link therefore carries a group and no echo, and
+  step 02 reads `Set to …` — correct, because the person opening that link typed
+  nothing.
+- **Back rides 0016's seam rather than building a second one.** No new history
+  mechanism, no second stack.
+
+What this cost, and it is the finding worth reading: **`history.back()` silently
+fails R3.** It is the obvious implementation, it is what 0016's own comment
+suggested (`commit(next, 'pop')`), and it loses answers. Popping returns the
+reader to a history entry written *before* the answers they gave later existed —
+back from step 02 lands on the step-01 entry, whose URL never carried a group,
+so `Continue` asks the occupation question again. The suite caught it. A
+backwards move is therefore an ordinary `go` to an earlier step, carrying every
+answer; the cost is that the stack grows on a backwards move, so browser Back
+after using the control returns to the step just left. 0016 R4's promise that
+Back walks the steps is unaffected, and both were re-verified in a browser.
+
 ### R10. [x] `npm run verify` is green and the suite covers the new behaviour
 
 **Acceptance:** `npm run verify` exits 0 (the pilot self-skips in a worktree with
@@ -219,7 +250,17 @@ render suite gains assertions for R1, R3, R4, R5 and R6 and passes.
 
 ## Verification
 
-**Run 2026-09-02**, against `npm run dev` on this branch. Nine `[x]`, one `[~]`.
+**Run 2026-09-02**, against `npm run dev` on this branch. Eight `[x]`, two `[~]`
+(R8's instrument, R9's boundary).
+
+**Re-run after merging `origin/main`.** 0015, 0016 and 0017 landed while this
+branch was open, and 0016 rewrote `WizardShell.jsx` — the file this spec
+restructures — to put the wizard's state in the URL. Everything below was
+measured **after** that merge, on the merged code. The pre-merge run is not
+reported here: it verified an architecture that no longer exists, and quoting it
+would be evidence about the wrong thing. Three results changed as a consequence,
+all recorded: R9 narrowed, R1's implementation moved from a history pop to a
+`go`, and the step-04 snapshots gained 0015's share card and 0016's copy-link.
 
 ### How the two viewports were actually reached
 
@@ -249,14 +290,14 @@ The harness was a single untracked `mobile-harness.html`, deleted after the run;
 |---|---|---|
 | R1 | `[x]` | Browser: `04/04 → 03/04 → 02/04 → 01/04 → intro`, one click each, labels `Back to the optional questions` / `question 02` / `question 01` / `the introduction`. Intro has no back (`back: false`, `start: true`). Suite: `0014 R1` walks the same path |
 | R2 | `[x]` | `header button` count `0` on all five steps at both viewports. Back resolves to a `.wz-footer` ancestor on 01–03; step 04 has no footer, so its row sits inline with `Start again` as planned |
-| R3 | `[x]` | Browser `04→01→04` touching only back and the CTAs: step-04 `main` text **identical**, `resultIdentical: true`. Every tier badge and year came back unchanged, which is the data-rule half of this check. Suite asserts the same string-for-string |
+| R3 | `[x]` | Browser `04→01→04` touching only back and the CTAs: step-04 `main` text **identical** (`identical: true`), with `paralegal` and its echo, the `United Kingdom` search and the `25–54` / `Intermediate` bands all still set on the way through. Every tier badge and year came back unchanged, which is the data-rule half of this check. Suite asserts the same string-for-string |
 | R4 | `[x]` | Renders `You typed paralegal → matched to 3 · Technicians and associate professionals` at both viewports (see `step02-390.png`, `step02-1440.png`). Casing: `Bookkeeper` → `Bookkeeper`, not `bookkeeper` |
 | R5 | `[x]` | After back-and-forward: job title still `paralegal` and the panel still names it; country search still `United Kingdom` with `matches: 1` and `United Kingdom` still `aria-selected` |
 | R6 | `[x]` | Chip with an empty input → `Set to 1 · Managers`, `hasYouTyped: false`. Type `paralegal`, resolve, then chip `1 · Managers` → echo drops rather than mis-attributing |
 | R7 | `[x]` | Back is `48px` tall × `86px` wide at both viewports. Real `Tab` keypress from the CTA lands on it: `focusVisible: true`, `outline: 2px solid rgb(255, 90, 43)`, `outline-offset: 3px`. No new raw hex in `src/components/wizard/*.jsx` (the three matches are pre-existing token assertions in `computed.test.jsx`) |
 | R8 | `[~]` | Behaviour verified; the instrument changed from `getComputedStyle` to the inline style. Reason under R8 |
-| R9 | `[x]` | `grep -rniE "react-router\|history\.(push\|replace)\|pushState\|replaceState\|location\.hash" src/` → the only hit is the assertion in `wizard.render.test.jsx` naming the packages it forbids. `react-router`, `react-router-dom`, `wouter` all `absent`. `location.href` unchanged after walking to 04 and back; `history.length` stays `2` |
-| R10 | `[x]` | `npm run verify` → `verify PASSED`. Front-end suite `154 passed (154)`; pipeline suite `159 passed`. Pilot self-skipped (no `pipeline/raw/` in a worktree), as designed |
+| R9 | `[~]` | Narrowed, because 0016 landed URL state on `main` first. No routing dependency (`react-router`, `-dom`, `wouter` all absent, asserted in the suite); no URL state of this change's own; back rides 0016's seam. Reason under R9 |
+| R10 | `[x]` | `npm run verify` → `verify PASSED`. App suites `237 passed (237)`; pipeline suite `180 passed`. Pilot self-skipped (no `pipeline/raw/` in a worktree), as designed |
 
 ### Step 03 and step 04 share a row, checked properly
 
@@ -345,6 +386,13 @@ is the *answer*; `occ` is how the reader got to it.
 | R8 | Already derived from `step` — verified, not built | `WizardShell.jsx` (unchanged logic) | Counter and accent segment count read in a **focused** browser tab |
 | R9 | Nothing added | — | `grep -rniE "react-router\|pushState\|..." src/` empty; `package.json` unchanged |
 | R10 | Suite extended | `wizard.render.test.jsx` | `npm run verify` exits 0 |
+
+**This table is the plan as written, and two rows did not survive contact.**
+Spec 0016 merged to `main` mid-build and put the wizard's state in the URL, so
+R1's "back handlers set `step`" became a `go` through 0016's seam, and R9's
+"grep returns empty" became unsatisfiable. Both are marked and explained on the
+requirements above; the plan is left as it was rather than back-dated, because a
+plan quietly rewritten to match what happened stops being evidence of anything.
 
 ### Tier and vintage handling
 

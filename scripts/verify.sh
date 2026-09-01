@@ -10,6 +10,24 @@ echo "==> lint"
 npm run --silent lint || fail "lint"
 
 echo ""
+# Spec 0007 R7/R11. `tsc` never emits -- the pipeline runs on Node 24's native
+# type stripping, so there is no build step. This step exists for the four
+# deliberately broken snippets in pipeline/tests/schema.types.ts, which are R7's
+# whole acceptance: the types are not met by existing, only by rejecting those
+# four. Added to `verify` in the same change that added it to CI, per CLAUDE.md.
+echo "==> typecheck (0007 R7 -- the four @ts-expect-error cases)"
+npm run --silent typecheck || fail "typecheck"
+
+echo ""
+# Spec 0007 R7's two-way check. Case 4 is only evidence for the `Int` brand if
+# it STOPS erroring when the brand is removed -- a case that errors identically
+# with `Int` aliased to `number` proves something about bigint-vs-number, not
+# about the schema. This aliases the brand away in a temp copy and requires
+# tsc to report TS2578 there.
+echo "==> schema brand (0007 R7 -- case 4 with the brand removed)"
+npm run --silent check:brand || fail "schema brand -- R7 case 4 no longer depends on the Int brand"
+
+echo ""
 echo "==> build"
 npm run --silent build || fail "build"
 
@@ -23,10 +41,15 @@ echo "==> js tests"
 npm run --silent test || fail "js tests"
 
 echo ""
-# Spec 0004's regression suite. Unconditional, unlike the pilot below: the
-# gzipped fixture and the CSVs it reads are all in-tree, so it runs in a fresh
-# clone with no network and no cache. This is the step that guards the numbers,
-# and it is why `verify` and CI are the same gate rather than merely similar.
+# Spec 0004's regression suite, ported to TypeScript by 0007 R8. Unconditional,
+# unlike the pilot below: the gzipped fixture and the CSVs it reads are all
+# in-tree, so it runs in a fresh clone with no network and no cache. This is the
+# step that guards the numbers, and it is why `verify` and CI are the same gate
+# rather than merely similar.
+#
+# It also carries 0007 R1's 100,000 committed differential cases, frozen from
+# the pinned CPython 3.13 before R10 deleted it -- the only remaining proof that
+# the port's arithmetic is Python's.
 echo "==> pipeline tests"
 npm run --silent test:pipeline || fail "pipeline tests"
 

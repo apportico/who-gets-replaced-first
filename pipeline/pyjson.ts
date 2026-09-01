@@ -88,7 +88,6 @@ export function dumps(value: PyJson): string {
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'string') return escapeAscii(value);
   if (typeof value === 'number') return encodeNumber(value);
-  if (typeof value === 'bigint') return value.toString();
   if (Array.isArray(value)) return '[' + value.map(dumps).join(',') + ']';
   if (typeof value === 'object') {
     if (isPyNum(value)) {

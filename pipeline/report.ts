@@ -22,6 +22,15 @@ import { readCsvDict } from './csvio.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Mutable, so a test can point the module at an empty directory and prove that
+ * a missing `ai_exposure_sensitivity.csv` raises rather than silently producing
+ * a shorter report. The Python suite reassigned `report.HERE` for the same
+ * reason; an ES module's exported bindings are read-only, so the indirection is
+ * explicit rather than implicit.
+ */
+export const state = { HERE };
+
 export type ReportRow = Record<string, string | null>;
 
 /** `f(v, nd, suffix)` -- "n/a" for an absent value, grouped digits otherwise. */
@@ -34,7 +43,7 @@ export function f(v: number | string | null | undefined, nd = 1, suffix = ''): s
 
 export function load(): ReportRow[] {
   const rows = readCsvDict(
-    readFileSync(path.join(HERE, 'data', 'global_labor_dataset.csv'), 'utf8'),
+    readFileSync(path.join(state.HERE, 'data', 'global_labor_dataset.csv'), 'utf8'),
   );
   return rows.map((r) => {
     const out: ReportRow = {};
@@ -51,7 +60,7 @@ export function num(r: ReportRow, k: string): number | null {
 }
 
 export function loadPanel(): ReportRow[] {
-  const p = path.join(HERE, 'data', 'global_labor_panel.csv');
+  const p = path.join(state.HERE, 'data', 'global_labor_panel.csv');
   if (!existsSync(p)) return [];
   const rows = readCsvDict(readFileSync(p, 'utf8'));
   return rows.map((r) => {
@@ -444,7 +453,7 @@ export function write(
   // ---------------------------------------------------------- validation
   A('## Independent validation');
   A('');
-  const xc = path.join(HERE, 'data', 'crosscheck_eurostat.csv');
+  const xc = path.join(state.HERE, 'data', 'crosscheck_eurostat.csv');
   if (existsSync(xc)) {
     const cc = readCsvDict(readFileSync(xc, 'utf8'));
     const ok = cc.filter((r) => r.within_tolerance === 'True').length;
@@ -479,7 +488,7 @@ export function write(
     );
     A('');
   }
-  const ol = path.join(HERE, 'data', 'outliers_for_review.csv');
+  const ol = path.join(state.HERE, 'data', 'outliers_for_review.csv');
   if (existsSync(ol)) {
     const outs = readCsvDict(readFileSync(ol, 'utf8'));
     A(
@@ -585,6 +594,24 @@ export function summariseSensitivity(
 }
 
 /**
+ * The call-time indirection `crosscheck` goes through.
+ *
+ * `crosscheck.sensitivity` must not grow its own median back: two
+ * implementations of "the median country moves N places" would agree on odd
+ * `n` and diverge on even, and `n` is the count of countries carrying
+ * `white_collar_pct`, so its parity flips whenever one country gains or loses
+ * occupation data. The report would then read `4 places` out of
+ * `npm run pipeline` and `3.5 places` out of `npm run report`.
+ *
+ * Python resolved `report.summarise_sensitivity` at call time, so its test
+ * could patch the attribute and assert the delegation itself rather than
+ * asserting that two calls to the same function agree -- which stays green
+ * against exactly the change that reintroduces the divergence. An ES module's
+ * exported bindings are read-only, so the indirection has to be an object.
+ */
+export const hooks = { summariseSensitivity };
+
+/**
  * Rebuild the sensitivity summary from the committed artifacts.
  *
  * Both files are committed, so a missing one is a broken checkout rather than
@@ -595,10 +622,10 @@ export function summariseSensitivity(
  */
 export function loadSensitivity(): SensitivitySummary {
   const rows = readCsvDict(
-    readFileSync(path.join(HERE, 'data', 'ai_exposure_sensitivity.csv'), 'utf8'),
+    readFileSync(path.join(state.HERE, 'data', 'ai_exposure_sensitivity.csv'), 'utf8'),
   );
   const profiles = JSON.parse(
-    readFileSync(path.join(HERE, 'ai_exposure_isco.json'), 'utf8'),
+    readFileSync(path.join(state.HERE, 'ai_exposure_isco.json'), 'utf8'),
   ).profiles as Record<string, unknown>;
   return summariseSensitivity(
     rows as unknown as { max_rank_movement: string; country_name: string }[],

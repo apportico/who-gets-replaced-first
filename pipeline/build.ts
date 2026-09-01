@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs';
 import * as C from './config.ts';
 import * as fetch from './fetch.ts';
 import { overrideKinds } from './overrides.ts';
+import { asInt } from './schema.ts';
 
 export type RowValue = number | string | null | undefined | string[];
 export type Row = Record<string, RowValue>;
@@ -78,6 +79,16 @@ export function latest(series: Map<number, number | null>): [number | null, numb
   if (live.length === 0) return [null, null];
   const y = Math.max(...live.map(([k]) => k));
   return [series.get(y) as number, y];
+}
+
+/** `defaultdict`-style access over a WeakMap, for the override registry. */
+function subWeak<K extends object, V>(m: WeakMap<K, V>, k: K, make: () => V): V {
+  let v = m.get(k);
+  if (v === undefined) {
+    v = make();
+    m.set(k, v);
+  }
+  return v;
 }
 
 /** `defaultdict`-style access over a Map. */
@@ -811,7 +822,7 @@ export const AGG_POP_WEIGHTED = [
   'pop_0_14_pct', 'pop_15_64_pct', 'pop_65plus_pct', 'age_dependency_ratio',
 ];
 
-function wavg(rows: Row[], field: string, wfield: string): [number | null, number] {
+export function wavg(rows: Row[], field: string, wfield: string): [number | null, number] {
   let numer = 0.0;
   let den = 0.0;
   for (const r of rows) {
@@ -846,7 +857,7 @@ function sumColumn(rows: Row[], field: string, intColumn: boolean): number {
       const kind = kinds[i] ?? (intColumn ? 'int' : 'float');
       const v = g(r, field) as number;
       return kind === 'int'
-        ? { kind: 'int', value: toBigInt(v) }
+        ? { kind: 'int', value: toBigInt(asInt(v)) }
         : { kind: 'float', value: v };
     });
     return pySum(values);
@@ -855,7 +866,7 @@ function sumColumn(rows: Row[], field: string, intColumn: boolean): number {
     // Narrowed HERE, at the call site, where the 296x headroom row in the spec
     // is the stated licence for it -- never inside pySumInt, which would make a
     // correct implementation fail its own fixture.
-    return Number(pySumInt(present.map((r) => toBigInt(g(r, field) as number))));
+    return Number(pySumInt(present.map((r) => toBigInt(asInt(g(r, field) as number)))));
   }
   return pySumFloat(present.map((r) => g(r, field) as number));
 }
@@ -969,7 +980,7 @@ export function applyOverrides(rowsByIso: Map<string, Row>, filePath: string): M
       const value = rec.value as PyNum;
       row[field] = value.kind === 'int' ? Number(value.value) : value.value;
       // THE record of what JSON.parse would have erased.
-      sub(overrideKinds, row, () => new Map()).set(field, value.kind);
+      subWeak(overrideKinds, row, () => new Map()).set(field, value.kind);
       const year = rec.year as PyNum;
       const yearText = year.kind === 'int' ? year.value.toString() : pyStr(year.value);
       const valueText = value.kind === 'int' ? value.value.toString() : pyStr(value.value);

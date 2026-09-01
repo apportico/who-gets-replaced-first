@@ -10,11 +10,15 @@ to AI automation.**
 ## Run it
 
 ```bash
-python3 pipeline/run.py --pilot     # validation batch, prints regression checks
-python3 pipeline/run.py             # full run: all countries + 11 aggregates
-python3 pipeline/report.py          # regenerate summary_report.md from the CSV
-python3 -m unittest discover pipeline/tests    # regression suite (spec 0004)
+node pipeline/run.ts --pilot        # validation batch, prints regression checks
+node pipeline/run.ts                # full run: all countries + 11 aggregates
+node pipeline/report.ts             # regenerate summary_report.md from the CSV
+npm run test:pipeline               # regression suite (specs 0004 and 0007)
 ```
+
+There is **no build step**. Node 24 strips TypeScript types natively, so
+`pipeline/run.ts` runs directly. `npm run typecheck` type-checks it; `tsc` never
+emits.
 
 **What `--pilot` actually does.** It *fetches* 32 areas — `set(C.PILOT) |
 set(C.EU27)` — and *writes* 7 rows: WLD, EU27, and the six in `C.PILOT`. The
@@ -23,26 +27,45 @@ from a smaller slice. Earlier wording here called it a "6-area batch", which
 described the output rows and misled at least one reader into sizing a test
 fixture against the wrong scope.
 
-Standard library only — no pip installs. Every API response is cached under
-`pipeline/raw/`, so re-runs are offline and free. Delete a cached file to force
-a refresh of that one source. Live calls are spaced 0.5s apart and retry with
-exponential backoff.
+**Zero runtime dependencies** (spec 0007 R9). This replaces the "standard
+library only — no pip installs" rule the Python pipeline carried, and it is the
+same rule in a different language: `node:sqlite`, `fetch`, `node:zlib` and
+`node:util`'s `parseArgs` are all native on Node 24, and the CSV reader/writer
+is hand-rolled in `csvio.ts`. `package.json` gains no runtime dependency for the
+pipeline; `typescript` and `@types/node` are devDependencies, used by
+`npm run typecheck` and by nothing at runtime.
 
-The test suite is stdlib `unittest`, runs offline, and takes under a second.
-Run it before claiming a pipeline change worked.
+Every API response is cached under `pipeline/raw/`, so re-runs are offline and
+free. Delete a cached file to force a refresh of that one source. Live calls are
+spaced 0.5s apart and retry with exponential backoff.
 
-**Run it exactly as written above.** A reasonable-looking variant fails in a way
-that looks like a broken suite but is not:
+The test suite is `node --test`, runs offline, and takes under a second. Run it
+before claiming a pipeline change worked.
 
-```bash
-python3 -m unittest discover pipeline/tests          # 126 tests, OK
-python3 -m unittest discover -s pipeline/tests -t .  # 9 errors: No module named 'context'
-```
+### The number layer is not optional
 
-With an explicit top-level directory, `pipeline/tests` is treated as a package
-and its own directory never reaches `sys.path`, so the `import context` at the
-head of every test module fails. Not a defect — the pipeline modules import each
-other flat (`import config as C`), which is what `context.py` exists to support.
+`pynum.ts` exists because JavaScript's arithmetic and formatting are not
+Python's, and the committed outputs were produced by Python. Every `round()` in
+the old pipeline is `pyRound` / `pyRoundInt`; every `sum()` picks `pySumInt`,
+`pySumFloat` or `pySum` **from the schema's declared `Int` brand at the call
+site**, never from what the values look like at runtime; every float written to
+a file goes through `pyStr`. Reaching for `Math.round`, `toFixed`, `reduce` or
+`String(x)` instead changes published numbers:
+
+| Instead of | You get |
+|---|---|
+| `pyRound(2.675, 2)` → `2.67` | `Math.round(x*100)/100` → `2.68` |
+| `pyRoundInt(2.5)` → `2` | `Math.round` → `3`; `toFixed(0)` → `3` |
+| `pyStr(79.0)` → `"79.0"` | `String(79.0)` → `"79"` (6,256 cells) |
+| `pyStr(-0.0)` → `"-0.0"` | `String(-0.0)` → `"0"` (30 cells) |
+| `pySumFloat` (Neumaier) | a naive fold differs on ~33% of 6-element sums |
+| `pySumInt` (exact BigInt) | a double fold loses precision past 2^53 |
+
+All five entry points are pinned by **100,000 committed differential cases**
+under `tests/fixtures/pynum/`, generated once from CPython 3.13 by
+`scripts/generate-pynum-fixtures.py` and frozen there because spec 0007 R10
+deleted the interpreter. Regenerate them with that script if the toolchain pin
+ever moves.
 
 ## Outputs
 
@@ -58,25 +81,26 @@ other flat (`import config as C`), which is what `context.py` exists to support.
 | `pipeline/data/global_labor_dataset.sqlite` | tables `global_labor` (snapshot) and `global_labor_panel` (time series) |
 | `pipeline/data/validation_report.txt` | every range/consistency problem found |
 | `pipeline/data/pilot_labor_dataset.csv` | pilot batch output |
-| `pipeline/summary_report.md` | human-readable findings + confidence section |
+| `pipeline/summary_report.md` | human-readable findings + confidence section. Byte-identical across a regeneration except its `Generated <date>` line (0007 R6) |
 | `src/data/global_labor.json` | snapshot payload consumed by the app's Labor page |
 | `src/data/global_labor_timeseries.json` | compact panel driving the year scrubber and sparklines |
 
 **The two `src/data/` payloads are generated. Never hand-edit them.** Both are
-written by `npm run pipeline` -- `global_labor.json` at `run.py:277`,
-`global_labor_timeseries.json` at `panel.py:172` -- and the app imports them
+written by `npm run pipeline` -- `global_labor.json` by `run.ts`'s
+`exportAppJson`, `global_labor_timeseries.json` by `panel.ts`'s `exportPanel` --
+and the app imports them
 directly, so an edit here is an edit to what every reader sees, with no source
 behind it. Regenerate instead; if a figure looks wrong, the fix belongs upstream
 in the pipeline or in `manual_overrides.json`, which requires a citation.
 
-`pipeline/tests/test_app_payloads.py` enforces this on every `npm run verify`
+`pipeline/tests/app_payloads.test.ts` enforces this on every `npm run verify`
 and in CI, offline and without the response cache: it compares the committed
 `global_labor.json` header against what `export_app_json` writes, its rows
 against `global_labor_dataset.csv`, and `global_labor_timeseries.json` against
 `global_labor_panel.csv`. `global_labor.json` went unregenerated from the
 initial commit until spec 0009 and so never carried the `field_tiers` block
 described below (#57) -- the guard exists because the drift was silent for that
-long, and because the generator-side tests in `test_tiers.py` stayed green
+long, and because the generator-side tests in `tiers.test.ts` stayed green
 throughout.
 
 ## Sources
@@ -137,19 +161,19 @@ Two things about it are deliberate:
   `isco_armed_forces_thousands` passes through unchanged and stays `OFFICIAL`.
 
 `entry_level_squeeze_index` is **relative to the run's cohort, not absolute**.
-`squeeze_index` (`build.py:373`) percentile-ranks each component across the
+`squeeze_index` (`build.ts`'s `squeezeIndex`) percentile-ranks each component across the
 countries *in the current run*, so the same country scores differently in a
 pilot (31 areas) than in a full run (218) — USA is 49.19 in
 `pilot_labor_dataset.csv` and 43.08 in `global_labor_dataset.csv`, and both are
 correct. Compare it only within one run's output, never across the two files.
-The same hazard applies to aggregate movement over time, which `report.py:367`
+The same hazard applies to aggregate movement over time, which `report.ts`
 describes: "the reporting country set changes year to year, so aggregate
 movement is partly composition change".
 
 `entry_level_squeeze_index` is `MODELED`. It percentile-ranks four components
 and combines them with `SQUEEZE_COMPONENTS`' 0.25 / 0.30 / 0.25 / 0.20 —
 weights this project assigned, exactly as it assigned the ISCO exposure
-weights. It was previously labelled a "DERIVED composite" in `report.py` with
+weights. It was previously labelled a "DERIVED composite" in `report.ts` with
 the caveat carried in the prose beside it; a one-word enum cannot carry a
 caveat, so the tier changed rather than the meaning. See spec 0004 R3.
 
@@ -316,7 +340,7 @@ white-collar numbers against that column.
 
 ## Validation
 
-`run.py` checks, and writes failures to `data/validation_report.txt`:
+`run.ts` checks, and writes failures to `data/validation_report.txt`:
 
 - every percentage field within [0, 100]
 - `pop_0_14 + pop_15_64 + pop_65plus ≈ 100` (±1pp)
@@ -332,7 +356,7 @@ flag. Nothing is fabricated or interpolated.
 
 ## Priority order
 
-If API limits ever force partial runs, `config.py` carries the country group
+If API limits ever force partial runs, `config.ts` carries the country group
 lists in the intended order: G20 → OECD → EU-27 → remaining countries with
 population >20M → the rest. The current full run completes in well under a
 minute against warm caches, so prioritisation has not been needed.

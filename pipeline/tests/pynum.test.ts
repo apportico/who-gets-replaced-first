@@ -33,6 +33,7 @@ import {
   toBigInt,
   type PyNum,
 } from '../pynum.ts';
+import { asInt, type Int } from '../schema.ts';
 import { readCsv } from '../csvio.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -270,8 +271,15 @@ test('R1: pySum discards the transition residual, and suspends compensation for 
 
 // ----------------------------------------------------------------- toBigInt
 test('R1: toBigInt validates the Int brand at runtime rather than asserting it', () => {
-  assert.equal(toBigInt(2989466), 2989466n);
-  assert.throws(() => toBigInt(14455.5), RangeError);
+  assert.equal(toBigInt(asInt(2989466)), 2989466n);
+  // The cast is the point: it simulates a field DECLARED `Int` that is not
+  // integral, which is the one way the type cannot help. R1 asks for a stated
+  // failure mode there rather than an accident -- a brand that is only asserted
+  // leaves the integer path one mislabelled field away from a runtime error,
+  // and a throw beats a silently wrong published column.
+  assert.throws(() => toBigInt(14455.5 as Int), RangeError);
+  // asInt refuses to mint it in the first place.
+  assert.throws(() => asInt(14455.5), RangeError);
 });
 
 test('R1: all five entry points run offline with no Python present', () => {

@@ -27,6 +27,10 @@ export type PyNum =
   | { kind: 'int'; value: bigint }
   | { kind: 'float'; value: number };
 
+/** Re-exported so a caller needs one import to reach the summation path. */
+export type { Int } from './schema.ts';
+import type { Int } from './schema.ts';
+
 // ------------------------------------------------------- exact decimposition
 const BUF = new DataView(new ArrayBuffer(8));
 
@@ -200,12 +204,20 @@ export function pyFormatFixed(
 /**
  * The only route from row data into the integer sum.
  *
- * `BigInt()` throws `RangeError` on a non-integral number, and R1 asks for that
- * to be a stated failure mode rather than an accident: a field that carries the
- * `Int` brand without being integral is a schema bug, and a throw beats a
+ * It takes `Int`, not `number`, and that signature IS R7's case 4: the brand is
+ * the sole reason a Python-float column is rejected at a `pySumInt` call site.
+ * Typed as `number` this function accepts `population_15_24` and the case
+ * errors nowhere -- verified, `tsc` then reports TS2578 on the committed
+ * `@ts-expect-error`. `scripts/check-schema-brand.mjs` runs that check in the
+ * other direction on every `verify`.
+ *
+ * The runtime guard stays as well as the type. `BigInt()` throws `RangeError`
+ * on a non-integral number, and R1 asks for that to be a stated failure mode
+ * rather than an accident: a brand that is only asserted leaves the integer
+ * path one mislabelled field away from a runtime error, and a throw beats a
  * silently wrong published column.
  */
-export function toBigInt(v: number): bigint {
+export function toBigInt(v: Int): bigint {
   if (!Number.isInteger(v)) {
     throw new RangeError(
       `toBigInt: ${v} carries the Int brand but is not integral -- ` +

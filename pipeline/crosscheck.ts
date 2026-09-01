@@ -14,7 +14,7 @@ import { g } from './build.ts';
 import { pyFormatFixed, pyRound, pySumFloat } from './pynum.ts';
 import { writeCsv } from './csvio.ts';
 import { formatCell } from './columns.ts';
-import { summariseSensitivity, type SensitivitySummary } from './report.ts';
+import { hooks, type SensitivitySummary } from './report.ts';
 
 // Eurostat's isco08 dimension codes for the major groups, in ISCO order.
 export const EUROSTAT_ISCO = ['OC1', 'OC2', 'OC3', 'OC4', 'OC5', 'OC6', 'OC7', 'OC8', 'OC9'];
@@ -202,7 +202,8 @@ export function sensitivity(
   );
   // One definition, shared with report.loadSensitivity(), so `npm run report`
   // and `npm run pipeline` cannot print different numbers for the same data.
-  const summary = summariseSensitivity(
+  // Through the hook, not the import: see `report.hooks`.
+  const summary = hooks.summariseSensitivity(
     out.map((r) => ({
       max_rank_movement: String(r.max_rank_movement),
       country_name: r.country_name as string,

@@ -288,12 +288,16 @@ and an SVG beating a dependency.
 
 ```
 specs/            numbered specs — start here
-pipeline/         Python data pipeline (stdlib only, no pip installs)
-  run.py          orchestrator: --pilot for the 6-area batch, bare for the full run
-  raw/            cached API responses, gitignored (~80MB)
+pipeline/         TypeScript data pipeline (zero runtime dependencies)
+  run.ts          orchestrator: --pilot for the 6-area batch, bare for the full run
+  pynum.ts        CPython's arithmetic and formatting — see below, it is not optional
+  csvio.ts        hand-rolled CSV, Python's default dialect, CRLF
+  pyjson.ts       json.dump's serialiser, and a reader that keeps int/float apart
+  schema.ts       Tier, Measured, Vintage and the Int brand — consumed on both sides
+  raw/            cached API responses, gitignored (~130MB)
   data/           CSV, SQLite, cross-checks, outlier queue
   README.md       every field, its source, its limitations
-src/              React + Vite app (Leaflet map)
+src/              React + Vite app (the wizard)
 ```
 
 ## The workflow
@@ -361,7 +365,8 @@ npm run build            # production build (base path /who-gets-replaced-first/
 npm run pipeline:pilot   # 6-area validation batch, prints regression checks
 npm run pipeline         # full run: 218 countries + 11 aggregates
 npm run lint
-npm run test:pipeline    # 126-test regression suite, offline, <1s
+npm run typecheck        # tsc --noEmit; never emits — see 0007 R7
+npm run test:pipeline    # 158-test regression suite, offline, <1s
 ```
 
 The pipeline caches every API response under `pipeline/raw/`, so re-runs are
@@ -396,10 +401,27 @@ to include the anchors.
 For UI changes, `npm run build` passing is not evidence the page renders — a
 runtime error still builds clean. Load the page.
 
-**Toolchain.** Node 24 and Python 3.13, both pinned in CI. The pipeline is
-stdlib-only, so the interpreter version is the only variable in a pipeline test
-run — `unittest`'s exit code 5 for an empty suite, for instance, only exists
-from 3.12.
+**Toolchain.** Node 24, pinned in CI, and nothing else. Spec 0007 ported the
+pipeline from Python to TypeScript and R10 deleted the Python, so there is no
+interpreter to pin any more. **There is no build step either**: Node 24 strips
+types natively, so `node pipeline/run.ts` runs the pipeline directly, and `tsc`
+exists only to type-check.
+
+**Zero runtime dependencies is the rule that replaced "stdlib only, no pip
+installs"** (0007 R9). `node:sqlite`, `fetch`, `node:zlib` and `node:util`'s
+`parseArgs` are native; CSV is hand-rolled. Adding a runtime dependency to the
+pipeline needs its own requirement, the same way a pip install would have.
+
+**The number layer is load-bearing.** JavaScript's arithmetic and formatting are
+not Python's, and the committed outputs were produced by Python. In pipeline
+code, every `round()` is `pyRound` / `pyRoundInt`, every `sum()` selects
+`pySumInt` / `pySumFloat` / `pySum` **from the schema's declared `Int` brand at
+the call site** — never from what the value looks like, because
+`Number.isInteger(14455.0)` is `true` — and every float written to a file goes
+through `pyStr`. `Math.round`, `toFixed`, `reduce` and `String(x)` each change
+published numbers; `pipeline/README.md` tabulates by how much. 100,000
+differential cases frozen from CPython 3.13 sit in `pipeline/tests/fixtures/pynum/`
+and are the only remaining proof the arithmetic is Python's.
 
 **`main` enforces this.** `verify` is a required status check and
 `enforce_admins` is `true`, so nobody merges red CI — administrators included

@@ -8,6 +8,13 @@
 # always true here, so nothing in this job depends on ILOSTAT or the World Bank
 # being up. The numbers are guarded by spec 0004's offline suite, run
 # unconditionally in the last step.
+#
+# Spec 0007 removed the Python setup step. The pipeline is TypeScript run on
+# Node 24's native type stripping, with zero runtime dependencies, so Node is
+# now the only pinned toolchain here. The interpreter pin was load-bearing while
+# it lasted -- Python 3.11 failed the golden master on one WLD value -- and its
+# replacement is R1's 100,000 committed differential cases, frozen from 3.13
+# before the Python was deleted.
 name: CI
 
 on:
@@ -33,13 +40,6 @@ jobs:
           node-version: 24
           cache: npm
 
-      # The pipeline is stdlib-only, so the interpreter version is the only
-      # variable in the pipeline tests step below. Pinned rather than inherited
-      # from the runner image.
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.13'
-
       - run: npm ci
 
       # lint + build. Exits non-zero on either, and on a moved regression
@@ -47,11 +47,26 @@ jobs:
       - name: npm run verify
         run: npm run verify
 
+      # Spec 0007 R7. The four deliberately broken snippets in
+      # pipeline/tests/schema.types.ts must fail `tsc --noEmit`, and the same
+      # case must STOP failing when the `Int` brand is aliased away — a case
+      # that errors identically without the brand is not evidence for it.
+      # `npm run verify` runs both; the named steps exist so they fail
+      # distinguishably from lint on the checks list.
+      - name: typecheck
+        run: npm run typecheck
+
+      - name: schema brand (R7 two-way check)
+        run: npm run check:brand
+
       # Spec 0004's offline suite — the step that actually guards the numbers.
       # Runs the real pilot against a committed gzipped fixture with the network
       # patched out, so a moved anchor, a changed number format or a reordered
       # column fails here in under a second. Unconditional by design: a guard
       # that skips when the suite is absent is a green tick that is not evidence.
+      # Ported to TypeScript by spec 0007 R8, and it now also carries R1's
+      # 100,000 differential cases against the interpreter this job no longer
+      # installs.
       # Kept as its own named step so it fails distinguishably from lint on the
       # checks list. `npm run verify` also runs it, so local and CI are one gate.
       - name: pipeline tests

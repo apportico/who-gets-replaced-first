@@ -13,20 +13,29 @@
 import { countryOptions, excludedCountries } from './countryList'
 
 /**
- * Fold a string to what a reader would type: strip diacritics, normalise the
- * typographic apostrophe, lowercase.
+ * Fold a string to what a reader would type: strip diacritics, **drop
+ * apostrophes**, collapse every other punctuation mark to a space, squeeze
+ * runs of whitespace, lowercase.
  *
- * Required, not cosmetic. `Intl` returns `Côte d’Ivoire` with U+2019 and
- * `Türkiye` with a diaeresis; without the fold, "cote divoire" and "turkiye"
- * both miss.
+ * Required, not cosmetic, and the apostrophe rule is the part that was wrong
+ * first time. An earlier version normalised `’` to `'` instead of removing it,
+ * which left `Côte d’Ivoire` folding to `cote d'ivoire` — so a reader typing
+ * `cote divoire`, which is what anyone does on a phone keyboard, matched
+ * nothing. Removing it folds both sides to `cote divoire`.
+ *
+ * Collapsing the rest of the punctuation buys the World Bank spellings the same
+ * forgiveness: `Korea, Rep.` → `korea rep`, `Lao PDR` → `lao pdr`,
+ * `Congo - Kinshasa` → `congo kinshasa`.
  */
 export function fold(s) {
   return String(s ?? '')
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
-    .replace(/[’ʼ]/g, "'")
-    .toLowerCase()
+    .replace(/['’ʼ]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
 }
 
 // One instance, not one per keystroke. Guarded because a runtime without the

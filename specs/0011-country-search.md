@@ -4,15 +4,21 @@
 **Depends on:** 0009 (the payload is regenerated from `run.py` and guarded against drift — R2 here adds a column, so both guards must move with it) · 0010 (the wizard and its `countryTag` module exist; R7 here revises 0010's R6)
 **Issue:** [#66](https://github.com/apportico/who-gets-replaced-first/issues/66)
 
-**Review record.** draft → in-review → approved on 2026-09-01, on
-[PR #68](https://github.com/apportico/who-gets-replaced-first/pull/68). The
-automated reviewer did **not** run: `.github/workflows/claude-review.yml` checks
-for `ANTHROPIC_API_KEY`, finds none, and warns *"This job passing is not
-evidence of a review"* (issue #44 is open on exactly that). So the green `review`
-check on #68 means nothing, and the review it stands in for was done by hand
-against `REVIEW.md` — findings on R3's undefined ordering, R4's dead `USA`/`US`
-aliases and R10's stranded exports, all fixed in the commit before approval.
-Recorded here so nobody later reads the green check as the review it is not.
+**Review record.** The green `review` check on
+[PR #68](https://github.com/apportico/who-gets-replaced-first/pull/68) is **not**
+a review: `.github/workflows/claude-review.yml` checks for `ANTHROPIC_API_KEY`,
+finds none, and warns *"This job passing is not evidence of a review"* (issue #44
+is open on exactly that). Recorded here so nobody later reads it as one.
+
+- **Self-review against `REVIEW.md`, 2026-09-01**, before the status moved:
+  found R3's undefined ordering, R4's dead `USA`/`US` aliases and R10's stranded
+  exports. Fixed, then draft → in-review → approved to unblock implementation.
+- **Reviewed on #68, 2026-09-01** — `CHANGES_REQUESTED`, five findings, all
+  upheld: the World Bank probe row was wrong about Taiwan (mis-transcribed from
+  my own probe); R2's diff bound omitted the golden-master fixture; R3's fold
+  could not satisfy R3's own acceptance; R5 left the pre-fill bug R2 exists to
+  fix; and a global search-and-replace had rewritten **spec 0007's** index row
+  as collateral. All five are addressed above and in the implementation.
 
 ## Objective
 
@@ -45,8 +51,10 @@ Federation`, `Viet Nam`, `Lao PDR`, `Venezuela, RB`), and nobody types that.
 Probing found a better source than our own typing.
 
 The World Bank response already cached at `pipeline/raw/worldbank/countries.json`
-carries **`iso2Code` for 294 of its 295 entities** — a published identifier we
-are already downloading and simply not keeping. With `iso2` in the payload,
+carries **`iso2Code` for every one of its 295 entities** — a published
+identifier we are already downloading and simply not keeping. (Taiwan is the one
+country in our list it cannot supply, because the response carries no Taiwan
+entity at all; `TWN` comes from `config.EXTRA_AREAS`.) With `iso2` in the payload,
 `Intl.DisplayNames(['en'], {type: 'region'})` — a platform standard, not
 authored data — supplies the reader's spelling for **29 of the 177**:
 `South Korea`, `Russia`, `Vietnam`, `Laos`, `Slovakia`, `Kyrgyzstan`, `Iran`,
@@ -66,7 +74,7 @@ rather than retype it**, and label the residue as ours.
 | `src/data/global_labor.json` — country rows | read, 2026-09-01 | **218** rows with `row_type === 'country'`. **177** carry at least one of the nine `iscoN_*_pct` fields non-null; **41** carry none. Exactly 0010 R6's "any of the nine" reading, so R1's filter reuses `hasAnyIscoGroup` and adds no new predicate |
 | The 41 no-series rows | read, 2026-09-01 | ABW AND ASM ATG BHR CAF CHI **CHN** COG CUB DMA ERI FRO GIB GRL GUM HTI KNA LBY LIE MAF MCO MNP MRT NCL **NZL** OMN PRK PYF **SAU** SMR SSD SXM SYR TCA TKM UZB VCT VGB VIR XKX. Their `data_quality_flag` already reads `partial — no ISCO data; …`, so R6's copy has a field to key on rather than a hard-coded list |
 | `src/data/global_labor.json` — row keys | read, 2026-09-01 | **No `iso2`, no alternate-name field.** `iso3` and World Bank `country_name` are the only identifiers a search could match today |
-| `pipeline/raw/worldbank/countries.json` | read, 2026-09-01 | The cached World Bank country list, 295 entities, each with `iso2Code`. Non-empty for 294; **`TWN` is the one blank** — the World Bank publishes no alpha-2 for Taiwan. Already downloaded by the pipeline, discarded at export |
+| `pipeline/raw/worldbank/countries.json` | read, 2026-09-01; **corrected 2026-09-01** after review | The cached World Bank country list: **295 entities, and all 295 carry a non-empty two-character `iso2Code`**. Taiwan is not a blank row — **it is not in the response at all** (`some(r => r.id === 'TWN')` is false; the only ids matching /china/ are `CHN/CN`, `HKG/HK`, `MAC/MO`). `TWN` reaches the pipeline from `config.EXTRA_AREAS` instead, which is why `build_reference` synthesises it under `if iso3 not in ref`. Already downloaded by the pipeline, discarded at export. **The first version of this row read "non-empty for 294, TWN is the one blank", which was a mis-transcription of my own probe** — the conclusion R2 draws is unchanged, but the recorded result was wrong and a spec's source table is the one place that must not be |
 | `Intl.DisplayNames(['en'],{type:'region'})`, Node 24.19 | run, 2026-09-01 | Resolves 176 of the 177 official rows once `iso2` exists (TWN excepted, no alpha-2). Its name **differs from the payload's for 29**, and the differences are exactly the reader-facing spellings: `KOR South Korea`, `RUS Russia`, `VNM Vietnam`, `LAO Laos`, `SVK Slovakia`, `KGZ Kyrgyzstan`, `IRN Iran`, `EGY Egypt`, `YEM Yemen`, `VEN Venezuela`, `CPV Cape Verde`, `MMR Myanmar (Burma)`, `PSE Palestinian Territories`, `BHS Bahamas`, `GMB Gambia`, `SOM Somalia`, `FSM Micronesia`, `COD Congo - Kinshasa`, `BRN Brunei`, `PRI Puerto Rico`, `NRU Nauru`, `TUR Türkiye`, and 7 punctuation-only variants |
 | Diacritic folding, Node 24.19 | run, 2026-09-01 | `NFD` + `\p{Diacritic}` strip + `’→'` fold turns `Côte d’Ivoire`→`cote d'ivoire`, `Türkiye`→`turkiye`, `São Tomé & Príncipe`→`sao tome & principe`, `Curaçao`→`curacao`. Confirms R3 needs the fold: Intl returns typographic apostrophes and diacritics no reader types |
 | `pipeline/config.py` `FIELD_TIERS` | read, 2026-09-01 | `iso3`, `country_name`, `region`, `income_group`, `capital` all carry `NOT_A_MEASUREMENT`. R2's `iso2` takes the same tier — no new tier is invented for an identifier |
@@ -113,14 +121,34 @@ stays findable by name and by `iso3`, and simply gets no `Intl` alternates.
 
 The regeneration is a probed operation, not an assumption: a full run was
 executed offline on 2026-09-01 and reproduced every committed artifact
-byte-identically apart from `summary_report.md`'s date line. So the diff R2
-lands must be **the `iso2` column and that date line, and nothing else** — any
-other moved cell is drift this change surfaced and must be explained, not
-committed silently.
+byte-identically apart from `summary_report.md`'s date line.
+
+**Adding a column to `run.COLUMNS` moves four committed artifacts, not two**, and
+all four are expected — listing only two would have told an implementer to stop
+on a change the requirement itself requires:
+
+| Artifact | Why it moves |
+|---|---|
+| `pipeline/data/global_labor_dataset.csv` + `src/data/global_labor.json` | the new column |
+| `pipeline/data/pilot_labor_dataset.csv` | same header, written by `--pilot` |
+| `pipeline/tests/fixtures/expected/pilot_labor_dataset.csv` | `test_golden_master` diffs the pilot byte for byte against it |
+| `pipeline/summary_report.md` | its `Generated <date>` line, on every run |
+
+`test_columns.py`'s width guard needs no edit — it asserts against
+`len(run.COLUMNS)` rather than a literal. `test_tiers.py`'s `field_tiers` count
+**is** a literal and must move by hand; that is the assertion that fails when a
+column ships without a tier, so moving it in the change that adds one is the
+point of it.
+
+What is still drift, and still stops the run: **any cell moving that is not in
+the `iso2` column.** The golden master may only be regenerated after that check
+comes back clean — a master rewritten without diffing first certifies whatever
+it was handed.
 
 **Acceptance:** `npm run pipeline` regenerates both `global_labor_dataset.csv`
-and `src/data/global_labor.json`; `git diff --stat` after the run shows changes
-confined to the `iso2` column, the payload, and `summary_report.md`'s date; the committed payload carries a non-null
+and `src/data/global_labor.json`; a **cell-by-cell** comparison against the
+previous commit reports the header gaining `iso2` and **zero cells moved
+outside it**, with the four artifacts above as the only movers; the committed payload carries a non-null
 `iso2` for 176 of the 177 official country rows and `null` for `TWN`;
 `npm run test:pipeline` passes with 0009's `test_app_payloads.py` unmodified in
 its logic — specifically `test_field_tiers_covers_every_key_a_row_ships` and
@@ -160,8 +188,22 @@ A row matches if any of these holds:
 
 **Folding is required, not optional.** The probe shows `Intl` returns
 `Côte d’Ivoire` with a typographic apostrophe and `Türkiye` with a diaeresis.
-The fold is `NFD` → strip `\p{Diacritic}` → normalise `’`/`ʼ` to `'` →
-lowercase, applied to both the query and every candidate string.
+The fold is `NFD` → strip `\p{Diacritic}` → **remove `'`/`’`/`ʼ` entirely** →
+collapse every remaining non-alphanumeric character to a space → squeeze runs of
+whitespace → lowercase, applied to both the query and every candidate string.
+
+**Removing the apostrophe rather than normalising it is the load-bearing part.**
+A fold that only normalises `’` to `'` leaves `Côte d’Ivoire` as
+`cote d'ivoire`, which `cote divoire` does not match — and `cote divoire` is
+what a reader types, because nobody reaches for an apostrophe on a phone
+keyboard. Collapsing the rest of the punctuation buys the World Bank spellings
+the same forgiveness: `Korea, Rep.` folds to `korea rep`, `Lao PDR` to
+`lao pdr`, `Congo - Kinshasa` to `congo kinshasa`.
+
+**One function, not two passes.** This requirement narrows R1's 177; R6 answers
+over all 218. They are the same call — `searchCountries` returns the partition
+R6 describes, and the routes here decide membership on either side of it — so an
+implementer does not have to choose.
 
 An empty query returns all 177, so the screen opens as a list and narrows.
 
@@ -175,8 +217,17 @@ matching route it exercises, so a regression says which of the four broke. One
 further assertion covers the ordering: a query matching several rows returns
 them in the same relative order as `countryOptions(rows)`.
 
-**Done (2026-09-01).** `src/utils/countrySearch.js`. Vitest covers each
-route separately so a regression names which broke: `korea`→`KOR` (name),
+**Both spellings of the apostrophe case are asserted separately** — `cote
+divoire` and `cote d'ivoire` must each reach `CIV`. An assertion that passes
+when *either* works is green while the realistic one is broken, which is exactly
+what a first draft of this test did.
+
+**Done (2026-09-01).** `src/utils/countrySearch.js`. The fold removes
+apostrophes and collapses punctuation, so `cote divoire` and `cote d'ivoire`
+both reach `CIV` and both are asserted — the first draft asserted
+`a.length + b.length > 0`, which was green while the spelling a reader actually
+types matched nothing. Vitest covers each route separately so a regression names
+which broke: `korea`→`KOR` (name),
 `usa`/`gbr` (iso3 prefix), `south korea`/`vietnam`/`russia` (Intl),
 `turkey`/`uk` (alias), `cote d'ivoire`→`CIV` (the fold), `''`→177, `zzzz`→0,
 and the ordering assertion — a multi-hit query returns rows in
@@ -219,6 +270,20 @@ series — and must report *which* country that was, so step 01 can render one
 line naming it: *"China reports no occupation breakdown to ILOSTAT, so it is not
 in this list."*
 
+**And it must match on `iso2`, not on the name.** The existing implementation
+resolves the locale's region through `Intl.DisplayNames` and compares that
+*string* to `country_name` — so it returns `null` for every one of the 29 rows
+whose two spellings differ. `ko-KR`, `ru-RU`, `vi-VN`, `tr-TR`, `fr-CI` and
+`pt-CV` all pre-fill nothing today and look exactly like a reader with an
+unmatched locale. That is the failure this repo cares about most: a silent null
+that reads as a working feature. R2's identifier is what fixes it, so fixing it
+belongs here rather than in a later spec.
+
+**One residual, recorded rather than fixed:** `zh-TW` cannot resolve either way,
+because `TWN` has no `iso2` and R2 declines to transcribe one. Taiwan is still
+in the list and still findable by name; it simply never pre-fills. Saying so
+here keeps the next reader from filing it as a regression.
+
 A reader whose own country is missing learns why before they go looking for it.
 That is the same obligation 0010 R6 discharged with a `no series` row, met at
 the moment it actually matters.
@@ -226,7 +291,10 @@ the moment it actually matters.
 **Acceptance:** Vitest — `localeCountry(rows, 'zh-CN')` yields no selected
 `iso3` and reports `CHN` / `China`; `localeCountry(rows, 'en-GB')` yields `GBR`;
 `localeCountry(rows, 'xx')` and `localeCountry(rows, undefined)` yield neither a
-selection nor a country. A render test mounts step 01 with `navigator.language`
+selection nor a country. **At least three divergent-spelling locales must be
+asserted** — `ko-KR`→`KOR`, `ru-RU`→`RUS`, `vi-VN`→`VNM` — because an acceptance
+set drawn only from locales where the two spellings agree stays green over 29
+broken pre-fills. A render test mounts step 01 with `navigator.language`
 stubbed to `zh-CN` and asserts the rendered text contains `China` and that no
 option is pre-selected.
 
@@ -237,13 +305,11 @@ null }`. Rendered: with `navigator.language` stubbed to `zh-CN`, step 01 carries
 "China reports no occupation breakdown to ILOSTAT", no option is
 `aria-selected`, and Continue is disabled.
 
-**One thing changed beyond what this requirement asked for, and it is worth
-recording.** The match now runs on `iso2` rather than on `Intl.DisplayNames`'
-name compared to `country_name`. The old reading failed silently for exactly the
-29 countries whose two spellings differ — `ko-KR` resolves to "South Korea" and
-the payload says "Korea, Rep." — so every one of those locales pre-filled
-nothing and looked like a reader with an unmatched locale. R2's identifier fixes
-that as a side effect of existing; `ko-KR`, `ru-RU` and `vi-VN` are asserted.
+The match runs on `iso2`, not on the name: `ko-KR`→`KOR`, `ru-RU`→`RUS`,
+`vi-VN`→`VNM` are asserted, which is the check the first draft of this
+requirement lacked — its acceptance set was drawn entirely from locales where
+the two spellings already agree, so it would have stayed green over 29 broken
+pre-fills. `zh-TW` still resolves to nothing, as recorded above.
 ### R6. [x] A query that matches a dropped country names it and states the absence
 
 The search runs over all 218 rows internally. A match among the 41 renders

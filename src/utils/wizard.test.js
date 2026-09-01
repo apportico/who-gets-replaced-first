@@ -136,10 +136,12 @@ describe('0011 R2 — the payload carries iso2, and TWN stays null', () => {
 describe('0011 R3 — the query folds, and four routes can match it', () => {
   const hit = (q) => searchCountries(rows, q).matches.map((c) => c.iso3)
 
-  it('folds diacritics and the typographic apostrophe', () => {
-    expect(fold('Côte d’Ivoire')).toBe("cote d'ivoire")
+  it('folds diacritics, drops apostrophes and collapses punctuation', () => {
+    expect(fold('Côte d’Ivoire')).toBe('cote divoire')
     expect(fold('Türkiye')).toBe('turkiye')
-    expect(fold('  São Tomé ')).toBe('sao tome')
+    expect(fold('  São Tomé & Príncipe ')).toBe('sao tome principe')
+    expect(fold('Korea, Rep.')).toBe('korea rep')
+    expect(fold('Congo - Kinshasa')).toBe('congo kinshasa')
   })
 
   it('route 1 — the payload name, as a substring', () => {
@@ -157,9 +159,13 @@ describe('0011 R3 — the query folds, and four routes can match it', () => {
     expect(hit('russia')).toContain('RUS')
   })
 
-  it('route 3 needs the fold, or the diacritics miss', () => {
-    expect(hit('cote divoire').length + hit("cote d'ivoire").length).toBeGreaterThan(0)
+  // The version of this that shipped first was `a.length + b.length > 0`, which
+  // is green whenever *either* spelling works — so it passed while the realistic
+  // one, the apostrophe nobody types, matched nothing. Both are asserted now.
+  it('route 3 needs the fold, apostrophe and all', () => {
+    expect(hit('cote divoire')).toContain('CIV')
     expect(hit("cote d'ivoire")).toContain('CIV')
+    expect(hit('korea rep')).toContain('KOR')
   })
 
   it('route 4 — the alias table, for what no source publishes', () => {

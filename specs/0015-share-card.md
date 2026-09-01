@@ -1,6 +1,7 @@
 # 0015 — share card, methodology page, and an h1
 
-**Status:** in-progress
+**Status:** done
+**Merged:** `cdbcfcc` via PR [#84](https://github.com/apportico/who-gets-replaced-first/pull/84), 2026-09-02.
 **Approved:** Dani (VP Engineering), 2026-09-02, **directly rather than as a GitHub review**. PR [#84](https://github.com/apportico/who-gets-replaced-first/pull/84) is self-authored, so GitHub cannot record the approval and `reviewDecision` stays `REVIEW_REQUIRED` — on this PR that field is not a signal about whether the spec was reviewed. The review that exists on the PR is the author's own `COMMENT` pass against `REVIEW.md`.
 **Depends on:** 0010 (the wizard and its result screen), 0011 (country search), 0012 (the 768px breakpoint)
 **Issue:** [#78](https://github.com/apportico/who-gets-replaced-first/issues/78)

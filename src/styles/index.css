@@ -345,6 +345,30 @@ html, body {
 }
 .wz-tertiary:hover { color: var(--fg); }
 
+/* 0014 R2/R7. Back is a footer secondary, not a header control -- the header
+   carries zero controls today, it is sticky, and a control at the 48px floor
+   would take it from 57.5px to ~88px on every step at every scroll position.
+   The reasoning is recorded in spec 0014 R2; this is only where it lands.
+
+   `.wz-back` is `.wz-tertiary` with `width: auto`, because it shares a row with
+   `Skip` on step 03 and with `Start again` on step 04 rather than owning one.
+   Same family, same floor, same token. */
+.wz-actions {
+  display: flex; align-items: center; gap: 10px;
+}
+.wz-actions > .wz-tertiary { flex: 1; }
+
+.wz-back {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 14px 18px; min-height: var(--tap-tertiary);
+  background: transparent; border: none;
+  font-family: var(--font-mono); font-size: var(--step-badge); letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted); cursor: pointer;
+  transition: color 0.2s ease;
+}
+.wz-back:hover { color: var(--fg); }
+
 .wz-option {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   width: 100%; padding: 17px 18px; min-height: var(--tap-option);

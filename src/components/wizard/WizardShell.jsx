@@ -11,13 +11,15 @@
 // routes stay open with these five parameters as the thing a future migration
 // carries rather than re-invents.
 //
-// **One navigation seam** (0016 R10, `[~]`). `go` and `set` are the only ways
-// the wizard moves, and `commit` is the only place state and history are
-// written. The spec also asked for a `back()`; it is deliberately not here,
-// because nothing renders a control that would call it and an exported
-// function with no caller is the dead artifact REVIEW.md flags. #77 owns that
-// control and adds `back()` in the same change — `commit(next, 'pop')` is the
-// hook it lands on, and browser Back already works through it (R4).
+// **One navigation seam** (0016 R10, `[~]`). `go`, `set` and `back` are the
+// only ways the wizard moves, and `commit` is the only place state and history
+// are written. 0016 left `back()` out on purpose — nothing rendered a control
+// that would call it, and an exported function with no caller is the dead
+// artifact REVIEW.md flags — and named #77 as the change that would add it.
+// This is that change (spec 0014 R1): the control is a footer secondary on
+// steps 01–04, and `back()` is a `go` to an earlier step rather than a pop of
+// the history stack — see the note on `back` for the R3 failure that settles
+// which.
 //
 // Every size here is a token from src/styles/index.css, which is what R2 means
 // by "the canvas's tokens are the only source". A raw hex in this directory is
@@ -146,6 +148,56 @@ export default function WizardShell() {
 
   const row = useMemo(() => rows.find((r) => r.iso3 === iso3) ?? null, [rows, iso3])
 
+  // 0014 R5. Step 01's search text and step 02's input state live here rather
+  // than in the screens, because the screens are conditionally rendered and so
+  // unmount on every step change. Probed 2026-09-01: returning to step 02 after
+  // a remount left the input empty and no chip pressed, which would make R1's
+  // back move land the reader under a resolution panel quoting a word the box no
+  // longer holds.
+  //
+  // These stay component state rather than joining the five URL atoms. `group`
+  // is the answer and 0016 puts it in the link; `occ` is how the reader reached
+  // it, which is nobody else's business and would not survive being shared. A
+  // cold load from a link therefore has `group` and no `echo`, and step 02
+  // renders "Set to ..." — correct, because the person opening that link did not
+  // type anything.
+  //
+  // `occ.echo` is deliberately NOT derived from `occ.title`. It holds the string
+  // the *current* resolution was made from, so it is set on a resolve and
+  // cleared when a chip overrides -- R6. Derived from `title`, "type paralegal,
+  // resolve, then pick Managers" would report that you typed `paralegal` to
+  // reach Managers.
+  const [query, setQuery] = useState('')
+  const [occ, setOcc] = useState({ title: '', tried: false, echo: null })
+
+  // 0014 R1, landing on the hook 0016 left for it — though not on the hook it
+  // named. 0016 R10 suggested `commit(next, 'pop')`; that is wrong for a
+  // *button*, because `pop` deliberately writes no history at all (the browser
+  // has already moved when the popstate listener calls it), so a button using
+  // it would change the screen and leave the address bar describing the step
+  // the reader just left.
+  //
+  // The other candidate, `history.back()`, is the one worth recording, because
+  // it looks obviously right and **silently fails R3**. Popping returns the
+  // reader to a history entry written *before* the answers they gave later
+  // existed: back from step 02 lands on the step-01 entry, whose URL never
+  // carried a group, so Continue asks the occupation question again. The
+  // wizard's own test caught it — "going back to step 01 and forward again
+  // reproduces the same result screen without re-entering any answer" is the
+  // issue's definition of done, and popping raw history cannot satisfy it while
+  // the URL is the state.
+  //
+  // So a backwards move is an ordinary forward navigation to an earlier step,
+  // carrying every answer with it. `go` already does exactly that. The cost is
+  // that the history stack grows on a backwards move, so browser Back after
+  // using this control returns to the step you left — which is what "undo my
+  // last navigation" should do, and leaves 0016 R4's promise that Back walks
+  // the steps intact.
+  const back = useCallback(() => {
+    const { step: at } = stateRef.current
+    if (at > 0) go(at - 1)
+  }, [go])
+
   // Keyed by the country it belongs to, so "still loading" is derived rather
   // than written by the effect before the fetch starts. A stale result for a
   // country the reader has moved on from can never be shown.
@@ -270,17 +322,24 @@ export default function WizardShell() {
         </header>
 
         <main key={STEPS[step]} className="wz-step" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          {/* 0014 R1/R3. Every `onBack` is `go(step - 1)` and nothing else. That
+              is the whole of R3: a backwards move changes the step and touches
+              no answer, so country, group, age and education all survive it.
+              Contrast `onRestart` below, which is the one control that clears
+              anything -- and, probed 2026-09-01, clears three of the four
+              rather than all four: it never touches `iso3`. */}
           {step === 0 && <IntroScreen onStart={() => go(1)} />}
           {step === 1 && (
             <CountryScreen
               rows={rows} iso3={iso3} excluded={boot.excluded} notice={notice}
-              onPick={(v) => set({ iso3: v })} onNext={() => go(2)}
+              query={query} onQuery={setQuery}
+              onPick={(v) => set({ iso3: v })} onNext={() => go(2)} onBack={back}
             />
           )}
           {step === 2 && (
             <OccupationScreen
-              group={group} notice={notice}
-              onPick={(v) => set({ group: v })} onNext={() => go(3)}
+              group={group} notice={notice} occ={occ} onOcc={setOcc}
+              onPick={(v) => set({ group: v })} onNext={() => go(3)} onBack={back}
             />
           )}
           {step === 3 && (
@@ -288,13 +347,24 @@ export default function WizardShell() {
               {...common}
               onAge={(v) => set({ age: v })} onEdu={(v) => set({ edu: v })}
               onNext={() => go(4)}
+              onBack={back}
               onSkip={() => go(4, { age: null, edu: null })}
             />
           )}
           {step === 4 && (
             <ResultScreen
               {...common}
-              onRestart={() => go(0, { group: null, age: null, edu: null })}
+              onBack={back}
+              onRestart={() => {
+                // 0014 R5. `query` and `occ` used to be cleared for free, by the
+                // screens unmounting. Now that they live here, Start again has
+                // to say so -- otherwise a fresh run inherits the last typed
+                // title. It still does not touch `iso3`: probed 2026-09-01, the
+                // country survives a restart, and this spec's Non-goals leave
+                // that alone rather than changing it in passing.
+                setQuery(''); setOcc({ title: '', tried: false, echo: null })
+                go(0, { group: null, age: null, edu: null })
+              }}
             />
           )}
         </main>

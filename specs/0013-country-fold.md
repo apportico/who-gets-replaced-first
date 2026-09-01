@@ -1,6 +1,6 @@
 # 0013 — the step 01 country list folds
 
-**Status:** draft
+**Status:** in-review
 **Depends on:** 0011 (the search, its four match routes, the locale pre-fill and
 the stated absences — this spec tightens three of its acceptance criteria rather
 than replacing them) · 0012 (R4's anchored dock on step 01 is justified by a
@@ -66,6 +66,11 @@ than once.
 | `specs/0011-country-search.md` *Verification the suite cannot do* | read, 2026-09-01 | The browser table records **"Options rendered 177"** as a *pass*. The measurement was taken and read as confirmation rather than as the defect it was |
 | `specs/0012-desktop-layout.md` R4 | read, 2026-09-01 | Step 01 keeps the sticky dock (`wz-footer--anchored`) under the rule *"a screen that does not fit the viewport keeps its dock"*, justified by the measurement *"step 01 is still 177 rows and 12,739px tall at 1440"*. The rule survives this change; the measurement does not — see R6 |
 | `src/utils/countrySearch.js` `searchCountries` | read, 2026-09-01 | Returns `{ matches, absent }`, unbounded. `matches` is `countryOptions(rows)` verbatim for an empty query. No cap, no count of what was elided — so a truncating caller could not say how much it had hidden |
+| `src/components/wizard/wizard.render.test.jsx` | read, 2026-09-01 | The three assertions that encode the defect, by line: **`:281`** `document.querySelectorAll('[role=option]').length` `.toBe(177)`; **`:379`** `Escape` → `.toBe(177)`; **`:385`** the live region at rest `.toContain('177 of 177')`. These are the criteria in the suite, not only in the prose — so R5's tightening has three tests to move, not three sentences |
+| `src/utils/wizard.test.js` | read, 2026-09-01 | **`:87`** `countryOptions(rows).length` `.toBe(177)` and **`:177`** `hit('')` `.length` `.toBe(177)`. Both are assertions about the *predicate*, not the screen, and both stay — R5 keeps them and moves only the screen-side claim |
+| `scripts/desktop-measure.mjs` | read + run, 2026-09-01 | The 0012 R6 browser-measurement path. Walks seven viewports (375 / 480 / 767 / 768 / 1024 / 1440 / 1920), asserts the page title before measuring, and already has a `stepOne` probe reporting `optionCount` and `minOptionHeight`. Drives the system Chrome through `playwright-core`, which is installed `--no-save` and is deliberately not a dependency. R7 extends this rather than adding a second script |
+| `npm run verify` on this branch, before any change | run, 2026-09-01 | Exit 0 — lint, build, **142 Vitest across 5 files**, **159 pipeline tests**, the 0008 lint-config guard, and the pilot **skipped with its stated notice** because a fresh worktree has no `pipeline/raw/` cache. So the gate is green over the defect, which is the point: no automated check in this repo can currently see a 12,754px step 01 |
+| `specs/README.md` index | read, 2026-09-01 | 0011's row reads `done — 11 done`. R5 moves it to `8 done · 3 revised`; 0013 gets its own row |
 | `src/components/wizard/CountryScreen.jsx` | read, 2026-09-01 | Renders `matches.map(...)` with no slice, and the live region reads `{matches.length} of {total} countries match`. The screen is the only place a cap could be applied today, and applying it there would leave the live count describing a list nobody sees |
 
 ## The resting state, decided

@@ -99,8 +99,14 @@ function matchesIntl(option, q) {
   return name !== null && fold(name).includes(q)
 }
 
+// Prefix, not substring — the same shape route 2 uses for `iso3`. Substring
+// matching made aliases fire on fragments that were never meant to reach them:
+// `land` pulled Eswatini out of `swaziland` and the Netherlands out of
+// `holland`, and `or` pulled Cote d'Ivoire out of `ivory coast` and Timor-Leste
+// out of `east timor`, none of which any other route returns. No intended alias
+// is lost: `uk`, `turk`, `czech` and the rest all still prefix their key.
 function matchesAlias(option, q) {
-  return Object.entries(ALIASES).some(([key, iso3]) => iso3 === option.iso3 && key.includes(q))
+  return Object.entries(ALIASES).some(([key, iso3]) => iso3 === option.iso3 && key.startsWith(q))
 }
 
 /** The four routes, exported individually so a failing test names which broke. */

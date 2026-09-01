@@ -13,6 +13,13 @@ is open on exactly that). Recorded here so nobody later reads it as one.
 - **Self-review against `REVIEW.md`, 2026-09-01**, before the status moved:
   found R3's undefined ordering, R4's dead `USA`/`US` aliases and R10's stranded
   exports. Fixed, then draft → in-review → approved to unblock implementation.
+- **Re-reviewed on #68, 2026-09-01** — `CHANGES_REQUESTED` again, four items on
+  the implementation, all four upheld and fixed: `pipeline/README.md` said `iso2`
+  was null for three `EXTRA_AREAS` when it is null for one; `localeCountry` read
+  the region as subtag 1, which is the *script* on `zh-Hans-CN` and
+  `sr-Latn-RS`; aliases matched by substring, so `land` reached Eswatini and
+  `or` reached Cote d'Ivoire through no other route; and the active descendant
+  started at 0, painting a ring nobody had asked for.
 - **Reviewed on #68, 2026-09-01** — `CHANGES_REQUESTED`, five findings, all
   upheld: the World Bank probe row was wrong about Taiwan (mis-transcribed from
   my own probe); R2's diff bound omitted the golden-master fixture; R3's fold
@@ -240,7 +247,12 @@ us and why each entry exists. Scope is the reader's short form that **no other
 route already reaches** — `UK`, `UAE`, `Turkey`, `Czech Republic`, `Swaziland`,
 `Ivory Coast`, `East Timor`, `Holland`. It is not a second name list and never a
 second coverage source: an alias may only point at an `iso3` that R1 already
-returns.
+returns, and it is matched by **prefix, not substring** — the same shape route 2
+uses for `iso3`. Substring matching lets a fragment fall through to an alias no
+other route returns: `land` reaches Eswatini through `swaziland` and the
+Netherlands through `holland`, and `or` reaches Cote d'Ivoire through `ivory
+coast` and Timor-Leste through `east timor`. No intended alias is lost, since
+every one of them is a prefix of its own key.
 
 Two exclusions are load-bearing, because they are what keeps the table from
 growing into work already done. `USA` and `US` are **not** entries: R3's route 2
@@ -251,7 +263,8 @@ matches `iso3` by prefix and reaches `USA` already. `Burma` is **not** an entry:
 `iso3` present in `countryOptions(rows)`; and **every key is one the other three
 routes miss** — the test runs each alias key through the name/`iso3`/`Intl`
 routes with the alias table disabled and fails if any of them already resolved
-it. That is what stops the table quietly growing into work the standard already
+it; and **no fragment reaches an alias by prefix that should not** — `land` and
+`or` resolve to no alias, while `uk`, `turk` and `czech` still resolve to theirs. That is what stops the table quietly growing into work the standard already
 does, and it fails today for `usa`, `us` and `burma` by construction.
 
 **Done (2026-09-01).** Eight entries, not the ~30 a hand-written table
@@ -279,6 +292,13 @@ unmatched locale. That is the failure this repo cares about most: a silent null
 that reads as a working feature. R2's identifier is what fixes it, so fixing it
 belongs here rather than in a later spec.
 
+**And the region must be *parsed*, not split off.** `locale.split('-')[1]` is
+the script subtag on any tag that carries one — `zh-Hans-CN` gives `Hans`,
+`sr-Latn-RS` gives `Latn` — so that reading returns neither a pre-fill nor a
+stated absence for exactly the tags a Chinese, Serbian or Uzbek reader sends.
+`zh-Hans-CN` is this requirement's own flagship case. Use `Intl.Locale(…).region`,
+and treat a tag it refuses as an unresolved locale rather than an error.
+
 **One residual, recorded rather than fixed:** `zh-TW` cannot resolve either way,
 because `TWN` has no `iso2` and R2 declines to transcribe one. Taiwan is still
 in the list and still findable by name; it simply never pre-fills. Saying so
@@ -294,7 +314,10 @@ the moment it actually matters.
 selection nor a country. **At least three divergent-spelling locales must be
 asserted** — `ko-KR`→`KOR`, `ru-RU`→`RUS`, `vi-VN`→`VNM` — because an acceptance
 set drawn only from locales where the two spellings agree stays green over 29
-broken pre-fills. A render test mounts step 01 with `navigator.language`
+broken pre-fills. **And at least two script-bearing tags** — `zh-Hant-HK`→`HKG`,
+`sr-Latn-RS`→`SRB`, plus `zh-Hans-CN` reaching the stated absence for `CHN` —
+because an acceptance set drawn only from two-subtag tags stays green over every
+locale that carries a script. A render test mounts step 01 with `navigator.language`
 stubbed to `zh-CN` and asserts the rendered text contains `China` and that no
 option is pre-selected.
 
@@ -394,6 +417,13 @@ combobox is ~20 lines — so the `[~]` escape hatch back to `command` was not
 needed.
 ### R9. [x] The search is operable by keyboard and meets the touch and focus tokens
 
+**Nothing is active until the reader makes it so.** The screen opens with no
+active descendant and no ring: on open the reader has expressed nothing, so
+painting the accent ring around the first row — with no element focused —
+claims a keyboard position nobody took, and `Enter` on an untouched box would
+select it. From that state, down opens at the first match and up at the last;
+typing sets the first match active, where a highlight is a response to input.
+
 The input carries `role="combobox"`, `aria-expanded` and `aria-controls`
 pointing at the results list; the list carries `role="listbox"` and its rows
 `role="option"` with `aria-selected`. `ArrowDown`/`ArrowUp` move the active
@@ -408,7 +438,9 @@ focus `2px solid #FF5A2B` with `outline-offset: 3px`, never removed, and the
 
 **Acceptance:** Vitest + jsdom — typing narrows the list; `ArrowDown` then
 `Enter` selects the first match and advances state; `Escape` restores all 177;
-the live region's text contains the match count. `src/styles/contrast.test.js`
+the live region's text contains the match count. On open, with the locale
+stubbed so no pre-fill supplies a selection, there is no `data-active` row, no
+`aria-activedescendant`, and `Enter` selects nothing. `src/styles/contrast.test.js`
 still passes over any new colour. The computed `min-height` and the focus ring
 stay in *Verification* below, as 0010 R4/R5 do — jsdom does no layout.
 
@@ -508,10 +540,18 @@ asserted:
 | Body scrolls sideways | **false** |
 | `china` | 3 options — Hong Kong SAR, Macao SAR, Taiwan — plus the stated absence |
 | The absence is not a control | `!closest('button') && tabIndex < 0` → **true** |
+| Ring on open, before any input | **0 active rows**, `aria-activedescendant` **null** |
+| Ring after typing | **1 active row** — a highlight in response to input |
 | Arrow-key ring | `2px solid rgb(255, 90, 43)` at `offset 3px` — the `--accent` token exactly |
 | `aria-activedescendant` | set, and resolves to an element |
 | `prefers-reduced-motion: reduce` | animation duration `1e-06s` |
 | **Console** | `[vite] connecting…`, the React DevTools notice, `[vite] connected.` — **no errors, no warnings, no exceptions** |
+
+The open-state rows were measured in the wrong place first — after the `china`
+query rather than before it — and reported a ring on open that was really a ring
+in response to typing. Moved to before any input, they read 0 and null. Worth
+recording, because a browser check placed after the state it means to observe is
+the same defect as a test asserting the wrong thing, just harder to notice.
 
 The arrow-key ring is the one worth naming. Because the combobox keeps DOM focus
 in the input and moves an *active descendant*, `:focus-visible` never matches the

@@ -76,8 +76,18 @@ export function excludedCountries(rows) {
  */
 export function localeCountry(rows, locale) {
   const none = { iso3: null, excluded: null }
-  const region = String(locale ?? '').split(/[-_]/)[1]
-  if (!region || region.length !== 2) return none
+  // `Intl.Locale`, not `split('-')[1]`. Subtag 1 is the *script* on a tag that
+  // carries one — `zh-Hans-CN` yields `Hans`, `sr-Latn-RS` yields `Latn` — so
+  // the split reading dropped the region for every script-bearing locale and
+  // returned neither a pre-fill nor a stated absence. `zh-Hans-CN` is the
+  // flagship R5 case, and it was one of the tags it silently missed.
+  let region = null
+  try {
+    region = new Intl.Locale(String(locale)).region ?? null
+  } catch {
+    return none
+  }
+  if (!region) return none
   const code = region.toUpperCase()
   const hit = countryRows(rows).find((r) => r.iso2 === code)
   if (!hit) return none

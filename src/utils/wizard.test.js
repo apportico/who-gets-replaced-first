@@ -214,6 +214,21 @@ describe('0011 R4 — the residual aliases are ours, small, and earn their place
     }
   })
 
+  // Substring matching let a fragment reach an alias no other route returns:
+  // `land` pulled SWZ out of `swaziland` and NLD out of `holland`, `or` pulled
+  // CIV out of `ivory coast` and TLS out of `east timor`.
+  it('matches by prefix, so a fragment cannot fall through to an alias', () => {
+    const viaAlias = (q) => Object.entries(ALIASES)
+      .filter(([key]) => key.startsWith(fold(q)))
+      .map(([, iso3]) => iso3)
+    expect(viaAlias('land')).toEqual([])
+    expect(viaAlias('or')).toEqual([])
+    // and nothing intended was lost
+    expect(viaAlias('uk')).toEqual(['GBR'])
+    expect(viaAlias('turk')).toEqual(['TUR'])
+    expect(viaAlias('czech')).toEqual(['CZE'])
+  })
+
   it('and the excluded short forms really are already covered', () => {
     const usa = byIso3.USA
     const mmr = byIso3.MMR
@@ -247,6 +262,21 @@ describe('0011 R5 — pre-fill names the country it cannot select', () => {
       expect(localeCountry(rows, locale).iso3).toBeNull()
       expect(localeCountry(rows, locale).excluded).not.toBeNull()
     }
+  })
+
+  // The split reading took subtag 1, which is the *script* on these tags, so
+  // every one of them resolved to nothing — no pre-fill and no stated absence.
+  it('reads the region from a tag that carries a script subtag', () => {
+    expect(localeCountry(rows, 'zh-Hant-HK').iso3).toBe('HKG')
+    expect(localeCountry(rows, 'sr-Latn-RS').iso3).toBe('SRB')
+
+    const hans = localeCountry(rows, 'zh-Hans-CN')
+    expect(hans.iso3).toBeNull()
+    expect(hans.excluded).toMatchObject({ iso3: 'CHN' })
+
+    const uz = localeCountry(rows, 'uz-Latn-UZ')
+    expect(uz.iso3).toBeNull()
+    expect(uz.excluded).toMatchObject({ iso3: 'UZB' })
   })
 
   it('still returns nothing rather than a guess', () => {

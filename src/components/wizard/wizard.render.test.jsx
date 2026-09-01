@@ -334,6 +334,42 @@ describe('0011 R9 — the search is operable by keyboard', () => {
     expect(screen.getByRole('button', { name: /continue/i }).disabled).toBe(false)
   })
 
+  it('opens with nothing active, so the ring claims no position nobody took', () => {
+    // The locale is stubbed to something unresolvable so the pre-fill does not
+    // supply a selection — this test is about the *active* position, and an
+    // aria-selected row from a working pre-fill would mask the assertion.
+    Object.defineProperty(globalThis.navigator, 'language', { value: 'xx', configurable: true })
+    try {
+      startWizard()
+      expect(document.querySelector('[role=option][data-active=true]')).toBeNull()
+      expect(screen.getByRole('combobox').getAttribute('aria-activedescendant')).toBeNull()
+
+      // And Enter on an untouched box selects nothing rather than Afghanistan.
+      fireEvent.keyDown(screen.getByLabelText('Search countries'), { key: 'Enter' })
+      expect(document.querySelector('[role=option][aria-selected=true]')).toBeNull()
+      expect(screen.getByRole('button', { name: /continue/i }).disabled).toBe(true)
+    } finally {
+      delete globalThis.navigator.language
+    }
+  })
+
+  it('from untouched, down opens at the first match and up at the last', () => {
+    startWizard()
+    const input = screen.getByLabelText('Search countries')
+    const names = () => [...document.querySelectorAll('[role=option]')].map((o) => o.textContent)
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(document.querySelector('[role=option][data-active=true]').textContent)
+      .toBe(names()[0])
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(document.querySelector('[role=option][data-active=true]')).toBeNull()
+
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(document.querySelector('[role=option][data-active=true]').textContent)
+      .toBe(names()[names().length - 1])
+  })
+
   it('escape clears the query and restores the whole list', () => {
     startWizard()
     const input = screen.getByLabelText('Search countries')

@@ -22,7 +22,12 @@ import { searchCountries } from '@/utils/countrySearch'
 
 export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) {
   const [query, setQuery] = useState('')
-  const [active, setActive] = useState(0)
+  // -1, not 0: on open the reader has expressed nothing, so painting the accent
+  // ring around Afghanistan — with no element focused — claims a keyboard
+  // position nobody took, and `Enter` on an empty box would select it. Typing
+  // sets 0, where highlighting the top match is a response to input rather than
+  // an arbitrary pick.
+  const [active, setActive] = useState(-1)
   const listId = useId()
   const optionId = (i) => `${listId}-opt-${i}`
   const listRef = useRef(null)
@@ -32,7 +37,11 @@ export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) 
 
   function move(delta) {
     if (matches.length === 0) return
-    const next = (active + delta + matches.length) % matches.length
+    // From the untouched state, down opens at the first match and up at the
+    // last, rather than wrapping arithmetic off a -1 that means "none".
+    const next = active < 0
+      ? (delta > 0 ? 0 : matches.length - 1)
+      : (active + delta + matches.length) % matches.length
     setActive(next)
     const el = listRef.current?.children?.[next]
     // jsdom has no layout and no scrollIntoView; the guard keeps the test
@@ -49,7 +58,7 @@ export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) 
     } else if (e.key === 'Escape') {
       e.preventDefault()
       setQuery('')
-      setActive(0)
+      setActive(-1)
     }
   }
 

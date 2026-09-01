@@ -51,6 +51,7 @@ build-first-document-later approach.
 | [0009](0009-app-payload-drift.md) | The app payloads cannot drift from the code that writes them — regenerate `global_labor.json`, guard both | done — 6 done |
 | [0010](0010-mobile-first-redesign.md) | Mobile-first rebuild — the Replacement Date wizard on shadcn/ui, map and corridor overlay deleted | in-progress — 15 done · 5 revised · 1 not feasible |
 | [0011](0011-country-search.md) | Step 01 becomes a folded search over the 177 countries with an official series; `iso2` carried from the World Bank so `Intl.DisplayNames` supplies the alternates | done — 11 done |
+| [0012](0012-desktop-layout.md) | Desktop layout — one breakpoint at 768px, a 640px column, display scale, un-docked CTA, and the browser-measurement path restored | in-progress — 9 done · 3 revised, review rounds 1–2 addressed |
 
 ## Starting a new spec
 

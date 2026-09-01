@@ -1,0 +1,32 @@
+{
+  "375": {
+    "column": 375,
+    "h1": 66,
+    "h2": 46,
+    "stat": 38,
+    "ctaHeight": 60,
+    "dockPosition": "sticky",
+    "scrollEqualsViewport": true,
+    "errorCount": 0
+  },
+  "480": {
+    "column": 480,
+    "h1": 66,
+    "h2": 46,
+    "stat": 38,
+    "ctaHeight": 60,
+    "dockPosition": "sticky",
+    "scrollEqualsViewport": true,
+    "errorCount": 0
+  },
+  "767": {
+    "column": 480,
+    "h1": 66,
+    "h2": 46,
+    "stat": 38,
+    "ctaHeight": 60,
+    "dockPosition": "sticky",
+    "scrollEqualsViewport": true,
+    "errorCount": 0
+  }
+}

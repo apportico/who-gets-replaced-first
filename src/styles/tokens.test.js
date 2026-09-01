@@ -206,7 +206,33 @@ describe('R5 — the touch targets and the focus ring are declared', () => {
     expect(css).not.toMatch(/outline:\s*none/)
   })
 
-  it('the column is capped at the canvas width', () => {
+  // 0012 R10. This assertion used to read "the column is capped at the canvas
+  // width" and check one token. The canvas has no desktop artboard, so 0012
+  // states the desktop contract itself, and the guard follows it rather than
+  // being deleted to let the change land: two widths, exactly one breakpoint,
+  // and the wide column reached through the token rather than a literal.
+  it('two column widths, and exactly one width breakpoint', () => {
     expect(css).toMatch(/--column:\s*480px/)
+    expect(css).toMatch(/--column-wide:\s*640px/)
+
+    const widthQueries = css.match(/@media\s*\(min-width:[^)]*\)/g) ?? []
+    expect(widthQueries).toEqual(['@media (min-width: 768px)'])
+
+    expect(css).toMatch(/@media\s*\(min-width:\s*768px\)[\s\S]*--column:\s*var\(--column-wide\)/)
+  })
+
+  it('the desktop block carries the display scale and un-docks the CTA', () => {
+    const block = css.slice(css.indexOf('@media (min-width: 768px)'))
+    expect(block).toMatch(/--step-h1:\s*78px/)
+    expect(block).toMatch(/--step-h2:\s*54px/)
+    expect(block).toMatch(/--step-stat:\s*44px/)
+    // 0012 R4 is scoped, and the scope is the assertion: an unqualified
+    // `.wz-footer` here would put step 01's only way forward 15,433px below
+    // the fold at 1440, which is what review caught.
+    expect(block).toMatch(/\.wz-footer:not\(\.wz-footer--anchored\)\s*{[^}]*position:\s*static/)
+    expect(block).not.toMatch(/\.wz-footer\s*{[^}]*position:\s*static/)
+    // Body and label sizes are NOT in the desktop block: a wider measure is a
+    // display-type problem, and 0008 R4's 11px floor is a floor, not a step.
+    expect(block).not.toMatch(/--step-body|--step-badge|--step-meta|--step-eyebrow/)
   })
 })

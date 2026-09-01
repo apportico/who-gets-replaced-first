@@ -266,9 +266,15 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     expect(small).toEqual([])
   })
 
-  it('the column is capped at 480px and the tokens carry the canvas values', () => {
+  // 0012 R10. jsdom applies no media query, so what this can honestly assert
+  // is the *base* column — the phone value — and that the desktop width is
+  // declared as a token beside it. The breakpoint's effect is browser-only and
+  // is checked by scripts/desktop-measure.mjs, which is the whole reason that
+  // script exists.
+  it('the base column is 480px, the wide column is declared, and the tokens carry the canvas values', () => {
     const root = getComputedStyle(document.documentElement)
     expect(root.getPropertyValue('--column').trim()).toBe('480px')
+    expect(root.getPropertyValue('--column-wide').trim()).toBe('640px')
     expect(root.getPropertyValue('--tap-primary').trim()).toBe('60px')
     expect(root.getPropertyValue('--tap-option').trim()).toBe('56px')
     expect(root.getPropertyValue('--tap-tertiary').trim()).toBe('48px')

@@ -94,7 +94,12 @@
   --step-eyebrow: 11px;  --tr-eyebrow: 0.2em;
 
   /* -- layout ------------------------------------------------------------ */
+  /* Two widths, one breakpoint. Spec 0012 R2: the phone column is the canvas's
+     480px, and above 768px it becomes 640px -- see the single @media block at
+     the foot of this file. Both are tokens because WizardShell.jsx reads
+     var(--column) and 0010 R2 keeps raw px out of the component layer. */
   --column: 480px;
+  --column-wide: 640px;
   --gutter: 22px;
 }
 
@@ -207,7 +212,9 @@ html, body {
    --------------------------------------------------------------------------- */
 @keyframes stepin { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 @keyframes fade   { from { opacity: 0; } to { opacity: 1; } }
-@keyframes draw   { from { stroke-dashoffset: 400; } to { stroke-dashoffset: 0; } }
+/* 0012 R12: `1`, not `400`. The path declares pathLength="1", so one unit is
+   the whole line whatever width it is rendered at. */
+@keyframes draw   { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes pulse  { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
@@ -400,4 +407,54 @@ html, body {
 .wz-footer {
   position: sticky; bottom: 0; padding: 18px 0 0;
   background: linear-gradient(to top, var(--bg) 62%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+   Spec 0012 R1. The one width breakpoint.
+
+   768px is where this app already put its desktop split: spec 0008 R1 wrote it
+   at Tailwind's `md:`, which is 768. That code is gone -- 0010 deleted the last
+   consumer -- so the precedent is a recorded decision rather than a live one.
+   The standalone argument is the probe: 768 already carries 37.5% empty ground,
+   1440 carries 66.7% and 1920 carries 75%. Everything the desktop layout
+   changes lives in this block, so a reviewer reads the whole desktop contract
+   in one place and the measure script can assert there is exactly one width
+   condition in the parsed stylesheet.
+
+   It sits at the END of the file deliberately. `.wz-footer` is declared above
+   at equal specificity, so R4's override in an earlier block would silently
+   lose the cascade -- the class of failure CLAUDE.md's @import note is about:
+   a file that says one thing while the browser does another.
+   --------------------------------------------------------------------------- */
+@media (min-width: 768px) {
+  :root {
+    /* R2. A token change, so no component changes: WizardShell.jsx:79 already
+       reads maxWidth: var(--column). */
+    --column: var(--column-wide);
+
+    /* R3. Display type only. Body, mono and every label size stay exactly as
+       they are -- a wider measure is a display-type problem, not a
+       reading-size one, and 0008 R4's 11px floor on mono labels is a floor,
+       not a scale step that grows with the column. */
+    --step-h1:   78px;
+    --step-h2:   54px;
+    --step-stat: 44px;
+  }
+
+  /* R4. Nothing reaches for the bottom of a 900px window with a thumb, so the
+     primary action rejoins the flow. The gradient goes with it: the fade
+     exists to say "content continues under a floating bar", and above the
+     breakpoint there is no floating bar for it to explain.
+
+     `:not(.wz-footer--anchored)` scopes this to steps 02 and 03. Step 01 opens
+     as the whole country list -- a search filters it, but nothing is filtered
+     until someone types -- so un-docking it put its only way forward thousands
+     of pixels below the fold, invisible to the R4 and R7 criteria as first
+     written because nothing overflowed and nothing errored. A screen that does
+     not fit the viewport keeps its dock. No pixel figure here on purpose: it
+     moved once already, when 0011 took the list from 218 rows to 177. */
+  .wz-footer:not(.wz-footer--anchored) {
+    position: static;
+    background: none;
+  }
 }

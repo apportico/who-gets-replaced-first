@@ -155,7 +155,12 @@ export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) 
         )}
       </div>
 
-      <div className="wz-footer">
+      {/* 0012 R4: `--anchored` keeps this dock sticky at every width. Steps 02
+          and 03 un-dock above the breakpoint because their screens fit the
+          viewport. This one does not: an empty query lists all 177 countries,
+          and a static footer after that list puts "Continue" thousands of
+          pixels below the fold on the step with no other way forward. */}
+      <div className="wz-footer wz-footer--anchored">
         <button type="button" className="wz-cta" onClick={onNext} disabled={!iso3}>
           Continue →
         </button>

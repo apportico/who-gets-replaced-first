@@ -48,11 +48,25 @@ export default function Sparkline({
             stroke="var(--border-strong)" strokeWidth="1" strokeDasharray="3 4"
           />
         )}
+        {/* 0012 R12. Two changes, and they only work together.
+            `pathLength="1"` normalises the path to one unit, so `dasharray: 1`
+            is "exactly one whole line" at any rendered width — replacing a
+            literal `400` that was a guess at the widest the line would ever be.
+            At the 480px column it happened to be a big enough guess; at 640px
+            the trend stopped drawing 180px short of its own end dot.
+
+            `vector-effect: non-scaling-stroke` had to go with it. It takes the
+            dash pattern out of the viewBox's coordinate system too, so the
+            normalised dash was measured unscaled and then painted in screen
+            pixels — which clipped the line at ~52% instead of 72%. Losing it
+            costs almost nothing here: preserveAspectRatio="none" with a
+            viewBox height equal to the rendered height means scaleY is exactly
+            1, so a near-horizontal sparkline keeps its 1.6px weight; only a
+            steep segment thickens, and this series moves 1.2pp in 12 years. */}
         <path
           d={d} fill="none" stroke="var(--fg)" strokeWidth="1.6"
-          strokeLinejoin="round" strokeDasharray="400"
+          strokeLinejoin="round" pathLength="1" strokeDasharray="1"
           style={{ animation: 'draw 1.2s ease both' }}
-          vectorEffect="non-scaling-stroke"
         />
         <circle cx={px(last.year)} cy={py(last.value)} r="3.2" fill="var(--accent)" />
       </svg>

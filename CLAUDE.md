@@ -60,10 +60,22 @@ motion; this section is the extracted contract so the values are in-tree and
 reviewable. **If a value here and the canvas disagree, the canvas wins — and fix
 this file in the same change.**
 
+**Except above 768px, where the canvas has nothing to say.** It is a *mobile*
+canvas — every artboard is one 480px column, and a 2026-09-01 probe could not
+even enumerate them mechanically (the export is a bundler shell whose artboards
+ride inside compressed blobs). So there is no desktop artboard to lose an
+argument with, and **spec 0012 is the authority on the desktop layout**: the
+breakpoint, both column widths, the desktop display scale and the un-docked CTA
+are settled there, not on the canvas. A future desktop artboard would supersede
+0012 the way the canvas supersedes this file — and would need the same note
+written back here.
+
 ### Shape
 
-Mobile-first, single column, **dark only**, `max-width: 480px` centred, page
-padding `22px`. A four-step wizard, not a dashboard:
+Mobile-first, single column, **dark only**, page padding `22px`. The column is
+`max-width: 480px` centred below `768px` and `max-width: 640px` above it —
+**one** width breakpoint, and spec 0012 R1 is the only thing that may add
+another. A four-step wizard, not a dashboard:
 
 | Step | Screen | What it must do |
 |---|---|---|
@@ -83,8 +95,14 @@ canvas's result screen ships. Treat the canvas as authoritative on layout and
 type, and this paragraph as authoritative on what is on the screen.
 
 A sticky header carries a pulsing live dot, the wizard title and `NN/04`, above a
-four-segment progress bar. Steps 01–03 carry a sticky footer CTA over a
-`linear-gradient(to top, #0D0C0A 62%, transparent)` fade.
+four-segment progress bar. Both stay **column-width**, not full-bleed: a
+four-segment bar spanning 1920px reads as a page loading bar, and the header
+belongs to the wizard rather than to the page (spec 0012, Non-goals). Below the
+breakpoint, steps 01–03 carry a sticky footer CTA over a
+`linear-gradient(to top, #0D0C0A 62%, transparent)` fade; **above it the CTA
+un-docks** — `position: static`, no gradient — because the fade exists to say
+"content continues under a floating bar" and there is no floating bar on a
+desktop window (0012 R4).
 
 The canvas has **no map**, and spec 0010 R1 deletes it: `LaborMap`,
 `LaborSidebar`, `LaborDetailPanel`, `LaborTimeline`, `ScenarioPanel`,
@@ -128,7 +146,10 @@ that checks the URL is in `index.css` cannot see it; check what the browser is
 asked to fetch.
 
 - **Instrument Serif 400** — display only. `h1` 66px/0.9/`-0.025em`, `h2`
-  46px/0.98/`-0.02em`, stat figures 38px. Italic is the emphasis device
+  46px/0.98/`-0.02em`, stat figures 38px; above the `768px` breakpoint the same
+  three grow to **78 / 54 / 44px** and nothing else in the scale moves — body,
+  mono and every label size are width-independent, and 0008 R4's 11px floor is a
+  floor, not a step that scales (0012 R3). Italic is the emphasis device
   (`replaced.` in the headline). The canvas's 132px result year and its 25px
   scenario sentence are **not** in this scale — neither element ships (R14) —
   though `font-variant-numeric: tabular-nums` still applies to the stat figures.

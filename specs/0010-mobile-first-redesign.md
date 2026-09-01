@@ -217,6 +217,17 @@ the result screen without it, R3 `[~]` for the four unrendered components — an
 an override with no requirement behind it is the thing "no code without a
 requirement ID" exists to prevent, whether the code is being added or removed.
 
+**`[~]` revised again 2026-09-01 — "the column token is 480px" is now
+conditional.** This requirement's acceptance asserts a single 480px column, and
+that clause is superseded by **[spec 0012](0012-desktop-layout.md)**: the column
+is 480px below `768px` and 640px above it, and `computed.test.jsx` asserts the
+*base* token because jsdom applies no media query. Nothing else in R5 moves —
+the sticky header, the four-segment progress bar, `stepin`, the focus ring and
+every touch-target floor hold at every width, and 0012 R5 pins the phone
+rendering against a baseline committed from `91ec0f6` so this spec's shipped
+behaviour cannot drift under a desktop change. R5 stays `[~]`, not reopened:
+what it built is what shipped, and 0012 widens it rather than correcting it.
+
 ### R6. [~] Step 01 — country, tagged by what the data actually carries
 
 List countries from the payload. Each row's `official series` / `no series` tag

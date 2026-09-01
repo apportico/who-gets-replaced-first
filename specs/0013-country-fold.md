@@ -1,0 +1,680 @@
+# 0013 — the step 01 country list folds
+
+**Status:** in-progress
+**Depends on:** 0011 (the search, its four match routes, the locale pre-fill and
+the stated absences — this spec tightens three of its acceptance criteria rather
+than replacing them) · 0012 (R4's anchored dock on step 01 is justified by a
+measurement this change moves)
+**Issue:** [#76](https://github.com/apportico/who-gets-replaced-first/issues/76)
+**Goal:** step 01 opens folded, and the criterion that let it ship unfolded is
+tightened in the same change, checked as:
+1. On a cold load of step 01 at 1440×900 and at 390×844, `document.body.scrollHeight`
+   is under two viewport heights — measured in a browser, not inferred from a
+   green build.
+2. `document.querySelectorAll('[role=option]').length` is bounded by the caps
+   this spec names, at rest and for every query, at both widths — and so is the
+   number of stated-absence lines rendered beside them.
+3. Typing still resolves to the right country and the match count still
+   announces.
+4. The no-series statements from 0011 R5 and R6 still appear.
+5. The 0011 acceptance criteria that pass against a 12,205px list are re-marked
+   `[~]` with what changed, so the same defect cannot ship again.
+6. The standing data rules are untouched: no figure loses its tier, no country
+   is imputed, and no country is dropped from the dataset — only from what is
+   *rendered before the reader has asked for it*.
+
+**Review record.** The green `review` check on
+[PR #87](https://github.com/apportico/who-gets-replaced-first/pull/87) is **not**
+a review: `.github/workflows/claude-review.yml` is inert until the Claude GitHub
+App is installed (issue #44), and it passes when it skips. Recorded here so
+nobody later reads it as one.
+
+- **Self-review against `REVIEW.md`, 2026-09-01**, before the status moved —
+  [review 5082517526](https://github.com/apportico/who-gets-replaced-first/pull/87#pullrequestreview-5082517526).
+  `REQUEST_CHANGES` in substance, posted as `COMMENT` because GitHub does not let
+  an author request changes on their own PR. Three findings, all upheld and fixed
+  in `dffd73b`:
+  1. **R2 exempted the stated-absence rows from the cap** on the reasoning that
+     there are only ever a few. Probed: `a` returns **39**, `i` 30, `s` and `an`
+     21 each — enough to break the goal's own two-viewport bound on the absences
+     alone, with the matches already capped. An unprobed claim inside a spec
+     whose whole subject is an unprobed claim.
+  2. **R1 keyed the resting state to the locale country**, so a reader who picks
+     France and presses `Escape` would have seen United Kingdom rendered while
+     France drove `Continue`.
+  3. **R1/R3 never named the resting copy**, so the implementation would have
+     inherited `CountryScreen.jsx:151`'s "No country matches that." as the
+     greeting for every reader whose locale does not resolve.
+- **Approved by Dani on 2026-09-01, directly rather than as a GitHub review**,
+  with the instruction to continue to implementation and leave the merge until it
+  is done. GitHub could not record it: the PR is self-authored, so
+  `reviewDecision` stays `REVIEW_REQUIRED` and is **not a meaningful signal on
+  this PR**. Written down here because the spec file is the only place that
+  approval exists — a later reader checking the PR's review state will find
+  nothing and should not conclude the spec was never approved.
+
+  Branch protection is neither routed around nor asked to be relaxed: `verify`
+  stays a required check and `enforce_admins` stays true, and the merge still
+  happens through the normal gate once the implementation lands.
+
+## Objective
+
+Step 01 renders every one of the 177 countries with an official series before
+the reader has typed anything. Spec 0011 calls the screen "a **folded** search";
+what shipped filters a list that is fully rendered until someone types, which is
+the 218-row scroll 0011 set out to remove, minus 41 rows.
+
+The cost is not only that it reads as unfinished on the first screen after the
+intro. It is that the locale pre-fill — the feature 0011 R5 exists for — lands
+somewhere around row 170 of 177 with no way to see it: a reader in the UK gets
+`United Kingdom` correctly `aria-selected` and 176 other countries stacked
+around it, so the pre-fill is buried by the very list it was meant to spare them.
+
+This spec folds the list, caps what a query renders, and states on screen when
+the cap has bitten. It also fixes the reason the defect could ship green: three
+of 0011's acceptance criteria are satisfied *by* a fully-rendered list, and one
+of them — "an empty query returns all 177, so the screen opens as a list and
+narrows" — specifies it outright.
+
+## Source verification
+
+Every row below was probed on **2026-09-01** against this branch. The rendered
+measurements were taken with `playwright-core` driving the system Chrome against
+`npm run dev` on a pinned port, the path spec 0012 R6 established; the page title
+was asserted before anything was measured, because this repo is checked out more
+than once.
+
+| Source | Probed | Result |
+|---|---|---|
+| Step 01 as it stands, cold load, **390×844** | Chrome, 2026-09-01 | **177** `[role=option]`, listbox **12,294px**, `body.scrollHeight` **12,754px** = **15.11 viewport heights**. The live region reads `177 of 177 countries match` |
+| Step 01 as it stands, cold load, **1440×900** | Chrome, 2026-09-01 | **177** options, listbox **12,294px**, `body.scrollHeight` **12,739px** = **14.15 viewport heights**. Confirms the issue's measurement (12,205 / 12,666) on this branch, within the few pixels a font-load difference explains |
+| A one-character query — `a` | Chrome, 2026-09-01 | **150** options, listbox **10,417px**, page **12,788px** at 390×844. The issue's "a one-character query must not re-render 177 rows" is real and is nearly the whole list |
+| A settled query — `united` | Chrome, 2026-09-01 | **3** options, page **844px** at 390×844 = exactly one viewport. The screen is already correct *once the reader has typed*; the defect is entirely in the resting state |
+| Locale pre-fill, `en-GB` and `en-US` | Chrome, 2026-09-01 | Both pre-select correctly — `aria-selected` on `United Kingdom` / `United States` — inside a 177-row list. The feature works and is unreadable, which is the issue's second complaint |
+| Row geometry | Chrome, 2026-09-01 | Option **62px** painted against a `min-height: 56px` floor, listbox `gap: 8px` → **70px per row**. Listbox top at **356px** (390×844) and **341px** (1440×900) from page top; sticky footer **78px**; header **58px** |
+| The two-viewport budget, derived from the above | computed, 2026-09-01 | 390×844 binds: `2 × 844 − 356 (chrome above) − 100 (footer clearance)` leaves **1,232px**, and `70N − 8 ≤ 1232` gives **N ≤ 17**. At 1440×900 the same arithmetic gives **N ≤ 19**. So any cap at or below 17 satisfies the definition of done at both widths |
+| Match-count distribution over the 177, by query length | Node, 2026-09-01 | **1 char** (24 distinct): max **150**, median 44 — only 13% are ≤12. **2 chars** (99 distinct): max **48**, median **5**, 87% ≤12. **3 chars** (157 distinct): max **7** — *every* three-character prefix already returns 7 or fewer. **4 chars**: max 4. This is what sizes the cap: at three characters the cap is unreachable, so it can only ever bite where the reader has not yet said enough to be shown a list |
+| Stated-absence rows returned per query, over all 218 | Node, 2026-09-01 | **Uncapped and not small.** `a` → **39** absent rows, `i` → 30, `s` → 21, `an` → 21. Worst case by query length, seeding from every country name in the payload: **1 char 39 · 2 chars 21 · 3 chars 12 · 4 chars 2**, with 99% of three-character and 100% of four-character queries at or under 3. Every realistic full-name query returns exactly **1** — `china`, `saudi`, `new zea`, `uzbek`, `oman`. This is what sizes the second cap in R2, and it is why the first draft of R2 was wrong |
+| `src/components/wizard/CountryScreen.jsx:151` | read, 2026-09-01 | `{matches.length === 0 && absent.length === 0 && ...}` renders **"No country matches that."** The branch is unreachable at rest today because an empty query returns all 177; under R1 it becomes the resting state for every reader whose locale does not resolve. R1 and R3 name the resting copy so it is not inherited by omission |
+| `employed_total` on the 177 — could the resting state be a largest-employment shortlist? | `src/data/global_labor.json`, 2026-09-01 | Derivable: **non-null for all 177**. Top 12 would be IND 591,567,723 · USA 167,494,389 · IDN 142,342,821 · NGA 113,009,751 · BRA 101,851,681 · PAK 80,542,639 · BGD 71,916,017 · RUS 71,219,082 · JPN 67,774,130 · MEX 60,057,827 · VNM 56,172,584 · ETH 54,892,293. **Declined** — see R1 |
+| `specs/0011-country-search.md` R3 | read, 2026-09-01 | *"An empty query returns all 177, so the screen opens as a list and narrows"*, and its acceptance asserts `""` → **177 results**. This is the criterion that passes against a 12,294px list — it does not merely fail to catch the defect, it requires it |
+| `specs/0011-country-search.md` R1 acceptance | read, 2026-09-01 | *"A render test asserts the number of option elements on step 01 equals `countryOptions(rows).length`"* — 177. A second criterion satisfied only by rendering everything |
+| `specs/0011-country-search.md` R9 acceptance | read, 2026-09-01 | *"`Escape` restores all 177"*. A third |
+| `specs/0011-country-search.md` *Verification the suite cannot do* | read, 2026-09-01 | The browser table records **"Options rendered 177"** as a *pass*. The measurement was taken and read as confirmation rather than as the defect it was |
+| `specs/0012-desktop-layout.md` R4 | read, 2026-09-01 | Step 01 keeps the sticky dock (`wz-footer--anchored`) under the rule *"a screen that does not fit the viewport keeps its dock"*, justified by the measurement *"step 01 is still 177 rows and 12,739px tall at 1440"*. The rule survives this change; the measurement does not — see R6 |
+| `src/utils/countrySearch.js` `searchCountries` | read, 2026-09-01 | Returns `{ matches, absent }`, unbounded. `matches` is `countryOptions(rows)` verbatim for an empty query. No cap, no count of what was elided — so a truncating caller could not say how much it had hidden |
+| `src/components/wizard/wizard.render.test.jsx` | read, 2026-09-01 | The three assertions that encode the defect, by line: **`:281`** `document.querySelectorAll('[role=option]').length` `.toBe(177)`; **`:379`** `Escape` → `.toBe(177)`; **`:385`** the live region at rest `.toContain('177 of 177')`. These are the criteria in the suite, not only in the prose — so R5's tightening has three tests to move, not three sentences |
+| `src/utils/wizard.test.js` | read, 2026-09-01 | **`:87`** `countryOptions(rows).length` `.toBe(177)` and **`:177`** `hit('')` `.length` `.toBe(177)`. Both are assertions about the *predicate*, not the screen, and both stay — R5 keeps them and moves only the screen-side claim |
+| `scripts/desktop-measure.mjs` | read + run, 2026-09-01 | The 0012 R6 browser-measurement path. Walks seven viewports (375 / 480 / 767 / 768 / 1024 / 1440 / 1920), asserts the page title before measuring, and already has a `stepOne` probe reporting `optionCount` and `minOptionHeight`. Drives the system Chrome through `playwright-core`, which is installed `--no-save` and is deliberately not a dependency. R7 extends this rather than adding a second script |
+| `npm run verify` on this branch, before any change | run, 2026-09-01 | Exit 0 — lint, build, **142 Vitest across 5 files**, **159 pipeline tests**, the 0008 lint-config guard, and the pilot **skipped with its stated notice** because a fresh worktree has no `pipeline/raw/` cache. So the gate is green over the defect, which is the point: no automated check in this repo can currently see a 12,754px step 01 |
+| `specs/README.md` index | read, 2026-09-01 | 0011's row reads `done — 11 done`. R5 moves it to `8 done · 3 revised`; 0013 gets its own row |
+| `src/components/wizard/CountryScreen.jsx` | read, 2026-09-01 | Renders `matches.map(...)` with no slice, and the live region reads `{matches.length} of {total} countries match`. The screen is the only place a cap could be applied today, and applying it there would leave the live count describing a list nobody sees |
+
+## The resting state, decided
+
+The issue offers three: the locale match alone, a handful of largest-employment
+countries, or an empty state with the count. **The resting state is the selected
+country alone, falling back to an empty state with the count**, and the
+largest-employment shortlist is declined.
+
+- **The selected country alone** — which on arrival *is* the locale match, since
+  the pre-fill is what seeds the selection. This is 0011 R5 doing the job it was
+  built for. The reader sees one row, their own country, already `aria-selected`,
+  and a `Continue` that is already enabled. The probe shows this works today and
+  is simply invisible; showing it alone is the whole fix for the reader on the
+  happy path.
+
+  **"The selected country", not "the locale country", and the difference is a
+  bug this spec caught in its own first draft.** R5 revises 0011 R9 so `Escape`
+  returns to the resting state. A reader in the UK who searches `france`, picks
+  it, then presses `Escape` would — under a locale-keyed resting state — see
+  *United Kingdom* rendered while *France* drove `Continue`: a screen showing one
+  country and acting on another. Keying the resting state to the selection is
+  identical on the happy path and has no such gap.
+- **An empty state with the count**, otherwise — which covers a locale that
+  resolves to nothing (`xx`, a bare `en`), and a locale that resolves to one of
+  the 41 with no series. In the second case 0011 R5's named absence is *already*
+  the copy on screen ("China reports no occupation breakdown to ILOSTAT, so it
+  is not in this list"), and it reads far better against an empty list than
+  against 177 rows of other countries.
+- **The largest-employment shortlist is declined.** It is derivable — the probe
+  above confirms `employed_total` is non-null for all 177 — so this is a choice,
+  not a limitation. It is declined because it is an editorial ranking the reader
+  did not ask for, on the first screen of the wizard, in a project whose first
+  rule is not to construct what no source states. Nothing publishes "the
+  countries a reader is most likely to want"; employment size is a stand-in for
+  it, and putting India, the United States and Indonesia in front of a reader in
+  Malta is a worse answer than putting Malta there. The locale route puts the
+  reader's own country first without inventing a preference order.
+
+## The cap, derived
+
+**Twelve.** Not chosen for looking right — the two probes above bound it from
+opposite sides:
+
+- **From the page budget:** 17 rows is the most that keeps `body.scrollHeight`
+  under two viewport heights at 390×844, the narrower and therefore binding
+  width. Twelve leaves about 30% headroom, which the truncation line, the
+  stated-absence line and any copy reflow will spend.
+- **From the query distribution:** every three-character prefix already returns
+  **7 or fewer** matches, and 87% of two-character prefixes return 12 or fewer.
+  So a cap of 12 is unreachable from three characters on: it can only bite at
+  one or two characters, which is exactly where the reader has not yet said
+  enough to be shown a list, and where the honest response is "keep typing"
+  rather than 150 rows.
+
+Twelve is also above the eight that would suffice for the three-character bound
+alone, deliberately: the extra four rows are what make two-character prefixes
+usable for most of the alphabet.
+
+**And a second cap, of three, on the stated absences.** The first draft of this
+spec exempted them, on the reasoning that there are only ever a few. That was
+reasoning rather than a probe, and the probe says otherwise: `a` returns **39**
+absent rows, `i` returns 30, `s` and `an` return 21 each. At roughly 60px per
+two-line note, thirty-nine of them is ~2,300px — a one-character query would
+break the two-viewport bound on the absences *alone*, with the matches already
+capped at 12.
+
+Three is what the data supports, and it costs the reader nothing: 99% of
+three-character queries and 100% of four-character ones already return three or
+fewer, and every realistic full-name query — `china`, `saudi`, `new zea`,
+`uzbek`, `oman` — returns exactly one. So the named statement is never elided
+for a reader who typed a country's name; the summary line only ever appears at
+one or two characters.
+
+**A cap that hides anything must say so.** The project's rule against blurring
+what is measured and what is constructed has a user-interface corollary: a
+truncated list presented as a whole list is a false statement about the data.
+So neither cap elides silently — the truncation is stated, on screen and in the
+live region, whenever it applies. For the absences that statement is a count,
+which is why capping them is available at all: `CLAUDE.md` allows dropping the
+row and forbids dropping the statement, and a count is a statement.
+
+## Requirements
+
+### R1. [x] Step 01 opens folded — the selected country alone, or nothing
+
+On a cold load of step 01, before the reader has typed, the listbox renders
+**the currently selected country and nothing else**, and **no options at all**
+when there is no selection. On arrival the selection is `localeCountry`'s
+pre-fill, so a reader whose locale resolves to a country with a series sees that
+one row, already `aria-selected`, above an enabled `Continue`.
+
+**Keyed to the selection, not to the locale.** R5 revises 0011 R9 so `Escape`
+returns to the resting state, and a locale-keyed resting state would then render
+the reader's *locale* country while their *picked* country drove `Continue` —
+one country shown, another acted on. The two readings are identical on arrival
+and differ only after a pick, which is exactly where the locale reading is wrong.
+
+**The resting copy is named here so it cannot be inherited by omission.**
+`CountryScreen.jsx:151` currently renders *"No country matches that."* whenever
+the listbox and the absences are both empty. That branch is unreachable today,
+because an empty query returns all 177; under this requirement it becomes the
+normal resting state for every reader whose locale does not resolve, and would
+greet them with a no-match message for a search nobody ran. So:
+
+| Resting state | Listbox | The line under it |
+|---|---|---|
+| A country is selected | that one country | none |
+| No selection | empty | *"Start typing to search all 177 countries."* |
+| No match, **query non-empty** | empty | the existing *"No country matches that."*, now gated on a non-empty query |
+
+The screen's other copy is unchanged and still carries the resting state's
+meaning: the ILOSTAT provenance sentence and its count of 177 (0011 R10), and
+the named absence when the locale resolved to a country with no series (0011 R5).
+
+The 177 are not removed from anything. `countryOptions` still returns 177,
+`searchCountries` still searches all of them, and every country reachable today
+is still reachable. What changes is only what is *rendered before the reader has
+asked for it*.
+
+**Acceptance:** In a real browser at **390×844** and **1440×900**, on a cold load
+of step 01: with `locale: 'en-GB'`, `document.querySelectorAll('[role=option]').length`
+is **1** and its text is `United Kingdom`; with a locale that resolves to nothing
+it is **0** and the page contains `Start typing to search all 177 countries` and
+**not** `No country matches that`; with `locale: 'zh-CN'` it is **0** and the page
+contains `China reports no occupation breakdown to ILOSTAT`. At every one of
+those, `document.body.scrollHeight / window.innerHeight` is **< 2**.
+
+Vitest covers the same three cases in jsdom by counting option nodes, plus the
+case the browser walk cannot easily reach: search `france`, pick it, press
+`Escape`, and assert the single rendered option is **France** and not the locale
+country — the bug this requirement's first draft would have shipped.
+
+**Done (2026-09-01).** `renderedCountries(rows, query, selectedIso3)` in
+`countrySearch.js`, rendered by `CountryScreen`.
+
+Measured in Chrome, `locale: 'en-GB'`, cold load of step 01:
+
+| | 375×812 | 1440×900 | before |
+|---|---|---|---|
+| `[role=option]` | **1** — `United Kingdom`, `aria-selected` | **1** | 177 |
+| `body.scrollHeight` | **812px** | **900px** | 12,754 / 12,739px |
+| viewport heights | **1.00** | **1.00** | 15.11 / 14.15 |
+
+A 15.7x reduction at 375, and the pre-fill is now the *only* thing on the screen
+rather than row 170 of 177.
+
+Vitest covers the three resting cases and the one the browser walk cannot easily
+reach: `en-GB` → 1 option, `United Kingdom`, `aria-selected`, `Continue`
+enabled; `xx` → 0 options, the page reads `Start typing to search all 177
+countries` and **not** `No country matches that`; `zh-CN` → 0 options and
+`China reports no occupation breakdown to ILOSTAT` (0011 R5 intact, and reading
+better against an empty list than against 177 other countries).
+
+And the case the self-review caught before it shipped: pick `France`, press
+`Escape`, and the single resting row is **France**, not the locale's country.
+Keyed to the locale this would have rendered one country while acting on another.
+
+### R2. [x] A query renders at most 12 matches and 3 stated absences, both capped in the pure function
+
+`searchCountries` takes the limits and returns what it truncated, rather than
+leaving the screen to slice lists the live region has already counted. Its return
+shape gains the totals so the two can never disagree:
+
+```
+searchCountries(rows, query, { limit, absentLimit })
+  -> { matches, absent, matchCount, absentCount, truncated, absentTruncated }
+```
+
+`matches` is at most `limit` entries and `absent` at most `absentLimit`, both
+still in `countryOptions`' alphabetical order (0011 R3 — no relevance ranking).
+`matchCount` and `absentCount` are the sizes before truncation; the two
+`truncated` flags are the corresponding `count > length`.
+
+**Both lists are capped, and the first draft of this requirement exempted the
+absences.** It reasoned that there are only ever a few. Probed: `a` returns 39,
+`i` returns 30, `s` and `an` return 21 each — enough to break the goal's
+two-viewport bound on the absences alone. The exemption was an unprobed claim,
+which is the failure this project's *Source verification* discipline exists to
+catch, so it is recorded rather than quietly fixed.
+
+**Capping the absences is allowed only because the remainder is stated.**
+`CLAUDE.md` permits dropping the row and forbids dropping the statement. A named
+absence that becomes a counted absence is still a statement; one that becomes
+silence is not, and would be a Pass 1 finding on this spec.
+
+The defaults are **12** and **3**, exported as named constants so the screen, the
+tests and the browser script all read the same numbers.
+
+**Acceptance:** Vitest — `searchCountries(rows, 'a')` returns `matchCount` 150,
+`matches.length` 12, `truncated` true, `absentCount` 39, `absent.length` 3 and
+`absentTruncated` true; the 12 returned are the first 12 of the uncapped 150 **in
+the same order**, and the 3 absences the first 3 of the uncapped 39;
+`searchCountries(rows, 'united')` returns `matchCount` 3, `matches.length` 3 and
+both flags false; `searchCountries(rows, 'china')` still returns 3 pickable and
+**1** absent (`CHN`) with `absentTruncated` false, so 0011 R6's flagship case is
+untouched by either cap; `searchCountries(rows, 'zzzz')` returns 0 and 0. In a
+browser at both widths, typing `a` renders **12** `[role=option]` nodes and at
+most **3** absence lines, and leaves `body.scrollHeight / innerHeight` **< 2**.
+
+**Done (2026-09-01).** `MATCH_LIMIT = 12` and `ABSENT_LIMIT = 3` in
+`countrySearch.js`; `searchCountries` takes both and returns `matchCount`,
+`absentCount`, `truncated` and `absentTruncated`.
+
+Vitest, against the committed payload: `a` → `matchCount` **150**,
+`matches.length` **12**, `truncated` true, `absentCount` **39**, `absent.length`
+**3**, `absentTruncated` true. The capped sets are `uncapped.slice(0, 12)` and
+`uncapped.slice(0, 3)` **by identity**, so the cap narrows the list without
+reordering it. `united` → 3/3 and both flags false. `china` → `['HKG','MAC','TWN']`
+pickable and `['CHN']` absent, neither flag set, so 0011 R6's flagship case is
+untouched by either cap. And the assertion that makes a cap of 3 safe: `china`,
+`saudi`, `new zea`, `uzbek` and `oman` each return `absentCount` **1**, so a
+reader who typed a country's name never loses the named statement to a count.
+
+### R3. [x] Both truncations are stated on screen and announced, and the count keeps 0011's wording
+
+Whenever `truncated` is true the screen renders a line saying how many matches
+are shown and that typing narrows further; whenever `absentTruncated` is true it
+renders the remaining absences as a count. Both go in the polite live region as
+well as on screen, because a screen-reader user is exactly the reader who cannot
+see that a list was cut.
+
+0011 R6's `N of 177 countries match` wording is kept **verbatim** as the count
+clause, so a screen-reader user hears the sentence they heard before with the
+truncation appended rather than substituted.
+
+**At rest the live region is empty.** Not `177 of 177 countries match`, which is
+true of the predicate and false of the screen — and the gap between those two is
+the defect this spec exists to fix. Empty is also the correct `aria-live`
+semantic: nothing has changed yet, so there is nothing to announce, and the first
+keystroke produces the first announcement.
+
+**Acceptance:** Vitest render — at rest the live region's `textContent.trim()` is
+exactly `''`; with the query `a` it contains `150 of 177 countries match`,
+`showing the first 12`, and a clause naming the **36** further absences, and the
+`showing the first 12` string also appears in the rendered page *outside* the
+`wz-sr-only` live region, so it is visible and not only announced; with the query
+`united` the live region is exactly `3 of 177 countries match` and neither
+truncation string appears anywhere on the page. In a browser, the visible lines
+are read back out of the rendered page rather than asserted.
+
+**Done (2026-09-01).** Both truncations render and both announce. Read back out
+of the rendered page at **375×812 and 1440×900**, identical at both:
+
+> `150 matches — showing the first 12. Keep typing to narrow.`
+> `American Samoa is in the dataset but reports no occupation breakdown, so there is no result to give you.`
+> `Andorra …` · `Antigua and Barbuda …`
+> `36 more countries matching that search are in the dataset but report no occupation breakdown.`
+
+Three named, thirty-six counted, nothing silently dropped. The live region reads
+`150 of 177 countries match, showing the first 12. 36 more matching countries
+report no occupation breakdown` — 0011 R6's wording verbatim, with the
+truncations appended rather than substituted.
+
+At rest `textContent.trim()` is exactly `''`, asserted positively in Vitest and
+re-checked in the browser at all seven viewports. `united` gives exactly
+`3 of 177 countries match` and no truncation string appears anywhere on the page.
+
+### R4. [x] Everything spec 0011 settled still holds
+
+This change moves *how much* is rendered and nothing else. Each of these is
+re-checked rather than assumed, because a fold is exactly the kind of change
+that silently takes a behaviour with it:
+
+- 0011 **R3/R4** — all four match routes: `korea`→`KOR`, `usa`→`USA` (iso3
+  prefix), `russia`→`RUS` (`Intl`), `turkey`→`TUR` (alias), `cote divoire`→`CIV`
+  (the fold).
+- 0011 **R5** — the locale pre-fill, including the divergent-spelling locales
+  (`ko-KR`→`KOR`, `ru-RU`→`RUS`, `vi-VN`→`VNM`) and the script-bearing tags
+  (`zh-Hans-CN` → the named absence for `CHN`).
+- 0011 **R6** — a query matching a dropped country names it, as text, not as a
+  control: for `china`, the string `China` appears outside any `button` /
+  `[role=option]`, and `zzzz` renders the no-match line and names no country.
+- 0011 **R9** — full keyboard operation: `ArrowDown` then `Enter` picks the
+  first match; nothing is active on open; `Escape` returns to the **resting
+  state** (see R5 — this is the one behaviour whose definition moves); the
+  option and input tap targets stay at or above 56px and the focus ring stays
+  `2px solid #FF5A2B` at `outline-offset: 3px`.
+
+**Acceptance:** The existing Vitest cases for all of the above pass unmodified,
+except the three R5 identifies. In a browser at both widths: typing `united`
+then `ArrowDown` then `Enter` advances to step 02 with `GBR` selected; the
+`china` absence line is present and satisfies `!closest('button') && tabIndex < 0`;
+an arrow-key-active option computes `outline: 2px solid rgb(255, 90, 43)` at
+offset `3px`; the console carries no errors.
+
+**Done (2026-09-01).** Every 0011 case passes, and only the three R5 names
+changed. `npm run verify` runs the whole suite: **159 Vitest across 5 files**, up
+from 142, with the 17 new cases added and none removed.
+
+The browser walk re-checked the parts jsdom cannot: the `china` absence is still
+present and still satisfies `!closest('button') && tabIndex < 0`; the arrow-key
+ring is still `2px solid rgb(255, 90, 43)` at `offset 3px`; option and CTA
+targets still clear 56px and 60px; **0 console or page errors at all seven
+viewports**.
+
+One thing this requirement caught that the caps did not: `minOptionHeight` was
+`Math.min(...[])` when nothing renders, which is `Infinity` and passes a
+`>= 56` check while measuring nothing. Under this spec step 01 can legitimately
+render zero options, so that guard would have become a tap-target check that
+passes by having no targets — the same shape of false green as the defect being
+fixed. It returns `null` now, and the check skips explicitly rather than by
+accident.
+
+### R5. [x] The 0011 criteria that pass against a 12,294px list are re-marked `[~]`
+
+Three acceptance criteria in `specs/0011-country-search.md` are satisfied *only*
+by rendering all 177, and one of them specifies it. They are re-marked `[~]`
+in the same change, each with what changed and why, pointing here — not left to
+pass again, which is the failure mode the `[x]`/`[!]`/`[~]` marks exist for:
+
+| 0011 | Text that has to move | Becomes |
+|---|---|---|
+| **R3** | *"An empty query returns all 177, so the screen opens as a list and narrows"*, asserted as `""` → 177 results | An empty query returns all 177 **from the predicate**; what the *screen* renders at rest is R1 here. The pure-function assertion stays — it is the correct test of a search predicate — and the screen-side claim moves out of it |
+| **R1** | *"A render test asserts the number of option elements on step 01 equals `countryOptions(rows).length`"* | The render assertion becomes the resting state and the cap; `countryOptions(rows).length === 177` stays as the *data* assertion it always should have been |
+| **R9** | *"`Escape` restores all 177"* | `Escape` clears the query and returns to the resting state |
+
+0011's *Verification the suite cannot do* table also records **"Options rendered:
+177"** as a passing row. It gains a line saying that this measurement was the
+defect and was read as a confirmation — the browser check ran, produced the
+right number, and nobody asked whether the number was right.
+
+**Acceptance:** `grep` — `specs/0011-country-search.md` contains `### R1. [~]`,
+`### R3. [~]` and `### R9. [~]`, each revision note naming spec 0013; its
+*Verification* table carries the note on the 177-options row; and
+`specs/README.md`'s 0011 index row moves from `11 done` to `8 done · 3 revised`.
+The suite contains no assertion that step 01 renders `countryOptions(rows).length`
+option elements.
+
+**Done (2026-09-01).** `specs/0011-country-search.md` R1, R3 and R9 are `[~]`,
+each naming this spec and recording what moved:
+
+- **R1** — the requirement holds; its *render* acceptance does not. The
+  `=== 177` render assertion is replaced by 0013 R1's resting state and R2's cap;
+  `countryOptions(rows).length === 177` stays in `wizard.test.js` as the data
+  claim it always should have been.
+- **R3** — *"an empty query returns all 177, so the screen opens as a list and
+  narrows"*. The first half is a correct statement about a predicate and stays
+  asserted; the second half took a claim about a predicate and made it a claim
+  about a screen, which is the defect written as a requirement.
+- **R9** — `Escape` returns to the resting state rather than restoring 177, and
+  the live region is empty at rest rather than reading `177 of 177`.
+
+0011's *Verification the suite cannot do* table keeps its `Options rendered: 177`
+row and gains the note that **this row is the defect, recorded as a pass**:
+nothing about the check was faulty — real browser, right property, right number
+— but it was compared against `countryOptions(rows).length`, an expectation
+derived from the implementation and therefore one that cannot fail.
+
+`specs/README.md` moves 0011 from `done — 11 done` to
+`done — 8 done · 3 revised (R1/R3/R9 by 0013)`. And `grep` confirms no assertion
+that step 01 renders `countryOptions(rows).length` option elements survives.
+
+### R6. [x] 0012 R4's dock survives, but its stale justification is corrected
+
+Spec 0012 R4 keeps the sticky dock on step 01 alone, under the rule *"a screen
+that does not fit the viewport keeps its dock"*, and justifies it with a
+measurement this change falsifies: *"step 01 is still 177 rows and 12,739px tall
+at 1440"*.
+
+**The rule still selects the same answer, and the dock stays.** Re-derived from
+the geometry above rather than assumed: at 1440×900 the listbox starts at 341px
+and twelve rows are 832px, so a full result set puts the page at roughly 1,250px
+against a 900px viewport — step 01 still does not fit, and a static footer would
+still put `Continue` below the fold. What changes is the size of the miss, not
+its direction.
+
+So 0012 R4 is not reopened. Its measurement is corrected in place with a note
+pointing here, so the next reader does not find a spec claiming 12,739px against
+a screen that measures a tenth of that and conclude one of them is lying.
+
+**Acceptance:** In a browser at 1440×900 and 1920×1080, on step 01 with a query
+returning 12 matches, the dock computes `position: sticky` and the `Continue`
+button's box is on screen at first paint. `specs/0012-desktop-layout.md` R4
+carries the corrected measurement naming spec 0013, and steps 02 and 03 still
+compute `position: static` above the breakpoint.
+
+**Done (2026-09-01).** The dock stays, and 0012 R4's justification is corrected
+rather than reopened.
+
+Re-derived from measurement, not inherited: `scripts/desktop-measure.mjs` reports
+step 01 `position: sticky` with `wz-footer--anchored` and the CTA on screen at
+first paint at **all seven viewports**, while steps 02 and 03 still compute
+`static` above the breakpoint. 0012 R4's rule — *"a screen that does not fit the
+viewport keeps its dock"* — selects the same answer for the same reason: the
+listbox starts 341px down and twelve rows cost 832px, so a full result set is
+~1,250px against a 900px window.
+
+What changed is the size of the miss, from **12,739px** to **1,446px** at
+1440×900 — 13.8 viewport heights to 1.6. It did not change sides. The stale
+measurement is annotated in `specs/0012-desktop-layout.md` rather than left as
+the only place in the repo claiming step 01 is twelve thousand pixels tall.
+
+### R7. [x] The fold is measurable on demand, and `npm run verify` is green
+
+The height half of this spec cannot be asserted in jsdom, so it goes where 0012
+R6 put the same problem: `scripts/desktop-measure.mjs`, extended with the step 01
+fold measurements — option count and `body.scrollHeight / innerHeight` at rest,
+after a one-character query, and after a settled query, at every viewport it
+already walks. The offline suite keeps the half it can see: the option counts,
+the cap, the live-region text and the keyboard behaviour, none of which need
+layout.
+
+`playwright-core` stays an unsaved manual dependency exactly as 0012 R6 left it
+— `verify` and CI must run in a fresh clone with no network and no browser
+download.
+
+**Acceptance:** `npm run verify` exits 0 — lint, build, the Vitest suite
+including every new case, `test:pipeline`, and the pilot (or its stated skip in
+a worktree with no `pipeline/raw/` cache). `node scripts/desktop-measure.mjs`
+reports the step 01 fold rows at all seven viewports with no failures, and
+`package.json` gains no dependency.
+
+**Done (2026-09-01).** `scripts/desktop-measure.mjs` gains a `fold` probe run at
+every one of its seven viewports, in the three states the reader meets in order:
+at rest, after a one-character query, and after a settled one. It asserts the
+resting option count is 0 or 1, the live region is empty at rest, the caps hold,
+the live region carries the count **and** the truncation, and
+`body.scrollHeight / innerHeight < 2` in all three states.
+
+The numbers are **printed as well as checked** — a bound that only ever prints
+"passed" says nothing about how close it came:
+
+```
+ 375  fold  rest 1opt   812px 1vp | "a" 12opt 3abs  1531px 1.89vp | "united" 3opt   812px 1vp
+ 480  fold  rest 1opt   900px 1vp | "a" 12opt 3abs  1514px 1.68vp | "united" 3opt   900px 1vp
+ 767  fold  rest 1opt   900px 1vp | "a" 12opt 3abs  1514px 1.68vp | "united" 3opt   900px 1vp
+ 768  fold  rest 1opt  1024px 1vp | "a" 12opt 3abs  1446px 1.41vp | "united" 3opt  1024px 1vp
+1024  fold  rest 1opt   768px 1vp | "a" 12opt 3abs  1446px 1.88vp | "united" 3opt   768px 1vp
+1440  fold  rest 1opt   900px 1vp | "a" 12opt 3abs  1446px 1.61vp | "united" 3opt   900px 1vp
+1920  fold  rest 1opt  1080px 1vp | "a" 12opt 3abs  1446px 1.34vp | "united" 3opt  1080px 1vp
+
+all checks passed
+```
+
+**One correction to this spec's own arithmetic, recorded rather than quietly
+absorbed.** *The cap, derived* claims twelve leaves "about 30% headroom". It was
+computed at 390×844; the narrowest viewport the script actually walks is
+**375×812**, where the worst case measures **1.89 viewports** — an 11% margin,
+not 30%. The bound holds at every width and the definition of done is met, but
+the headroom is thinner than the derivation said, and the honest number is 11%.
+That is precisely why R7 puts this in a script that runs at every viewport: copy
+growth would eat 11% long before anyone noticed by eye.
+
+`npm run verify` exits 0 — lint, typecheck, the schema-brand guard, build,
+**159 Vitest**, **159 pipeline tests** (unchanged, as an app-only change
+requires), the 0008 lint-config guard, and the pilot skipped with its stated
+worktree notice. `package.json` is unchanged; `playwright-core` stays unsaved.
+
+## Implementation Plan
+
+**Planned:** 2026-09-01
+
+### Files to create
+
+None. Every change lands in a file that already exists — which is the shape of
+this ticket: nothing new is being built, something built too eagerly is being
+folded.
+
+### Files to modify
+
+| Path | Change |
+|---|---|
+| `src/utils/countrySearch.js` | R2 — `MATCH_LIMIT = 12` and `ABSENT_LIMIT = 3`; `searchCountries` takes both limits and returns `matchCount` / `absentCount` / `truncated` / `absentTruncated`. R1 — a new `renderedCountries(rows, query, selectedIso3)`, the screen-facing resolver that returns the resting state for an empty query and delegates to `searchCountries` otherwise |
+| `src/components/wizard/CountryScreen.jsx` | R1, R3 — render `renderedCountries` rather than `searchCountries`; the resting copy table; the two truncation lines; the live region empty at rest; `No country matches that.` gated on a non-empty query; `active` resets to `-1` rather than `0` when the query empties |
+| `src/utils/wizard.test.js` | R2, R4 — the cap cases and the counts; 0011's `hit('') → 177` predicate assertion **stays** |
+| `src/components/wizard/wizard.render.test.jsx` | R1, R3, R4, R5 — the resting state, the France/`Escape` case, the live-region strings, and the three assertions R5 moves (`:281`, `:379`, `:385`) |
+| `scripts/desktop-measure.mjs` | R7 — a `fold` probe at every viewport: option count and `body.scrollHeight / innerHeight` at rest, after `a`, and after `united`, plus the absence-line count. R6 — step 01's dock re-checked against the folded screen |
+| `specs/0011-country-search.md` | R5 — R1, R3 and R9 re-marked `[~]`; the *Verification* table's "Options rendered 177" row annotated |
+| `specs/0012-desktop-layout.md` | R6 — R4's stale 12,739px justification corrected |
+| `specs/README.md` | R5 — 0011's row `11 done` → `8 done · 3 revised` |
+
+**Why a second function rather than a flag on `searchCountries`.** 0011 R3's
+acceptance — `''` returns all 177 — is a correct statement about a *search
+predicate* and R5 keeps it. What was wrong was the screen rendering the
+predicate's answer verbatim. Splitting them makes that exact: `searchCountries`
+stays the predicate, unchanged in meaning, and `renderedCountries` is the new,
+separately-named thing that decides what appears. A flag would have left one
+function with two contracts and the same conflation inside it.
+
+### Sequence
+
+1. **R2 first** — the caps and the counts in `countrySearch.js`, tested as pure
+   functions before anything renders them. This is where the review's finding
+   landed, so it is where the evidence has to be strongest.
+2. **R1** — `renderedCountries`, then the screen. The screen change is the resting
+   state, the copy table and the `active` reset; nothing about the combobox
+   model moves.
+3. **R3** — the truncation lines and the live region, on screen and in the suite.
+4. **R4** — re-run 0011's existing cases unmodified and confirm they pass; only
+   the three R5 names may change.
+5. **R5** — the 0011 revisions and the index tally. Done after the code, so the
+   `[~]` notes describe what shipped rather than what was intended.
+6. **R6** — 0012 R4's correction, with the dock re-measured rather than argued.
+7. **R7** — extend `scripts/desktop-measure.mjs`, run it at all seven viewports,
+   then `npm run verify`.
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | `renderedCountries` returns the selected country alone for an empty query; the screen's resting copy table | `countrySearch.js`, `CountryScreen.jsx` | Chrome at 390×844 and 1440×900: 1 option for `en-GB`, 0 for an unresolvable locale, `scrollHeight/innerHeight < 2` at both; Vitest for the France/`Escape` case |
+| R2 | `MATCH_LIMIT`/`ABSENT_LIMIT` applied inside `searchCountries`, counts returned | `countrySearch.js` | Vitest on the committed payload: `a` → 150/12/true and 39/3/true; `united` → 3/3/false; `china` → 3 pickable, 1 absent, not truncated |
+| R3 | Two truncation lines plus the live region | `CountryScreen.jsx` | Vitest render on the exact strings; the visible line asserted outside `.wz-sr-only`; live region exactly `''` at rest |
+| R4 | No behaviour removed | all of the above | 0011's existing Vitest cases pass unmodified; the browser walk re-checks the ring, the tap targets and the `china` absence |
+| R5 | `[~]` on 0011 R1/R3/R9 + the *Verification* annotation | `specs/0011-*.md`, `specs/README.md` | `grep` for the three `[~]` marks and the tally; no assertion that step 01 renders `countryOptions(rows).length` options survives |
+| R6 | 0012 R4's measurement corrected, its rule re-derived | `specs/0012-*.md` | The script reports step 01 `sticky` + `anchored` and the CTA on screen at 1440 and 1920 |
+| R7 | The `fold` probe in the measurement script | `scripts/desktop-measure.mjs` | The script exits 0 at all seven viewports; `npm run verify` exits 0; `package.json` unchanged |
+
+### Tier and vintage handling
+
+**No new number ships, so no new tier or vintage is created.** This change adds
+two counts — how many countries matched, and how many stated absences were
+elided — and both are cardinalities of the rendered list, not measurements of
+the world. They are neither `OFFICIAL`, `DERIVED`, `PROXY` nor `MODELED`, in the
+same way `iso3` is `NOT_A_MEASUREMENT`, and they carry no year because they are
+not observations of anything with a vintage.
+
+Every figure that does carry a tier is on step 04 and is untouched. No pipeline
+file, no CSV, no payload column and no `field_tiers` entry moves in this change.
+
+### Validation
+
+`[validate]`, `[crosscheck]` and `[outliers]` are pipeline blocks and are not
+reached: nothing under `pipeline/` changes, and `npm run test:pipeline` should
+report the same 159 tests passing before and after. That is the check — an
+app-only change that moves a pipeline count is a change that was not app-only.
+
+The new coverage is in the app suite and in the browser script, split by what
+each can actually see: the counts, the caps, the copy and the keyboard in Vitest
+(no layout needed); the heights and the dock in Chrome (nothing else can see
+them). The defect this spec fixes was invisible to a green `verify`, so R7's
+script is the part that stops it returning.
+
+### Risks
+
+- **The measurement script waits on `.wz-option` immediately after entering step
+  01.** With the list folded, a context whose locale resolves to nothing renders
+  zero options and that wait hangs until it times out. The wait must move to the
+  combobox. This is the one place the fold can break an existing green check,
+  and it is a change to the script rather than to the app.
+- **`stepOne`'s `minOptionHeight` is `Math.min(...[])` when nothing renders**,
+  which is `Infinity` and would pass a `>= 56` check while measuring nothing.
+  Needs an explicit guard, and the guard is the finding: a tap-target check that
+  passes by having no targets is the same shape of false green as the one this
+  spec is fixing.
+- **Cap sizes are a judgement, bounded by measurement.** If the copy grows, the
+  page budget that put 17 at 390×844 shrinks. 12 leaves the headroom; R7's
+  script is what would catch it if it stopped being enough.
+- **No source risk.** Nothing here reads an API. Every probe is against the
+  committed payload or the rendered page, both of which are in-tree.
+
+## Non-goals
+
+- **Not a redesign of step 01.** The search input, the four match routes, the
+  alias table, the stated absences and the keyboard model are 0011's and are
+  kept as they are. This spec changes how many rows render and adds a sentence
+  when that number is a truncation.
+- **Not a change to the dataset, the payload or the pipeline.** No column moves,
+  no tier changes, no country is added or removed. The 41 with no series are
+  still searchable and still named; the 177 are all still reachable.
+- **Not a relevance ranking.** 0011 R3 settled that matches appear in
+  alphabetical order rather than by a score, and a cap is not a reason to
+  reopen it: the cap takes the first 12 of that order. Ranking the 12 by
+  anything — employment, population, a click history — would be the constructed
+  preference order the resting-state decision above declines.
+- **Not virtualised scrolling.** Rendering 177 rows efficiently is a different
+  answer to a different question. The reader does not want 177 rows quickly;
+  they want the one country they already know the name of.
+- **Not reopening 0012 R4.** The dock stays. Only its stale measurement moves.

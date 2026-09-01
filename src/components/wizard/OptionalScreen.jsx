@@ -72,7 +72,7 @@ function BandRow({ title, result, value, onPick, columns }) {
   )
 }
 
-export default function OptionalScreen({ group, cross, age, edu, onAge, onEdu, onNext, onSkip }) {
+export default function OptionalScreen({ group, cross, age, edu, onAge, onEdu, onNext, onSkip, onBack }) {
   const data = cross?.state === PRESENT ? cross.data : null
   const ages = data ? ageBands(data, group) : { state: cross?.state ?? NOT_LOADED, bands: [] }
   const edus = data ? eduBands(data, group) : { state: cross?.state ?? NOT_LOADED, bands: [] }
@@ -99,9 +99,22 @@ export default function OptionalScreen({ group, cross, age, edu, onAge, onEdu, o
 
       <div className="wz-footer" style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
         <button type="button" className="wz-cta" onClick={onNext}>See the figures →</button>
-        <button type="button" className="wz-tertiary" onClick={onSkip}>
-          Skip — report the group as a whole
-        </button>
+        {/* 0014 R1. Back and Skip share one row rather than stacking: a 60px CTA
+            over two 48px controls is ~165px of sticky footer at 390px, which
+            eats the bands this step exists to show. */}
+        <div className="wz-actions">
+          <button
+            type="button"
+            className="wz-back"
+            onClick={onBack}
+            aria-label="Back to question 02, what do you do"
+          >
+            ← Back
+          </button>
+          <button type="button" className="wz-tertiary" onClick={onSkip}>
+            Skip — report the group as a whole
+          </button>
+        </div>
       </div>
     </div>
   )

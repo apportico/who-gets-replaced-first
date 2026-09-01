@@ -455,3 +455,222 @@ describe('0011 R8 — the search cost no dependency and no fourth ui file', () =
     expect(files).toEqual(['accordion', 'toggle', 'toggle-group'])
   })
 })
+
+// ---------------------------------------------------------------------------
+// Spec 0014 — the wizard can go back, and step 02 echoes the title you typed.
+//
+// The back control is addressed by its aria-label (`/back to/i`), not by its
+// visible `← Back`, because the label is what a screen reader announces and it
+// is the thing that names the destination. Matching the arrow glyph would pass
+// while the label said nothing.
+// ---------------------------------------------------------------------------
+
+const backButton = () => screen.getByRole('button', { name: /back to/i })
+
+// The result screen renders `Loading…` for the age/education terms while the
+// cross-tabs are in flight (R20). On a first arrival that fetch is live; on a
+// second it is cached and resolves instantly, so comparing the two renders
+// without settling first compares a mid-flight paint to a finished one and
+// reports a difference that is the fetch, not the navigation. R3 is about
+// whether the *answers* survive going back, so both passes are settled first.
+async function settled() {
+  await waitFor(() =>
+    expect(document.querySelector('main').textContent).not.toContain('Loading…'),
+  )
+}
+
+async function walkToResult() {
+  startWizard()
+  pickCountry('United Kingdom')
+  fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+  fireEvent.change(screen.getByLabelText('Your job title'), {
+    target: { value: 'paralegal' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+  fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+  fireEvent.click(screen.getByRole('button', { name: /see the figures/i }))
+  await waitFor(() =>
+    expect(document.body.textContent).toContain("of United Kingdom's workers"),
+  )
+}
+
+describe('0014 R1 — every step after the intro can go back one step', () => {
+  it('walks 04 → 03 → 02 → 01 → intro, one step per click', async () => {
+    await walkToResult()
+    expect(document.body.textContent).toContain('04/04')
+
+    fireEvent.click(backButton())
+    expect(screen.getByText('Two more, if you like.')).toBeTruthy()
+    expect(document.body.textContent).toContain('03/04')
+
+    fireEvent.click(backButton())
+    expect(screen.getByText('What do you do?')).toBeTruthy()
+    expect(document.body.textContent).toContain('02/04')
+
+    fireEvent.click(backButton())
+    expect(screen.getByText('Where do you work?')).toBeTruthy()
+    expect(document.body.textContent).toContain('01/04')
+
+    // Step 01's back lands on the intro, which has no back of its own.
+    fireEvent.click(backButton())
+    expect(screen.getByRole('button', { name: /start/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /back to/i })).toBeNull()
+  })
+
+  it('leaves Start again in place alongside back, not replaced by it', async () => {
+    await walkToResult()
+    expect(screen.getByRole('button', { name: /start again/i })).toBeTruthy()
+    expect(backButton()).toBeTruthy()
+  })
+})
+
+describe('0014 R2 — back is a footer secondary, never a header control', () => {
+  it('adds no button to the header on any step', async () => {
+    render(<App />)
+    const noHeaderButton = () =>
+      expect(document.querySelectorAll('header button').length).toBe(0)
+
+    noHeaderButton()                                            // intro
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    noHeaderButton()                                            // 01
+    pickCountry('United Kingdom')
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    noHeaderButton()                                            // 02
+    fireEvent.click(screen.getByRole('button', { name: /4 · Clerical/ }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    noHeaderButton()                                            // 03
+    fireEvent.click(screen.getByRole('button', { name: /see the figures/i }))
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("of United Kingdom's workers"),
+    )
+    noHeaderButton()                                            // 04
+  })
+})
+
+describe('0014 R3 — going back preserves every answer already given', () => {
+  it('reproduces the same result screen after a 04 → 01 → 04 round trip', async () => {
+    await walkToResult()
+    await settled()
+    const first = document.querySelector('main').textContent
+
+    for (let i = 0; i < 3; i += 1) fireEvent.click(backButton())
+    expect(screen.getByText('Where do you work?')).toBeTruthy()
+
+    // Forward again touching nothing but the CTAs — no answer is re-entered.
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    fireEvent.click(screen.getByRole('button', { name: /see the figures/i }))
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("of United Kingdom's workers"),
+    )
+    await settled()
+
+    // String-for-string. A tier or a year that moved would fail here, which is
+    // what makes this the check that the data rules survived the navigation.
+    expect(document.querySelector('main').textContent).toBe(first)
+  })
+})
+
+describe('0014 R4 — step 02 names the string the reader typed, verbatim', () => {
+  it('echoes the input alongside the group it resolved to', () => {
+    startWizard()
+    pickCountry('United Kingdom')
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.change(screen.getByLabelText('Your job title'), {
+      target: { value: 'paralegal' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+
+    const text = document.querySelector('main').textContent
+    expect(text).toContain('paralegal')
+    expect(text).toContain('3 · Technicians and associate professionals')
+  })
+
+  it('keeps the reader’s own casing', () => {
+    startWizard()
+    pickCountry('United Kingdom')
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    // `Bookkeeper`, not `Legal Assistant`: resolveTitle has no `legal` keyword,
+    // so that one returns null and renders no echo at all — the unresolved
+    // path, not this one.
+    fireEvent.change(screen.getByLabelText('Your job title'), {
+      target: { value: 'Bookkeeper' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+
+    const text = document.querySelector('main').textContent
+    expect(text).toContain('Bookkeeper')
+    expect(text).toContain('4 · Clerical support workers')
+  })
+})
+
+describe('0014 R5 — the typed title and the search query survive a round trip', () => {
+  it('keeps the job title in the box across back and forward', () => {
+    startWizard()
+    pickCountry('United Kingdom')
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.change(screen.getByLabelText('Your job title'), {
+      target: { value: 'paralegal' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+
+    fireEvent.click(backButton())
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+
+    expect(screen.getByLabelText('Your job title').value).toBe('paralegal')
+    expect(document.querySelector('main').textContent).toContain('paralegal')
+  })
+
+  it('keeps the country search filtered across forward and back', () => {
+    startWizard()
+    pickCountry('United Kingdom')
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(backButton())
+
+    expect(screen.getByLabelText('Search countries').value).toBe('United Kingdom')
+    expect(screen.getAllByRole('option').length).toBe(1)
+  })
+})
+
+describe('0014 R6 — overriding by chip renders no echo', () => {
+  function toOccupation() {
+    startWizard()
+    pickCountry('United Kingdom')
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+  }
+
+  it('names the group without claiming anything was typed', () => {
+    toOccupation()
+    fireEvent.click(screen.getByRole('button', { name: /4 · Clerical/ }))
+
+    const text = document.querySelector('main').textContent
+    expect(text).toContain('4 · Clerical support workers')
+    expect(text).not.toContain('You typed')
+  })
+
+  it('drops the echo when a chip overrides a resolved title', () => {
+    toOccupation()
+    fireEvent.change(screen.getByLabelText('Your job title'), {
+      target: { value: 'paralegal' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+    expect(document.querySelector('main').textContent).toContain('You typed')
+
+    fireEvent.click(screen.getByRole('button', { name: /1 · Managers/ }))
+    const text = document.querySelector('main').textContent
+    expect(text).toContain('1 · Managers')
+    // The failure this guards: a derived echo would still say "you typed
+    // paralegal" while the answer had moved to Managers.
+    expect(text).not.toContain('You typed')
+  })
+})
+
+describe('0014 R9 — no router and no URL state', () => {
+  it('adds no routing dependency', async () => {
+    const pkg = (await import('../../../package.json')).default
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies }
+    for (const name of ['react-router', 'react-router-dom', 'wouter']) {
+      expect(deps[name]).toBeUndefined()
+    }
+  })
+})

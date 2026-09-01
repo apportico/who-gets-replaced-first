@@ -20,8 +20,13 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import { searchCountries } from '@/utils/countrySearch'
 
-export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) {
-  const [query, setQuery] = useState('')
+// 0014 R5. `query` is a prop now, owned by WizardShell: this screen unmounts on
+// every step change, so a locally-held search string meant a reader who came
+// back to step 01 found all 177 rows again with their own selection somewhere
+// below the fold. `active` stays local on purpose -- an arrow-key position is
+// transient, not an answer, and restoring it would paint a focus ring nobody
+// asked for on arrival.
+export default function CountryScreen({ rows, iso3, excluded, query, onQuery, onPick, onNext, onBack }) {
   // -1, not 0: on open the reader has expressed nothing, so painting the accent
   // ring around Afghanistan — with no element focused — claims a keyboard
   // position nobody took, and `Enter` on an empty box would select it. Typing
@@ -57,7 +62,7 @@ export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) 
       if (matches[active]) onPick(matches[active].iso3)
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      setQuery('')
+      onQuery('')
       setActive(-1)
     }
   }
@@ -91,7 +96,7 @@ export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) 
 
         <input
           value={query}
-          onChange={(e) => { setQuery(e.target.value); setActive(0) }}
+          onChange={(e) => { onQuery(e.target.value); setActive(0) }}
           onKeyDown={onKeyDown}
           placeholder="Search countries…"
           aria-label="Search countries"
@@ -164,6 +169,18 @@ export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) 
         <button type="button" className="wz-cta" onClick={onNext} disabled={!iso3}>
           Continue →
         </button>
+        {/* 0014 R1/R2. Back to the intro. In the footer rather than the header,
+            for the three measured reasons spec 0014 R2 records. */}
+        <div className="wz-actions" style={{ marginTop: 9 }}>
+          <button
+            type="button"
+            className="wz-back"
+            onClick={onBack}
+            aria-label="Back to the introduction"
+          >
+            ← Back
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -54,7 +54,7 @@ function Figure({ label, result, note }) {
 }
 
 
-export default function ResultScreen({ row, group, age, edu, cross, onRestart }) {
+export default function ResultScreen({ row, group, age, edu, cross, onRestart, onBack }) {
   const g = groupByNumber(group)
   const share = groupShare(row, group)
   const head = groupHeadcount(row, group)
@@ -205,17 +205,33 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart })
         </AccordionItem>
       </Accordion>
 
-      <button
-        type="button"
-        onClick={onRestart}
-        className="wz-tertiary"
-        style={{
-          marginTop: 22, border: '1px dashed var(--border-strong)',
-          borderRadius: 'var(--radius-pill)', minHeight: 'var(--tap-option)',
-        }}
-      >
-        Start again
-      </button>
+      {/* 0014 R1. Back and Start again are different moves and sit side by side
+          rather than one replacing the other: back returns to step 03 with every
+          answer intact, Start again clears the occupation, age and education.
+          (It leaves the country — probed 2026-09-01, and left alone: changing
+          that is this spec's Non-goal.) This screen has no `wz-footer`, so the
+          row stays inline where Start again already was. */}
+      <div className="wz-actions" style={{ marginTop: 22 }}>
+        <button
+          type="button"
+          className="wz-back"
+          onClick={onBack}
+          aria-label="Back to the optional questions"
+        >
+          ← Back
+        </button>
+        <button
+          type="button"
+          onClick={onRestart}
+          className="wz-tertiary"
+          style={{
+            border: '1px dashed var(--border-strong)',
+            borderRadius: 'var(--radius-pill)', minHeight: 'var(--tap-option)',
+          }}
+        >
+          Start again
+        </button>
+      </div>
     </div>
   )
 }

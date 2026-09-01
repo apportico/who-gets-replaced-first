@@ -112,9 +112,12 @@ the column wraps rather than overflowing.
 
 **Acceptance:** the goal's clause 2 — type `paralegal`, resolve, and assert the
 rendered text of `main` contains both `paralegal` and
-`3 · Technicians and associate professionals`. Typing `Legal Assistant` renders
-`Legal Assistant`, not `legal assistant`. Asserted in the browser and in
-`wizard.render.test.jsx`.
+`3 · Technicians and associate professionals`. Casing is checked separately with
+a title that resolves: typing `Bookkeeper` renders `Bookkeeper`, not
+`bookkeeper`, next to `4 · Clerical support workers`. (`Legal Assistant` is not
+the casing case to use — `resolveTitle`'s table has no `legal` keyword, so it
+returns `null` and no echo renders at all. That is R6's unresolved path, not
+R4's.) Asserted in the browser and in `wizard.render.test.jsx`.
 
 ### R5. [ ] Step 02's typed title and step 01's search query survive a round trip
 
@@ -155,8 +158,11 @@ goes below it, the focus ring stays `2px solid var(--accent)` at
 
 **Acceptance:** in a browser at 390×844, every back control's
 `getBoundingClientRect().height >= 48`; tab to it and assert
-`getComputedStyle(el, ':focus-visible')` keeps the accent outline; `grep -nE
-"#[0-9a-fA-F]{3,8}" src/components/wizard/*.jsx` returns nothing new.
+`getComputedStyle(el).outlineWidth` is `2px` and `outlineOffset` is `3px` while
+it holds keyboard focus — read off the focused element itself, since
+`getComputedStyle`'s second argument takes a pseudo-*element* and cannot resolve
+the `:focus-visible` pseudo-class; `grep -nE "#[0-9a-fA-F]{3,8}"
+src/components/wizard/*.jsx` returns nothing new.
 
 ### R8. [ ] The header counter and progress bar track backwards
 
@@ -164,8 +170,9 @@ goes below it, the focus ring stays `2px solid var(--accent)` at
 them back rather than leaving them at the high-water mark.
 
 **Acceptance:** in a browser, at step 04 the counter reads `04/04` and four
-segments carry `var(--accent)`; after two back moves it reads `02/04` and two
-segments do. Measured with the tab **focused** — a backgrounded surface freezes
+segments compute to the accent colour (`getComputedStyle` resolves the token, so
+compare against the value `--accent` resolves to, not the literal string
+`var(--accent)`); after two back moves it reads `02/04` and two segments do. Measured with the tab **focused** — a backgrounded surface freezes
 the `stepin` animation at frame 0 and reads two segments short, which is a
 measurement artifact, not a defect.
 

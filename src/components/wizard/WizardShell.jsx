@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import payload from '@/data/global_labor.json'
 import { loadCrossTabs } from '@/utils/crossTabs'
-import { localeCountry } from '@/utils/countryTag'
+import { localeCountry } from '@/utils/countryList'
 import { NOT_LOADED } from '@/utils/absence'
 
 import IntroScreen from './IntroScreen'
@@ -29,9 +29,15 @@ export default function WizardShell() {
   // first paint, so prefilling in an effect would render an empty selection and
   // then correct it. `localeCountry` returns null rather than a guess when the
   // locale does not resolve to a country the payload carries.
-  const [iso3, setIso3] = useState(
+  // 0011 R5. `localeCountry` now returns `{ iso3, excluded }`: the country to
+  // select, and -- when the locale resolved to one of the 41 with no series --
+  // the country it resolved to, so step 01 can name it rather than opening on
+  // an empty box a reader in China has no way to explain.
+  const prefill = useMemo(
     () => localeCountry(payload.rows, globalThis.navigator?.language),
+    [],
   )
+  const [iso3, setIso3] = useState(prefill.iso3)
   const [group, setGroup] = useState(null)
   const [age, setAge] = useState(null)
   const [edu, setEdu] = useState(null)
@@ -139,7 +145,8 @@ export default function WizardShell() {
           {step === 0 && <IntroScreen onStart={() => go(1)} />}
           {step === 1 && (
             <CountryScreen
-              rows={rows} iso3={iso3} onPick={setIso3} onNext={() => go(2)}
+              rows={rows} iso3={iso3} excluded={prefill.excluded}
+              onPick={setIso3} onNext={() => go(2)}
             />
           )}
           {step === 2 && (

@@ -275,6 +275,7 @@ NOT_A_MEASUREMENT = "NOT_A_MEASUREMENT"
 FIELD_TIERS = {
     # -- identity: labels, not measurements
     "iso3": NOT_A_MEASUREMENT,
+    "iso2": NOT_A_MEASUREMENT,
     "country_name": NOT_A_MEASUREMENT,
     "region": NOT_A_MEASUREMENT,
     "income_group": NOT_A_MEASUREMENT,

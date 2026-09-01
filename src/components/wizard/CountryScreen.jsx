@@ -1,14 +1,66 @@
-// R6. Step 01 — country, tagged by what the data actually carries.
+// R1, R6, R8, R9, R10 (spec 0011) — step 01, a search rather than a list.
 //
-// The tag comes from `countryTag`, which reads "any of the nine ISCO fields
-// non-null". Every country appears, including the 41 with no ISCO block: a
-// country is never hidden for lacking data, because "we have nothing for you"
-// is a result the reader is entitled to and a silently missing row is not.
-import { useMemo } from 'react'
-import { countryOptions, OFFICIAL_SERIES } from '@/utils/countryTag'
+// This screen used to render all 218 countries as buttons, 41 of them tagged
+// `no series` and unpickable in effect. On the 480px column the app is built
+// for that is about forty screens of scroll to reach a name the reader already
+// knew. So: a text input over the 177 that carry a series, and the statement
+// the `no series` tag used to make moved to where it actually lands — the
+// answer to someone who types their own country and does not find it (R6).
+//
+// The control is a plain input, not shadcn `Command` (R8). `command` pulls
+// `cmdk` as a runtime dependency and `dialog` as a registry dependency, and
+// `dialog.jsx` would then sit in `src/components/ui/` imported by nothing a
+// screen renders — which the unused-component guard in `wizard.render.test.jsx`
+// fails unless a second by-name exemption joins `toggle`. An input and a
+// filtered list cost less than that.
+//
+// The combobox keeps focus in the input and moves an *active descendant*,
+// rather than moving DOM focus into the list. Typing therefore keeps working
+// while arrowing, which is the whole point of a search box.
+import { useId, useMemo, useRef, useState } from 'react'
+import { searchCountries } from '@/utils/countrySearch'
 
-export default function CountryScreen({ rows, iso3, onPick, onNext }) {
-  const options = useMemo(() => countryOptions(rows), [rows])
+export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) {
+  const [query, setQuery] = useState('')
+  // -1, not 0: on open the reader has expressed nothing, so painting the accent
+  // ring around Afghanistan — with no element focused — claims a keyboard
+  // position nobody took, and `Enter` on an empty box would select it. Typing
+  // sets 0, where highlighting the top match is a response to input rather than
+  // an arbitrary pick.
+  const [active, setActive] = useState(-1)
+  const listId = useId()
+  const optionId = (i) => `${listId}-opt-${i}`
+  const listRef = useRef(null)
+
+  const { matches, absent } = useMemo(() => searchCountries(rows, query), [rows, query])
+  const total = useMemo(() => searchCountries(rows, '').matches.length, [rows])
+
+  function move(delta) {
+    if (matches.length === 0) return
+    // From the untouched state, down opens at the first match and up at the
+    // last, rather than wrapping arithmetic off a -1 that means "none".
+    const next = active < 0
+      ? (delta > 0 ? 0 : matches.length - 1)
+      : (active + delta + matches.length) % matches.length
+    setActive(next)
+    const el = listRef.current?.children?.[next]
+    // jsdom has no layout and no scrollIntoView; the guard keeps the test
+    // asserting behaviour rather than tripping over the environment.
+    if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' })
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); move(1) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1) }
+    else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (matches[active]) onPick(matches[active].iso3)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setQuery('')
+      setActive(-1)
+    }
+  }
 
   return (
     <div
@@ -18,48 +70,95 @@ export default function CountryScreen({ rows, iso3, onPick, onNext }) {
       <div style={{ paddingTop: 40 }}>
         <p className="wz-eyebrow">Question 01</p>
         <h2 className="wz-h2">Where do you work?</h2>
+        {/* R10. The provenance the per-row tag used to carry. Every row in this
+            list has a series, so tagging all 177 identically said nothing; what
+            is worth saying is what the list *is*. */}
         <p className="wz-body" style={{ margin: '16px 0 0' }}>
-          Pre-filled from your locale where we can match it. The primary key for
-          every source in the stack.
+          The {total} countries that report an ISCO-08 occupation breakdown to
+          ILOSTAT. Pre-filled from your locale where we can match it.
         </p>
-        <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {options.map((c) => (
+
+        {/* R5. The reader's own country resolved, and has no series. Say so
+            before they go looking for it — and stop saying it once they have
+            picked somewhere else, since by then it explains an absence they
+            are no longer looking at. */}
+        {excluded && !iso3 && (
+          <p className="wz-note" style={{ margin: '14px 0 0' }}>
+            {excluded.name} reports no occupation breakdown to ILOSTAT, so it is
+            not in this list.
+          </p>
+        )}
+
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setActive(0) }}
+          onKeyDown={onKeyDown}
+          placeholder="Search countries…"
+          aria-label="Search countries"
+          role="combobox"
+          aria-expanded={matches.length > 0}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={matches[active] ? optionId(active) : undefined}
+          style={{
+            marginTop: 22, width: '100%', boxSizing: 'border-box',
+            padding: '17px 18px', minHeight: 'var(--tap-option)',
+            fontFamily: 'var(--font-body)', fontSize: 17,
+            background: 'var(--surface)', color: 'var(--fg-strong)',
+            border: '1px solid var(--border)', borderRadius: 'var(--radius-control)',
+          }}
+        />
+
+        {/* R9. The count, announced rather than only shown. */}
+        <p className="wz-sr-only" aria-live="polite">
+          {matches.length} of {total} countries match
+        </p>
+
+        <div
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          aria-label="Countries"
+          style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}
+        >
+          {matches.map((c, i) => (
             <button
               key={c.iso3}
+              id={optionId(i)}
               type="button"
+              role="option"
+              tabIndex={-1}
               className="wz-option"
-              aria-pressed={c.iso3 === iso3}
+              aria-selected={c.iso3 === iso3}
+              data-active={i === active ? 'true' : undefined}
               onClick={() => onPick(c.iso3)}
             >
               <span>{c.name}</span>
-              <span
-                className="wz-meta"
-                style={{
-                  // No fontSize override: .wz-meta's 11px stands. This is a
-                  // provenance tag, not decoration -- it is the only thing on
-                  // the row telling a reader whether their country has a series
-                  // at all -- and an inline 10px here put 218 rendered rows out
-                  // of step with the token the suite asserts.
-                  letterSpacing: '0.12em',
-                  color: c.iso3 === iso3 ? 'color-mix(in srgb, var(--bg) 55%, transparent)' : 'var(--muted)',
-                }}
-              >
-                {c.tag}
-              </span>
             </button>
           ))}
         </div>
+
+        {/* R6. A country we cannot answer for is named, not silently missing.
+            Text, not a control: it is not tappable, not focusable, and carries
+            no option semantics, so arrowing through the list never lands on it. */}
+        {absent.map((c) => (
+          <p key={c.iso3} className="wz-note" style={{ margin: '14px 0 0' }}>
+            {c.name} is in the dataset but reports no occupation breakdown, so
+            there is no result to give you.
+          </p>
+        ))}
+
+        {matches.length === 0 && absent.length === 0 && (
+          <p className="wz-note" style={{ margin: '14px 0 0' }}>
+            No country matches that.
+          </p>
+        )}
       </div>
+
       <div className="wz-footer">
         <button type="button" className="wz-cta" onClick={onNext} disabled={!iso3}>
           Continue →
         </button>
-        {iso3 && options.find((c) => c.iso3 === iso3)?.tag !== OFFICIAL_SERIES && (
-          <p className="wz-note" style={{ margin: '12px 0 0', textAlign: 'center' }}>
-            This country reports no occupation breakdown. You can continue — the
-            result will say what is missing rather than estimate it.
-          </p>
-        )}
       </div>
     </div>
   )

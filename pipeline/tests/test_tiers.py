@@ -169,7 +169,7 @@ class AppPayload(unittest.TestCase):
         self.assertIn("field_tiers", self.payload)
 
     def test_payload_tiers_match_the_columns_it_actually_ships(self):
-        """84 of 170: export_app_json drops five *_range and 81 cross-tabs.
+        """85 of 171: export_app_json drops five *_range and 81 cross-tabs.
 
         0010 R20. The cross-tab columns are excluded from this payload and
         shipped per country instead. They are still tiered -- the gate in
@@ -180,7 +180,10 @@ class AppPayload(unittest.TestCase):
         keep = [c for c in run.COLUMNS if not c.endswith("_range")]
         app_keep = [c for c in keep if c not in set(C.CROSSTAB_COLUMNS)]
         self.assertEqual(set(self.payload["field_tiers"]), set(app_keep))
-        self.assertEqual(len(self.payload["field_tiers"]), 84)
+        # 84 -> 85 when 0011 R2 added `iso2`. The literal is deliberate: it is
+        # the assertion that fails when a column is added without a tier, so it
+        # moves by hand, in the change that adds one.
+        self.assertEqual(len(self.payload["field_tiers"]), 85)
         # The exclusion is the only thing that shrinks it, and it must not have
         # taken anything else with it.
         self.assertEqual(len(keep) - len(app_keep), len(C.CROSSTAB_COLUMNS))

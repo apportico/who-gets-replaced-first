@@ -1,6 +1,7 @@
 # 0015 — share card, methodology page, and an h1
 
-**Status:** in-review
+**Status:** in-progress
+**Approved:** Dani (VP Engineering), 2026-09-02, **directly rather than as a GitHub review**. PR [#84](https://github.com/apportico/who-gets-replaced-first/pull/84) is self-authored, so GitHub cannot record the approval and `reviewDecision` stays `REVIEW_REQUIRED` — on this PR that field is not a signal about whether the spec was reviewed. The review that exists on the PR is the author's own `COMMENT` pass against `REVIEW.md`.
 **Depends on:** 0010 (the wizard and its result screen), 0011 (country search), 0012 (the 768px breakpoint)
 **Issue:** [#78](https://github.com/apportico/who-gets-replaced-first/issues/78)
 **Absorbs:** [#13](https://github.com/apportico/who-gets-replaced-first/issues/13) (methodology page) and [#25](https://github.com/apportico/who-gets-replaced-first/issues/25) (social preview cards) — #78 says to close both if this lands covering them. R2/R3 cover #13; R4 covers the site-level half of #25, and its per-country half is **not** covered, for the reason in *What the probes rule out*. So #25 closes only if that partial coverage is accepted; otherwise it stays open, narrowed to the part no static host can do.
@@ -199,6 +200,88 @@ the build step rather than in the vitest suite that precedes it.
 **Acceptance:** `npm run verify` exits 0 from a clean tree, with the new
 assertions visible in its output. The pilot self-skipping for want of
 `pipeline/raw/` is expected in a worktree and is not a failure.
+
+## Implementation Plan
+
+**Planned:** 2026-09-02
+
+### Files to create
+
+| Path | Purpose | Req |
+|---|---|---|
+| `src/utils/shareCard.js` | The card's **pure text model**: subject, headline, figures with tiers and vintages, disclosures, refusal, URL. No canvas, no DOM, so R6 and R7 are properties of a function rather than of an image | R5, R6, R7 |
+| `src/utils/shareCardCanvas.js` | Draws a model into a 2400×1260 canvas with the site's own fonts and tokens. Browser-only, no drawing decisions of its own beyond layout | R5 |
+| `src/utils/shareCard.test.js` | R6's "null tier is not drawn" and R7's year whitelist, asserted over the model | R6, R7 |
+| `src/components/wizard/ShareCardButton.jsx` | The control on the result screen: draws, then downloads (and offers `navigator.share` where available) | R5 |
+| `methodology.html` | The second Vite entry. Static prose, the shared stylesheet, its own `h1` | R2, R3, R4 |
+| `scripts/check-meta.mjs` | Asserts over **built** `dist/*.html`: the nine named tags on both pages, every URL absolute under the base path, and the referenced image present in `dist/` | R4, R9 |
+| `public/og.png` | The 1200×630 static preview, generated once with `shareCardCanvas` in site mode and committed | R4 |
+
+### Files to modify
+
+| Path | Change | Req |
+|---|---|---|
+| `src/components/wizard/{Country,Occupation,Optional,Result}Screen.jsx` | Top `h2` becomes `h1`, keeping the `wz-h2` **class** so the display scale of 0012 R3 does not move | R1 |
+| `src/components/ui/accordion.jsx` | Radix's `AccordionHeader` renders `Primitive.h3`. Under an `h1` that is a skipped level, so it is rendered `asChild` as an `h2` | R1 |
+| `src/components/wizard/ResultScreen.jsx` | The share control and the one-click methodology link | R5, R8 |
+| `index.html` | OG and Twitter meta, absolute URLs | R4 |
+| `vite.config.js` | Second `rollupOptions.input` entry | R2 |
+| `scripts/verify.sh` | `check-meta.mjs` after the build step, where the built files exist | R9 |
+| `src/components/wizard/wizard.render.test.jsx` | One `h1` per screen, and no skipped level | R1 |
+
+### Sequence
+
+1. **R1** — promote the four headings, fix the accordion level, add the tests. Independent of everything else, and the issue says do it first.
+2. **R5 / R6 / R7** — the model, then its tests, then the canvas renderer, then the button. The model comes first because the two data requirements are assertions over it.
+3. **R4** — generate `public/og.png` with the renderer from step 2 in site mode, then the meta on both pages, then `check-meta.mjs`.
+4. **R2 / R3 / R8** — the methodology page, its Vite entry, and the link from the result screen.
+5. **R9** — `npm run verify` green, with the new checks inside it.
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | Four `h2` → `h1`; Radix header `h3` → `h2` | the four screens, `accordion.jsx` | Browser: `h1` count is 1 on each of five screens; vitest asserts the level sequence never jumps |
+| R2 | Second Vite entry, shared stylesheet | `methodology.html`, `vite.config.js` | `dist/methodology.html` emitted, one `h1`, four tier names present; palette confirmed by screenshot |
+| R3 | The 0010 R13 refusal as its own section | `methodology.html` | `check-meta.mjs` greps the built HTML for the refusal sentence |
+| R4 | Nine named tags, absolute URLs, committed static image | both HTML entries, `public/og.png` | `check-meta.mjs` over `dist/`, by tag name not by count |
+| R5 | Pure model → canvas at 2× → download / share | `shareCard*.js`, `ShareCardButton.jsx` | PNG intrinsic size 2400×1260; the rendered image is **opened and looked at**, and committed to `.snapshots/0015/` |
+| R6 | Tier carried from the same functions the screen uses; null tier omitted; stand-in string reproduced | `shareCard.js` | Unit test over the model, **and** read off the rendered image |
+| R7 | Year whitelist: every year token traces to a vintage or a series endpoint | `shareCard.js`, its test | Unit test; confirmed by reading the image |
+| R8 | A real `<a href="methodology.html">` on the result screen | `ResultScreen.jsx` | Browser at 375px and 1440px; keyboard reachable |
+| R9 | New checks added to `verify` in the same change | `scripts/verify.sh` | `npm run verify` exits 0 with the new steps visible |
+
+### Tier and vintage handling
+
+**This spec adds no number.** Every figure on the card is read from the existing
+`groupShare`, `groupHeadcount` and `trendFor`, which already assign `DERIVED`
+and carry `data_year_occupation` as the vintage. The card renders the tier it is
+handed and has no default — `shareCard.js` drops a figure whose tier is null
+rather than drawing it bare, which is R6 stated as code. Vintages travel with
+their own figure and are labelled as vintages, never as an outcome (R7).
+
+### Validation
+
+No pipeline change, so `[validate]`, `[crosscheck]` and `[outliers]` are
+untouched and the four regression anchors cannot move. The new coverage is:
+`shareCard.test.js` in the vitest step, the heading assertions in
+`wizard.render.test.jsx`, and `check-meta.mjs` after the build — the last one
+because the defect it guards (a relative `og:image`) exists only in the built
+output and is invisible in source.
+
+### Risks
+
+- **The accordion `asChild` change touches a generated component.** Rule 4 of
+  the shadcn section applies: the divergence gets a comment at the top of the
+  file so the next `shadcn add` overwrite is a conscious choice.
+- **Canvas text is drawn, not laid out.** Long country or group names need
+  measured wrapping; getting it wrong clips the disclosure, which is the one
+  string R6 exists to protect. Wrapping is measured with `measureText`, and the
+  acceptance is reading the image rather than trusting the code.
+- **`document.fonts.ready` must be awaited before drawing**, or the card
+  silently renders in fallback faces — the exact failure mode 0010 R2 shipped
+  twice. The probe measured the difference (107.78px vs 165.31px), so the
+  renderer can assert it rather than assume it.
 
 ## Non-goals
 

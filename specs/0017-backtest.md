@@ -1,6 +1,6 @@
 # 0017 — back-test the trend, publish the error
 
-**Status:** in-review
+**Status:** approved
 **Depends on:** 0004 (regression suite), 0006 (panel + time series), 0010 (result screen)
 **Issue:** [#80](https://github.com/apportico/who-gets-replaced-first/issues/80)
 **Goal:** Publish a measured retrodiction error that says plainly why this site
@@ -14,6 +14,13 @@ states no replacement date, checked as:
 4. A reader can reach the finding from the result screen.
 5. `npm run verify` green, and the data non-negotiables hold throughout: no
    imputed country, no untiered figure, and **no replacement year in any tier**.
+
+**Approved:** 2026-09-02 by Dani, given **directly in the `/sdlc` run rather than
+as a GitHub review**. The PR is self-authored, so GitHub cannot record an
+approval on it and `reviewDecision` stays `REVIEW_REQUIRED` — on this spec that
+field is not a meaningful signal. Review round 1 (five findings, all on
+acceptance criteria that could not be run as written) was addressed at `30777a7`:
+<https://github.com/apportico/who-gets-replaced-first/pull/86>
 
 ## Objective
 

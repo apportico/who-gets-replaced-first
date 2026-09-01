@@ -141,8 +141,12 @@ and "the dock's box bottom is not `innerHeight`" are *exactly* what an
 unreachable CTA looks like, and R7 could not see it either — nothing overflows
 and nothing errors. So the un-dock is scoped by a `wz-footer--anchored`
 modifier on `CountryScreen`'s footer, and the rule becomes: **a screen that does
-not fit the viewport keeps its dock.** If #66's search lands and step 01 stops
-being a 15,519px page, the modifier comes off and R4 applies uniformly again.
+not fit the viewport keeps its dock.** (An earlier draft ended this paragraph
+with a sunset condition — "if #66's search lands and step 01 stops being a
+15,519px page, the modifier comes off". #66 landed; the second half did not. The
+paragraph below records what the merge actually established, and the condition
+is deleted rather than repaired, because a conjunction a skimming reader reads
+as an instruction is worse than no note.)
 
 **Acceptance (revised):** R6's script, driving to each of steps 01, 02 and 03 at
 **all seven** viewports, reports:
@@ -165,7 +169,8 @@ viewport **below** the breakpoint — 375, 480 **and 767** — must match a base
 captured from `main` before any CSS in this spec changed.
 
 **Acceptance:** `scripts/desktop-baseline.json` is generated from a pristine
-checkout of `main` at `91ec0f6` and committed. After the change, R6's script
+checkout at `91ec0f6` — this branch's merge-base, and `main`'s head when it was
+taken, though `main` has since moved — and committed. After the change, R6's script
 re-run at 375, 480 and 767 produces rows **deep-equal** to that file, and exits
 non-zero on any difference or on a row the baseline does not cover.
 
@@ -374,14 +379,14 @@ the first attempted *fix* (normalising the dash while keeping
 | Path | Purpose |
 |---|---|
 | `scripts/desktop-measure.mjs` | R6. The browser-measurement path `ada3897` deleted, rebuilt around the wizard: seven viewports, `playwright-core` + system Chrome, `EXPECTED_TITLE` asserted before any measurement, `--json`, and `--baseline <file>` to diff the phone rows against R5's committed baseline. Exits non-zero on a title mismatch or any threshold breach |
-| `scripts/desktop-baseline.json` | R5. The 375, 480 and 767 rows measured from a pristine `91ec0f6` checkout **before** any CSS in this spec changes, over R5's named eight-key schema, so "the phone layout did not move" is an equality against a committed artefact rather than a claim |
+| `scripts/desktop-baseline.json` | R5. The 375, 480 and 767 rows measured from a pristine checkout at `91ec0f6` (the merge-base) **before** any CSS in this spec changes, over R5's named eight-key schema, so "the phone layout did not move" is an equality against a committed artefact rather than a claim |
 
 ### Files to modify
 
 | Path | Change |
 |---|---|
 | `src/styles/index.css` | `--column-wide: 640px` on `:root` beside `--column: 480px`; **one** `@media (min-width: 768px)` block (R1) that redefines `--column: var(--column-wide)` (R2), the three display tokens to 78/54/44 (R3), and `.wz-footer:not(.wz-footer--anchored)` to `position: static` with the gradient dropped (R4) |
-| `src/components/wizard/CountryScreen.jsx` | R4. Its footer carries `wz-footer--anchored`, so step 01 — 15,519px tall at 1440 — keeps its dock at every width |
+| `src/components/wizard/CountryScreen.jsx` | R4. Its footer carries `wz-footer--anchored`, so step 01 — the one screen that does not fit the viewport — keeps its dock at every width |
 | `src/styles/tokens.test.js:209` | R10. "the column is capped at the canvas width" becomes the two-token, one-breakpoint contract |
 | `src/components/wizard/computed.test.jsx:260` | R10. Keeps asserting the **base** computed token is `480px` — jsdom applies no media query, and saying so in the test name is the honest jsdom-side check |
 | `CLAUDE.md` (*Shape*, line 65) | R11. The unconditional `` `max-width: 480px` centred `` gains the breakpoint and both widths, plus the sentence naming the canvas as mobile-only and this spec as the desktop authority |

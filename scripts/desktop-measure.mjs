@@ -305,11 +305,11 @@ const atStep = (page, counter) => page.waitForFunction(
 const ctaReads = (page, text) => page.waitForFunction(
   (t) => document.querySelector('.wz-cta')?.textContent.includes(t), text, { timeout: 15000 });
 
-// `expectBadges` is false for a country with no series. That path renders no
-// figures and no tier badges — which is the point of it, and is what withdrawal
-// looks like — so waiting for a `.wz-badge` there hangs for the full timeout.
-// The first run of this script did exactly that.
-async function driveToResult(page, country, { expectBadges = true, steps = null } = {}) {
+// Every country this drives is one with a series, so step 04 always renders
+// badges. `expectBadges` used to make that optional, for a no-series drive that
+// 0011 removed the route to -- see R9's revision note. A parameter with one
+// caller and one value is a branch nothing exercises, so it is gone.
+async function driveToResult(page, country, { steps = null } = {}) {
   await page.click('.wz-cta');
   await page.waitForSelector('.wz-option');
   await page.waitForTimeout(MOUNT_SETTLE);
@@ -331,8 +331,7 @@ async function driveToResult(page, country, { expectBadges = true, steps = null 
   await ctaReads(page, 'See the figures');
   await page.click('.wz-cta');                     // bands skipped
   await atStep(page, '04/04');
-  if (expectBadges) await page.waitForSelector('.wz-badge');
-  else await page.waitForSelector('.wz-h2');
+  await page.waitForSelector('.wz-badge');
 }
 
 // ---------------------------------------------------------------------------
@@ -427,10 +426,11 @@ for (const vp of VIEWPORTS) {
   check('R3', r.h2 === TYPE[w].h2, `${at} h2 is ${r.h2}px, want ${TYPE[w].h2}px`);
   check('R3', r.stat === TYPE[w].stat, `${at} stat figure is ${r.stat}px, want ${TYPE[w].stat}px`);
   if (vp.name === '1440') check('R3', r.h1Lines <= 3, `at 1440 the h1 runs ${r.h1Lines} lines, want <= 3`);
-  // R4, per step. Step 01 is 15,519px tall at 1440 and keeps its dock at every
-  // width; 02 and 03 fit the viewport and un-dock above the breakpoint.
+  // R4, per step. Step 01 opens as the whole country list and does not fit the
+  // viewport, so it keeps its dock at every width; 02 and 03 fit, and un-dock
+  // above the breakpoint.
   check('R4', r.steps['01'].dock === 'sticky' && r.steps['01'].anchored === true,
-    `${at} step 01's dock is ${r.steps['01'].dock} (anchored: ${r.steps['01'].anchored}) — it must stay sticky, its page is 15,519px tall`);
+    `${at} step 01's dock is ${r.steps['01'].dock} (anchored: ${r.steps['01'].anchored}) — it must stay sticky, its screen does not fit the viewport`);
   for (const step of ['02', '03']) {
     check('R4', r.steps[step].dock === (wide ? 'static' : 'sticky'),
       `${at} step ${step}'s dock is ${r.steps[step].dock}`);

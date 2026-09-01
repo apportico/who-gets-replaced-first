@@ -446,11 +446,13 @@ html, body {
      exists to say "content continues under a floating bar", and above the
      breakpoint there is no floating bar for it to explain.
 
-     `:not(.wz-footer--anchored)` scopes this to steps 02 and 03. Step 01 is a
-     list of 218 countries, 15,519px tall at 1440, and un-docking it put its
-     only way forward 15,433px below the fold -- invisible to the R4 and R7
-     criteria as first written, because nothing overflowed and nothing errored.
-     A screen that does not fit the viewport keeps its dock. */
+     `:not(.wz-footer--anchored)` scopes this to steps 02 and 03. Step 01 opens
+     as the whole country list -- a search filters it, but nothing is filtered
+     until someone types -- so un-docking it put its only way forward thousands
+     of pixels below the fold, invisible to the R4 and R7 criteria as first
+     written because nothing overflowed and nothing errored. A screen that does
+     not fit the viewport keeps its dock. No pixel figure here on purpose: it
+     moved once already, when 0011 took the list from 218 rows to 177. */
   .wz-footer:not(.wz-footer--anchored) {
     position: static;
     background: none;

@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { resolveTitle } from '@/utils/resolveTitle'
 import { GROUPS, groupDisplay } from '@/utils/isco'
 
-export default function OccupationScreen({ group, onPick, onNext }) {
+export default function OccupationScreen({ group, notice, onPick, onNext }) {
   const [title, setTitle] = useState('')
   const [tried, setTried] = useState(false)
 
@@ -32,6 +32,13 @@ export default function OccupationScreen({ group, onPick, onNext }) {
           Type a title. It resolves to one of nine groups — the resolution is
           shown, never hidden, and you can override it.
         </p>
+
+        {/* 0016 R6. Same slot and same wording rules as step 01. */}
+        {notice && (
+          <p className="wz-note" style={{ margin: '14px 0 0', color: 'var(--muted-strong)' }}>
+            {notice}
+          </p>
+        )}
 
         <input
           value={title}

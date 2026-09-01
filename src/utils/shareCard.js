@@ -79,7 +79,10 @@ function trendFigure(trend) {
  *   refusal: string, url: string,
  * }}
  */
-export function shareCardModel({ row, group, url = SITE_URL } = {}) {
+export function shareCardModel({ row, group, url } = {}) {
+  // Falsy, not merely undefined: an empty `location.href` must fall back to
+  // the site rather than drawing a card with no way back to the method.
+  const link = url || SITE_URL
   const g = groupByNumber(group)
   const share = groupShare(row, group)
   const head = groupHeadcount(row, group)
@@ -122,7 +125,7 @@ export function shareCardModel({ row, group, url = SITE_URL } = {}) {
     disclosures,
     absences,
     refusal: CARD_REFUSAL,
-    url,
+    url: link,
   }
 }
 

@@ -57,6 +57,7 @@ build-first-document-later approach.
 | [0012](0012-desktop-layout.md) | Desktop layout — one breakpoint at 768px, a 640px column, display scale, un-docked CTA, and the browser-measurement path restored | in-progress — 9 done · 3 revised, review rounds 1–2 addressed |
 | [0013](0013-country-fold.md) | Step 01 opens folded — the selected country alone, a 12-row cap on matches and a 3-row cap on the stated absences, both truncations stated; and the 0011 criteria that passed against a 12,294px list tightened | done — 7 done · merged at `8627c93` |
 | [0015](0015-share-card.md) | The result survives leaving the site — one `h1` per screen, a methodology page, site-level OG/Twitter meta, and a client-side share card carrying its tiers and the stand-in disclosure, never a year | in-progress |
+| [0016](0016-url-state.md) | The wizard's state lives in the URL — a query string on the existing path, cold-load restore, browser Back walking the steps, and a copy-link on the result | done — 9 done · 2 revised |
 | [0017](0017-backtest.md) | Back-test the naive trend — fit 2013–2019, retrodict 2025, publish the per-country error and why no date ships | done — 9 done |
 
 ## Starting a new spec

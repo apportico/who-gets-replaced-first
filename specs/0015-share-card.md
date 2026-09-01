@@ -98,6 +98,17 @@ move — the promoted elements keep the `wz-h2` **class**, asserted directly.
 every step". The intro screen already had exactly one; it is steps 01-04 that had
 none. The defect was real and one screen smaller than reported.
 
+**Follow-up from the merge (2026-09-02).** Merging `origin/main` brought in spec
+0016's test for R3, which asserted "the intro is not painted" as
+`queryByRole('heading', { level: 1 })` is null. That was only ever a proxy: it
+worked because the intro was the **only** screen with an `h1`, which is exactly
+what this requirement changes. After the merge it matched the result screen's own
+headline and failed for the opposite of its intent. Repaired to ask 0016's
+question directly — the intro's headline text is absent, and the `h1` that *is*
+present belongs to the result — which is strictly stronger, because it would also
+catch an intro frame rendered with no heading at all. 0016's requirement is
+unweakened; only the assertion changed.
+
 ### R2. [x] A methodology page exists as a real page, not a third accordion
 
 A second built page at `/who-gets-replaced-first/methodology.html`, emitted by a
@@ -234,10 +245,14 @@ and the card reproduces the clerical stand-in disclosure verbatim where the tren
 is a stand-in: "Clerical support workers shown as a stand-in — no time series is
 published for this group." The card never invents a tier and has no default:
 a figure whose tier is null is not drawn. It also carries a URL, so the image
-out of context can be traced back to the method. Until #79 lands that URL is the
-site root, which returns the reader to the intro rather than to this result — the
-card is built to take a result URL the moment one exists, and must not imply it
-already has one.
+out of context can be traced back to the method.
+
+**Revised mid-run (2026-09-02).** This originally read: until #79 lands, the URL
+is the site root, and the card "is built to take a result URL the moment one
+exists". #79 landed during this run — spec 0016 merged as #83 — so the card now
+carries `location.href`, the reader's actual result link, from the same source
+0016's own `CopyLink` uses. The fallback to the site root remains for a falsy
+`href`. The requirement is unchanged; the condition it was waiting on was met.
 
 **Acceptance:** for *Technicians · United Kingdom*, the rendered PNG shows
 `DERIVED` next to each of the three figures and the full stand-in sentence,
@@ -457,11 +472,12 @@ output and is invisible in source.
 - **Per-result OG previews.** Ruled out by probe, not by preference: GitHub Pages
   serves a static artefact, crawlers do not run JS, and there is nothing to
   render per-result meta. See *What the probes rule out*.
-- **URL state / routing for the result.** Owned by #79 and spec 0016, running in
-  parallel. The methodology page is a second *build entry*, which is not a router
-  and does not touch wizard state; the share card is built so it composes with a
-  result URL once one exists, but it does not wait for it and does not implement
-  it.
+- **URL state / routing for the result.** Owned by #79 and spec 0016, which
+  **merged during this run** (#83). This spec still implements none of it: the
+  methodology page is a second *build entry*, not a router, and the card
+  consumes `location.href` rather than producing it. The composition that R6
+  anticipated is live, and the merge also required repairing one of 0016's own
+  tests — see R1.
 - **A server-side or build-time image generator** (`@vercel/og`, satori,
   puppeteer-in-CI). The card is generated in the reader's browser from the same
   data the screen renders, which is what keeps the tiers honest — the card cannot

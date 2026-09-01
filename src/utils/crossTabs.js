@@ -82,6 +82,15 @@ const EDU_BANDS = [
   { key: 'adv', label: 'Tertiary' },
 ]
 
+// 0016 R1. The key vocabularies a URL validates `age` and `edu` against,
+// derived from the lists above rather than re-typed in `urlState.js`. Two
+// copies would drift the first time a band was added, and the failure would be
+// silent: a link naming the new band would be dropped as malformed while the
+// screen rendered a chip for it. Probed 2026-09-01 — these keys are uniform
+// across all 218 committed cross-tab files.
+export const AGE_BAND_KEYS = AGE_BANDS.map((b) => b.key)
+export const EDU_BAND_KEYS = EDU_BANDS.map((b) => b.key)
+
 function readBands(crosstabs, group, prefix, bands) {
   if (!crosstabs) return { state: NOT_LOADED, bands: [] }
   const v = crosstabs.values ?? {}

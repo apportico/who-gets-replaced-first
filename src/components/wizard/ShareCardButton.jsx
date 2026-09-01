@@ -30,7 +30,16 @@ export default function ShareCardButton({ row, group }) {
       // face rather than erroring, so the wait is the only thing between this
       // and a card that is correct in content and wrong in every typeface.
       await readyFonts()
-      const model = shareCardModel({ row, group })
+      // 0015 R6, composed with 0016. When this was written the site had no
+      // result URLs, so R6 recorded that the card would carry the site root
+      // and "must not imply it already has one". 0016 landed mid-run and the
+      // result is addressable now, so the card carries the reader's actual
+      // result link — which is the difference between an image that sends
+      // someone to the intro and one that sends them to the cell it shows.
+      // `location.href` is the same source 0016's own CopyLink uses.
+      const model = shareCardModel({
+        row, group, url: globalThis.location?.href || undefined,
+      })
       const { canvas } = drawCard(model)
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'))
       if (!blob) throw new Error('canvas produced no blob')

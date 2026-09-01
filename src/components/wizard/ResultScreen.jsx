@@ -17,6 +17,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger }
   from '@/components/ui/accordion'
 import Sparkline from '@/components/Sparkline'
+import CopyLink from './CopyLink'
 import { groupShare, groupHeadcount } from '@/utils/groupFigures'
 import { trendFor } from '@/utils/trend'
 import { classificationNotice } from '@/utils/classification'
@@ -276,6 +277,11 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart })
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+
+      {/* 0016 R8. Above "Start again" on purpose: this screen's whole output is
+          the cell the reader landed on, and sending it to someone is the thing
+          they are most likely to want next. Starting over is the retreat. */}
+      <CopyLink />
 
       {/* 0015 R5. Above "start again", because the reader who has just read
           the figures is the one who wants to keep them. */}

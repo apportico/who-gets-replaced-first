@@ -28,7 +28,7 @@ import { useId, useMemo, useRef, useState } from 'react'
 import { renderedCountries } from '@/utils/countrySearch'
 import { countryOptions } from '@/utils/countryList'
 
-export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) {
+export default function CountryScreen({ rows, iso3, excluded, notice, onPick, onNext }) {
   const [query, setQuery] = useState('')
   // -1, not 0: on open the reader has expressed nothing, so painting the accent
   // ring around Afghanistan — with no element focused — claims a keyboard
@@ -87,6 +87,16 @@ export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) 
           The {total} countries that report an ISCO-08 occupation breakdown to
           ILOSTAT. Pre-filled from your locale where we can match it.
         </p>
+
+        {/* 0016 R6. What the link asked for and did not get. Above the locale
+            note on purpose: this one explains why the reader is on this screen
+            at all, and the locale note explains a country they have not asked
+            about yet. */}
+        {notice && (
+          <p className="wz-note" style={{ margin: '14px 0 0', color: 'var(--muted-strong)' }}>
+            {notice}
+          </p>
+        )}
 
         {/* R5. The reader's own country resolved, and has no series. Say so
             before they go looking for it — and stop saying it once they have

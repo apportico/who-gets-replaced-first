@@ -1,6 +1,6 @@
 # 0012 — desktop layout
 
-**Status:** approved
+**Status:** in-progress
 **Depends on:** 0010 (the wizard this widens), 0008 (the touch-target, focus and
 reduced-motion floors this must not regress)
 **Issue:** [#67](https://github.com/apportico/who-gets-replaced-first/issues/67)
@@ -194,6 +194,98 @@ mobile-only and this spec as the desktop authority; and spec 0010 R5 carries a
 as a count of a prose phrase: `grep -c "480px centred"` returns 0 **today**,
 because the file writes it as `` `max-width: 480px` centred `` with backticks —
 a criterion that passes before the work is done is not a criterion.)
+
+## Implementation Plan
+
+**Planned:** 2026-09-01
+
+### Files to create
+
+| Path | Purpose |
+|---|---|
+| `scripts/desktop-measure.mjs` | R6. The browser-measurement path `ada3897` deleted, rebuilt around the wizard: six viewports, `playwright-core` + system Chrome, `EXPECTED_TITLE` asserted before any measurement, `--json`, and `--baseline <file>` to diff the phone rows against R5's committed baseline. Exits non-zero on a title mismatch or any threshold breach |
+| `scripts/desktop-baseline.json` | R5. The 375 and 480 rows measured from the tree **before** any CSS in this spec changes, so "the phone layout did not move" is an equality against a committed artefact rather than a claim |
+
+### Files to modify
+
+| Path | Change |
+|---|---|
+| `src/styles/index.css` | `--column-wide: 640px` on `:root` beside `--column: 480px`; **one** `@media (min-width: 768px)` block (R1) that redefines `--column: var(--column-wide)` (R2), the three display tokens to 78/54/44 (R3), and `.wz-footer` to `position: static` with the gradient dropped (R4) |
+| `src/styles/tokens.test.js:209` | R10. "the column is capped at the canvas width" becomes the two-token, one-breakpoint contract |
+| `src/components/wizard/computed.test.jsx:260` | R10. Keeps asserting the **base** computed token is `480px` — jsdom applies no media query, and saying so in the test name is the honest jsdom-side check |
+| `CLAUDE.md` (*Shape*, line 65) | R11. The unconditional `` `max-width: 480px` centred `` gains the breakpoint and both widths, plus the sentence naming the canvas as mobile-only and this spec as the desktop authority |
+| `specs/0010-mobile-first-redesign.md` (R5) | R11. A `[~]` note: its "the column token is 480px" acceptance clause is now conditional, superseded by 0012 |
+
+**No component file changes.** `WizardShell.jsx:79` already reads
+`maxWidth: 'var(--column)'`; redefining `--column` inside the media query means
+the desktop layout is entirely a token change, which is what 0010 R2 asks for
+and what keeps a raw px out of `src/components/wizard/`.
+
+### Sequence
+
+1. **Write `scripts/desktop-measure.mjs`** (R6) — nothing else can be checked without it.
+2. **Run it against the unchanged tree** and commit the output as `scripts/desktop-baseline.json` (R5). This step is order-critical: after step 3 the baseline can no longer be taken.
+3. **The CSS** (R1–R4) — one `@media` block, four changes inside it.
+4. **The tests** (R10).
+5. **The docs** (R11) — `CLAUDE.md` and 0010 R5's revision note.
+6. **Re-run the measure script** (R2, R3, R4, R5, R7, R8, R9) and paste the output into the PR.
+7. **`npm run verify`** and screenshots at 375 / 768 / 1440 / 1920 (R7).
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | One `@media (min-width: 768px)` block, all desktop values inside it | `index.css` | Script enumerates `CSSMediaRule`s in-browser; expects exactly `(prefers-reduced-motion: reduce)` and `(min-width: 768px)` |
+| R2 | `--column-wide: 640px`; `--column: var(--column-wide)` inside the block | `index.css` | Script: column 640 at 1024/1440/1920, 480 at 375/480/767, `scrollWidth === innerWidth` at all six |
+| R3 | `--step-h1/h2/stat` → 78/54/44 inside the block | `index.css` | Script: `.wz-h1` 66→78, `.wz-h2` 46→54, stat 38→44 across the breakpoint; h1 ≤ 3 lines at 1440 |
+| R4 | `.wz-footer { position: static; background: none }` inside the block | `index.css` | Script at step 01: dock `sticky` at 375/480/767, `static` at 1024/1440/1920; CTA ≥60px at all six; dock bottom ≠ `innerHeight` at 1440 |
+| R5 | Baseline captured before step 3 and diffed after | `scripts/desktop-baseline.json` | `node scripts/desktop-measure.mjs --baseline scripts/desktop-baseline.json` exits 0; non-zero on any phone-row difference |
+| R6 | The recovered `ada3897^` pattern, rebuilt for the wizard | `scripts/desktop-measure.mjs` | Runs and exits 0; exits non-zero with `APP_URL` pointed elsewhere; `playwright-core` absent from `package.json` |
+| R7 | Falls out of R2–R4; verified, not assumed | — | Script: `scrollWidth === innerWidth` and an empty error list at all six; four screenshots on the PR |
+| R8 | No change — the floors are width-independent tokens | — | `computed.test.jsx` + `tokens.test.js` green; script re-checks 60/56 heights and the focus ring at **all six** |
+| R9 | No change — the layout never touches the data path | — | Script drives to step 04 at 375 and 1440, for one country with a series and one without, and diffs the stat figures and tier badge strings |
+| R10 | Both width assertions rewritten to the new contract | the two test files | `npm run verify` green with the new assertions in place |
+| R11 | *Shape* section and 0010 R5's note | `CLAUDE.md`, `specs/0010-*.md` | The `max-width: 480px` line also contains `768px`; 0010 R5 carries a `[~]` linking 0012 |
+
+### Tier and vintage handling
+
+**Not applicable, and that is the finding, not an omission.** No step here reads,
+derives, or renders a figure — every change is a CSS token, a test assertion or a
+line of prose. No tier is assigned, no vintage recorded, `manual_overrides.json`
+is untouched, and no pipeline file is opened. R9 exists precisely so this claim is
+checked at 375 and 1440 rather than asserted: if a figure or a tier badge differs
+between the two widths, the layout has touched the data surface and R9 fails.
+
+### Validation
+
+- `npm run verify` — lint, build, and spec 0004's regression suite. The pilot
+  batch **skips** in this worktree (`pipeline/raw/` is absent, as `verify` says
+  loudly); CI on the PR runs the same command with the cache and covers it.
+- `[validate]`, `[crosscheck]` and `[outliers]` are pipeline blocks and cover
+  nothing here — no pipeline code or data changes.
+- **The new check is `scripts/desktop-measure.mjs`**, and it deliberately does
+  **not** join `verify` or CI (Non-goals).
+
+### Risks
+
+- **Two checkouts of this repo serve the same `document.title`.** Spec 0008's
+  incident — measuring another project on port 5173 and getting plausible numbers
+  — is only half-guarded by the title assertion here, because the parallel
+  session's worktree is *this same app*. Mitigation: the worktree's dev server
+  runs on an explicit `--port 5273 --strictPort`, so Vite fails loudly rather
+  than falling through to a port serving another branch, and `APP_URL` is passed
+  explicitly rather than defaulted.
+- **R9 may be trivially satisfied on the no-series path.** If the withdrawal
+  branch renders no stat figures at all, "string-identical at both widths" is
+  true of two empty sets. The script therefore asserts the *series* country's
+  figures are non-empty first, so the comparison has something to compare.
+- **78/54/44 are design values, not measured ones.** They are the one part of
+  this spec no probe can settle; if review prefers a different desktop scale, it
+  is a token edit inside the one media query and R3's acceptance moves with it.
+- **`playwright-core` is an unsaved install.** A fresh clone cannot run R6's
+  script without `npm install --no-save playwright-core` first. That is the
+  deliberate trade recorded in Non-goals, and the script says so when the import
+  fails.
 
 ## Non-goals
 

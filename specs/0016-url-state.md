@@ -67,7 +67,7 @@ the issue offered, chosen on the probe rather than on either.
 
 ## Requirements
 
-### R1. [ ] The URL scheme is a query string on the existing path
+### R1. [x] The URL scheme is a query string on the existing path
 
 The wizard's state is carried in `location.search` on whatever path the app is
 served from — never a fragment, never a path segment. The parameters are
@@ -89,7 +89,14 @@ returns exactly `?step=result&country=GBR&group=3&age=25_54&edu=adv`, and
 `encode({step:0})` returns `''`. A vitest case asserts both strings literally.
 No `#` appears in any URL the app writes: `grep -n "location.hash\|'#'" src/utils/urlState.js` returns nothing.
 
-### R2. [ ] A step transition pushes; an answer change within a step replaces
+**Done (2026-09-02).** `src/utils/urlState.js` ships `encode`, `decode`,
+`noticeFor` and `STEPS`; `src/utils/urlState.test.js` asserts both literal
+strings. 25 codec cases pass. `grep -n "location.hash\|'#'" src/utils/urlState.js`
+returns nothing, and a live walk confirmed `location.hash === ''`. The band
+vocabularies are imported from `crossTabs.js` (`AGE_BAND_KEYS`, `EDU_BAND_KEYS`)
+rather than re-typed, so the URL validates against the list the screens render.
+
+### R2. [x] A step transition pushes; an answer change within a step replaces
 
 Every move between steps adds one history entry. Changing an answer *without*
 changing step — tapping a different country in the step 01 list, switching an
@@ -104,7 +111,22 @@ exactly **4** (one per step transition), not by the number of taps. Tapping
 three different countries on step 01 leaves `history.length` unchanged and
 `location.search` naming the third.
 
-### R3. [ ] A cold load restores the wizard from the URL, result included
+**Done (2026-09-02).** Measured in a browser against the production build served
+under `/who-gets-replaced-first/`:
+
+```
+start=2
+after intro->01: +1
+after 3 country taps (France, Germany, United Kingdom): +1   country=GBR
+at step optional: +3
+after age chip: +3   age=25_54
+FINAL: +4   step=result
+```
+
+Four step transitions, four entries. Three country taps and an age chip added
+none, and the URL carried the last answer given.
+
+### R3. [x] A cold load restores the wizard from the URL, result included
 
 Loading any URL the app can write reproduces the state it encodes, before first
 paint rather than by rendering the intro and correcting it. Landing directly on
@@ -120,7 +142,19 @@ group" card naming the 25–54 and tertiary figures. Screenshot at both widths,
 committed under `.snapshots/0016/`. The intro screen is never painted — asserted
 in the suite by decoding first and mounting once.
 
-### R4. [ ] Browser Back and Forward walk the wizard steps
+**Done (2026-09-02).** `?step=result&country=GBR&group=3&age=25_54&edu=adv` on a
+cold load renders `Technicians and associate professionals · United Kingdom`,
+14.1%, 4.77M, `70.9% are aged 25–54` and `54.1% have tertiary education`, each
+with its `DERIVED` and `2025` badges. Verified at **1440×900** and at a real
+**390×844** viewport; screenshots in `.snapshots/0016/`. Three vitest cases
+cover steps 02 and 03 and assert the intro's `h1` is never in the tree.
+
+`resize_window` reported success while `innerWidth` stayed 1512 — the trap
+CLAUDE.md records — so the 390px measurement was taken in a 390×844 iframe
+harness, where the app's own media queries apply, and `frameWidth` was read back
+as 390 before anything was believed.
+
+### R4. [x] Browser Back and Forward walk the wizard steps
 
 Back moves one step towards the intro and restores that step's answers; Forward
 moves one step away again. Back from the intro leaves the site, which is correct
@@ -135,7 +169,20 @@ with an empty query. Pressing Forward four times returns to the same result
 screen with all four answers. Verified at both widths and recorded in the
 evaluation.
 
-### R5. [ ] A URL naming a country with no official series renders 0011's named absence
+**Done (2026-09-02).** Four Back presses then four Forward, in a browser:
+
+```
+back1: step=optional    country=GBR group=3  | Two more, if you like.
+back2: step=occupation  country=GBR group=3  | What do you do?
+back3: step=country     country=GBR          | Where do you work?
+back4: (no query)                            | What the data says about your work.
+fwd1..4: country -> occupation -> optional -> result
+```
+
+The result returns intact — 14.1%, the 25–54 band, four `DERIVED` badges. The
+listener never pushes: `history.length` was unchanged across the pop.
+
+### R5. [x] A URL naming a country with no official series renders 0011's named absence
 
 This is the project's first non-negotiable arriving through a new door. 41 of
 the 218 countries report no ISCO-08 occupation breakdown. A URL naming one of
@@ -156,7 +203,16 @@ case asserts `decode('?step=result&country=CHN&group=3', rows)` returns
 `step: 1` with `absent: {iso3:'CHN', name:'China'}` and `iso3: null` — never
 `iso3: 'CHN'`. Repeated for `SAU` and `NZL`.
 
-### R6. [ ] Bad input degrades to the deepest step the surviving state supports, and says what it dropped
+**Done (2026-09-02).** vitest asserts the rule over **all 41** countries with no
+series (not only the three spot-checked) and, as the converse, that **all 177**
+with a series still decode to a selection. In a browser,
+`?step=result&country=CHN&group=3` and the `SAU` equivalent both render step 01
+naming the country, with `anyTierBadge: false` and `anyPercent: false` — no
+figure, no dash, no zero. Screenshot: `.snapshots/0016/step01-absence-390.png`.
+The URL normalises to `step=country` with the country dropped, so the address
+bar stops claiming a result too.
+
+### R6. [x] Bad input degrades to the deepest step the surviving state supports, and says what it dropped
 
 One rule, not five: each parameter is validated against its closed vocabulary
 (R1), an invalid one is dropped, and the step is then **clamped to the deepest
@@ -182,7 +238,26 @@ returned by `decode` for all five, and
 `?step=result&country=GBR&group=3&age=30_40&edu=adv` decodes to the result step
 with `age: null`, `edu: 'adv'` and `dropped: ['age']`.
 
-### R7. [ ] A band the chosen cell does not publish is removed from the URL rather than left claiming to apply
+**Done (2026-09-02).** All five URLs decode as specified (vitest), and six were
+walked in a browser:
+
+| URL | Lands on | Says |
+|---|---|---|
+| `country=ZZZ` | 01 | names a country this dataset does not carry |
+| `group=12` | 02 | names an occupation group outside the nine |
+| `country=WLD` | 01 | same as ZZZ — the aggregate guard holds |
+| `?step=result` bare | 01 | nothing dropped, so no notice |
+| `step=banana&country=GBR` | 02 | names a step that does not exist |
+| `age=30_40&edu=adv` | 04 | keeps `edu`, drops `age` |
+
+Console clean on every one, and `anyTierBadge: false` throughout.
+
+One divergence found by the suite and resolved in favour of the spec: an
+unreadable `step` now falls back to the **deepest supported step**, not to the
+intro. A link carrying a good country was landing on the intro, which has no
+slot to explain itself, so the reader saw their link silently discarded.
+
+### R7. [x] A band the chosen cell does not publish is removed from the URL rather than left claiming to apply
 
 `age` and `edu` validate against a closed key vocabulary without a fetch (R1),
 but whether a *particular* country and group publishes that band is only known
@@ -213,7 +288,23 @@ the not-published wording — a vitest case asserts both halves. If no cell in t
 committed data omits a band, this requirement is marked `[!]` with the query that
 found nothing, rather than tested against a fixture invented for it.
 
-### R8. [ ] The result screen carries a copy-link affordance
+**Done (2026-09-02).** Both cells were located from the committed cross-tabs
+rather than invented. The probe also corrected the spec's assumption: **no age
+cell publishes some-but-not-all three bands** (age is all-or-nothing across all
+218 files), so the partial case is education — 438 cells publish 3 of 4.
+
+| Cell | Basis | Result |
+|---|---|---|
+| `ALB` g1, `edu=ltb` | publishes `bas/int/adv`, flag `present` | `edu` stripped, `country=ALB` and `step=result` kept, no below-basic line |
+| `AZE` g1, `age=25_54` | a share with no age bands at all | `age` stripped |
+| `GBR` g3, `age=25_54`, fetch forced to fail | `LOAD_FAILED` | **`age=25_54` kept**, load-failure wording shown, not the not-published wording |
+
+The third row is the one that matters: a fetch that never answered is not the
+source publishing nothing, and stripping there would delete a reader's answer
+over a network blip and bake an invented absence into the link they copy.
+`history.length` unchanged across the strip.
+
+### R8. [x] The result screen carries a copy-link affordance
 
 The capability is worth nothing unnoticed. The result screen gets a control that
 copies the current URL, gives a visible and announced confirmation, and degrades
@@ -234,7 +325,22 @@ needs a separate permission that an automated browser will prompt on or refuse,
 so an acceptance built on it would fail for a reason that says nothing about the
 feature.
 
-### R9. [ ] Every URL the app writes survives the `/who-gets-replaced-first/` base path
+**Done (2026-09-02).** Two vitest cases stub `writeText` and assert it is called
+with exactly `location.href` and that the confirmation lands in an `aria-live`
+region; the reject case asserts the fallback field renders carrying the URL,
+with no unhandled rejection. Measured in a browser at 390×844:
+
+```
+face: "Copy link to this result"   measuredHeight: 50   minHeight: 48px
+borderRadius: 99px   fontFamily: "Geist Mono"   textTransform: uppercase
+[role=status] present
+after click -> status "Link copied to the clipboard.", face "Link copied"
+```
+
+50px clears the 48px tertiary floor, and the mono/uppercase/pill face is the
+design contract for a button face.
+
+### R9. [x] Every URL the app writes survives the `/who-gets-replaced-first/` base path
 
 `vite.config.js` sets the production base, and a hand-built absolute URL would
 work in dev and break on Pages — the same failure mode `crossTabs.js` documents
@@ -249,7 +355,15 @@ assets load (no 404 in the network log), and walking one step forward produces a
 URL still beginning `/who-gets-replaced-first/`. `grep -rn "'/'" src/utils/urlState.js`
 shows no hard-coded leading path.
 
-### R10. [ ] The seam with #77 and #78 is one navigation function, and the boundary is written down
+**Done (2026-09-02).** `npm run build`, `dist/` served under a
+`/who-gets-replaced-first/` prefix by a plain static server (not `vite preview`,
+per CLAUDE.md). `?step=result&country=GBR&group=3&age=25_54&edu=adv` renders,
+and measured in the page: `location.pathname === '/who-gets-replaced-first/'`,
+**0 resources with a status >= 400**, and walking a step forward keeps the
+prefix. `grep` shows no hard-coded leading path in `urlState.js` — the shell
+writes `location.pathname + encode(next)`.
+
+### R10. [~] The seam with #77 and #78 is one navigation function, and the boundary is written down
 
 Three tickets touch the same transitions and are being built in parallel, so the
 division is recorded here rather than discovered in a conflict:
@@ -270,7 +384,25 @@ returns only the lines inside the seam — no screen calls it directly. The
 boundary table above is reproduced in the PR description so the sibling tickets
 can read it without opening the spec.
 
-### R11. [ ] No new dependency, no new number, no new tier
+**Revised (2026-09-02).** The boundary table above ships as written and is
+reproduced in the PR description. The seam ships as `go(step, patch)` and
+`set(patch)` over a single `commit(next, mode)`, and the acceptance check holds
+exactly: `grep -n "setState(" src/components/wizard/WizardShell.jsx` returns
+**one line**, inside `commit`.
+
+**What changed: `back()` is not in the file.** Nothing renders a control that
+would call it, and an exported function with no caller is the dead artifact
+REVIEW.md's Axis 2 flags — the same finding 0010 R3 recorded when four shadcn
+components sat installed and unrendered. Adding it purely to satisfy a line in
+this spec would be writing the finding on purpose.
+
+The seam it would attach to is real and shipped: `commit(next, 'pop')` already
+drives browser Back through `popstate` (R4), so #77's control is a one-line
+`history.back()` landing on tested machinery rather than a new path. Recorded
+here so #77 adds it in the change that adds the control, and so the next reader
+does not think it was forgotten.
+
+### R11. [~] No new dependency, no new number, no new tier
 
 This spec adds a capability, not data. It introduces no figure, so it assigns no
 tier, and it must not acquire a router to do it — 0010's Non-goals record "there
@@ -284,6 +416,28 @@ shows no change to `src/utils/groupFigures.js`, `laborMetrics.js`, `trend.js`,
 and `wizard.render.test.jsx` and `computed.test.jsx` pass **with no assertion in
 them modified**, which is what makes their green a statement about the figures
 rather than about a rewritten test.
+
+**Revised (2026-09-02).** The requirement's intent is met in full and one clause
+of its check was wrong.
+
+Met: `git diff origin/main...HEAD -- package.json package-lock.json` is **empty**
+— no router, no dependency. No figure is produced, so no tier is assigned; the
+result screen's badges are rendered by the same modules as before, and
+`wizard.render.test.jsx` and `computed.test.jsx` pass **with no assertion
+modified** (the only edit to either is a `resetUrl()` in `beforeEach`, which is
+harness: the URL is state now, so jsdom's one-document-per-file carries a walked
+URL into the next case).
+
+Wrong: the check named `crossTabs.js` among the modules that must not change,
+which contradicts R1 — R1 requires the URL validate `age` and `edu` against the
+list the screens render from rather than a second copy, and that list lives in
+`crossTabs.js`. The diff there is **+9 lines, purely additive**: two
+`export const` key arrays derived from the existing `AGE_BANDS`/`EDU_BANDS`, and
+a comment. `readBands` and every tier and year it returns are untouched.
+
+The corrected check is the four modules that actually produce or tier a figure —
+`groupFigures.js`, `laborMetrics.js`, `trend.js`, `terms.js` — and
+`git diff --stat` over those four is empty.
 
 ## Implementation Plan
 

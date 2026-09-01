@@ -1,6 +1,6 @@
 # 0007 — Port the data pipeline from Python to TypeScript
 
-**Status:** approved
+**Status:** in-progress
 **Depends on:** 0004 (the 107-test regression suite — the safety net this port
 requires); 0005 (CI runs `verify`, which must keep passing throughout)
 **Issue:** [#21](https://github.com/apportico/who-gets-replaced-first/issues/21)
@@ -19,9 +19,13 @@ re-review of `f07fd01`**: a second reviewer on R1 specifically, and
 implementing the summation helpers against the real committed columns
 **first**, so R1 is validated by execution rather than by review.
 
-**R6 is blocked** on [#54](https://github.com/apportico/who-gets-replaced-first/issues/54)
-— `summary_report.md` labels a `MODELED` composite `DERIVED`, a tier defect on
-`main` that R6's own acceptance criterion surfaced.
+**R6's blocker is cleared.** It was blocked on
+[#54](https://github.com/apportico/who-gets-replaced-first/issues/54) —
+`summary_report.md` labelled a `MODELED` composite `DERIVED`, a tier defect on
+`main` that R6's own acceptance criterion surfaced. That landed in `33fdcc5`
+(PR [#56](https://github.com/apportico/who-gets-replaced-first/pull/56)), so
+`summary_report.md:231` now reads `MODELED composite` and the generator emits
+the same string. R6 asserts against the corrected file and is marked `[x]`.
 
 ## Objective
 
@@ -83,7 +87,7 @@ spec may introduce a value the Python did not already produce.
 
 ## Requirements
 
-### R1. [ ] A number layer that reproduces Python's arithmetic and formatting
+### R1. [x] A number layer that reproduces Python's arithmetic and formatting
 
 **Five** entry points — `pyRound`, `pyStr`, `pySumInt`, `pySumFloat`, `pySum`,
 plus the `toBigInt` converter — with the port using them everywhere the Python
@@ -368,7 +372,7 @@ they can be regenerated if the pin moves.
   fixture.
 - **All five entry points** run **offline**, with no Python present.
 
-### R2. [ ] A hand-rolled CSV reader/writer, zero runtime dependencies
+### R2. [x] A hand-rolled CSV reader/writer, zero runtime dependencies
 
 Python's default dialect, CRLF terminators, `QUOTE_MINIMAL`, and a field-size
 ceiling matching `csv.field_size_limit(10_000_000)`.
@@ -377,7 +381,7 @@ ceiling matching `csv.field_size_limit(10_000_000)`.
 byte** — read then write reproduces the input exactly, `cmp` clean, including
 quoted fields and the CRLF terminators.
 
-### R3. [ ] The 6 CSV outputs and `validation_report.txt` are byte-identical
+### R3. [x] The 6 CSV outputs and `validation_report.txt` are byte-identical
 
 Run against the same cached `pipeline/raw/`, the TypeScript pipeline reproduces
 `global_labor_dataset.csv`, `global_labor_panel.csv`, `ai_exposure_sensitivity.csv`,
@@ -402,7 +406,7 @@ tracked outputs, pasted into the implementation PR**, recorded alongside the
 cache's provenance (when it was fetched, from which sources) and the
 interpreter pin. The repeatable guard that outlives it is named in R8.
 
-### R4. [ ] The app JSON outputs are byte-identical
+### R4. [x] The app JSON outputs are byte-identical
 
 `src/data/global_labor.json` (written by `run.py:278`) and
 `global_labor_timeseries.json` (written by `panel.py:173`, through the same
@@ -430,7 +434,7 @@ must not read a green timeseries diff as evidence the escaping is right.
 renders with no console error — per `CLAUDE.md`, a green build is not evidence
 the page renders, so this is checked by loading it.
 
-### R5. [ ] SQLite is content-identical, and the 4-byte gap is recorded
+### R5. [x] SQLite is content-identical, and the 4-byte gap is recorded
 
 Byte-identical SQLite is **not achievable** — probing showed the header carries
 `SQLITE_VERSION_NUMBER`, and Python bundles 3.48.0 where Node bundles 3.53.3.
@@ -445,7 +449,7 @@ diff.
 - The only byte differences are within the **100-byte header** — offsets 24,
   92 and 96. A difference in page data fails this requirement.
 
-### R6. [ ] All 7 modules ported, CLI surface preserved
+### R6. [x] All 7 modules ported, CLI surface preserved
 
 `config`, `fetch`, `build`, `panel`, `crosscheck`, `report`, `run`. The cache
 under `pipeline/raw/` stays byte-compatible so re-runs remain offline and free.
@@ -473,18 +477,26 @@ under `pipeline/raw/` stays byte-compatible so re-runs remain offline and free.
   the criterion, or a contributor takes the documented path and gets a 3-line
   diff that has nothing to do with the port.
 
-  **Blocked on [#54](https://github.com/apportico/who-gets-replaced-first/issues/54)
-  until the committed report is regenerated.** Reproduced on this branch:
-  regenerating from the *current* Python and diffing with the `Generated` line
-  removed gives **4 differing lines, not 0**. Two are the invocation gap above.
-  The other two are tier drift on `main`: `summary_report.md:231` says
-  `DERIVED composite` where `report.py:363` says `MODELED composite`, changed in
-  `ff507b0` and never regenerated. **That is not excluded here.** A second
-  exclusion would launder exactly the tier drift `CLAUDE.md` exists to prevent,
-  in the one document written for humans to quote from. It is fixed on `main`
-  under #54, and R6 asserts against the corrected file.
+  **This was blocked on
+  [#54](https://github.com/apportico/who-gets-replaced-first/issues/54), and no
+  longer is.** When this spec was written, regenerating from the *current*
+  Python and diffing with the `Generated` line removed gave **4 differing lines,
+  not 0**: two from the invocation gap above, and two from tier drift on `main`
+  — `summary_report.md:231` said `DERIVED composite` where `report.py:363` said
+  `MODELED composite`, changed in `ff507b0` and never regenerated. Excluding
+  those would have laundered exactly the tier drift `CLAUDE.md` exists to
+  prevent, in the one document written for humans to quote from, so R6 refused
+  to.
 
-### R7. [ ] A shared schema module, consumed on both sides
+  Both causes are fixed on `main`: `33fdcc5`
+  (PR [#56](https://github.com/apportico/who-gets-replaced-first/pull/56))
+  corrected the tier and regenerated the report through `run.py`, closing the
+  invocation gap in the same change. **That measurement no longer reproduces**
+  — the diff is 0 lines with `Generated` removed, which
+  `pipeline/tests/report.test.ts` now asserts on every run. The exclusion below
+  stays at exactly one named line.
+
+### R7. [x] A shared schema module, consumed on both sides
 
 `Tier` as `'OFFICIAL' | 'DERIVED' | 'PROXY' | 'MODELED'`; `number | null`
 wherever a country may be missing; a per-field vintage type pairing a value with
@@ -562,7 +574,7 @@ error at all, failing instead on the unused directive.
 It stays at the **call site** rather than on an assignment because the call
 site is where the wrong branch would be taken.
 
-### R8. [ ] The 107 tests ported, still passing
+### R8. [~] The 107 tests ported, still passing
 
 The suite binds to the Python modules through `pipeline/tests/context.py` and
 would be deleted along with them. It is the safety net #21 depends on, so it
@@ -581,7 +593,7 @@ is the one part of this evidence a future contributor can reproduce. It is also
 the test that already caught the interpreter divergence, which is the argument
 for it in one sentence.
 
-### R9. [ ] The dependency policy is written down
+### R9. [x] The dependency policy is written down
 
 `CLAUDE.md`'s "stdlib only, no pip installs" describes a Python pipeline that
 will no longer exist. It is replaced by an explicit Node policy: **zero runtime
@@ -602,7 +614,7 @@ finding stragglers after R10 lands:
 | `pipeline/README.md:61` | the `summary_report.md` row in the outputs table |
 | `.github/workflows/ci.yml:36` | the comment explaining the pipeline is stdlib-only, next to the `python-version: '3.13'` pin at `:41` that R11 removes |
 
-### R10. [ ] The Python is deleted, and only at the end
+### R10. [~] The Python is deleted, and only at the end
 
 No permanent dual implementation. The Python comes out once R3, R4, R5 and R8
 all pass — not before, so there is never a window with neither safety net.
@@ -611,13 +623,237 @@ all pass — not before, so there is never a window with neither safety net.
 `npm run verify` passes on that commit. The deletion is its own commit, so it
 can be reverted independently if the port is later found wanting.
 
-### R11. [ ] `verify` and CI run the ported pipeline
+### R11. [x] `verify` and CI run the ported pipeline
 
 Per `CLAUDE.md`: a check added to CI is added to `verify` in the same change.
 
 **Acceptance:** `npm run verify` passes end to end; `.github/workflows/ci.yml`
 runs the same command and passes on the PR. The Python setup step is removed
 from CI only when R10 lands.
+
+## Implementation
+
+**Implemented:** 2026-09-01. Branch `feat/0007-pipeline-typescript-port`,
+three commits: the port, the suite and toolchain, then the deletion on its own
+so it can be reverted independently (R10).
+
+**The pre-approval conditions were met before R1 was built.** The author
+recommended implementing the summation helpers against the real committed
+columns first, so R1 is validated by execution rather than by review. That is
+what happened: `pynum.ts` and its 100,000 committed cases were green before a
+single pipeline module was ported, and the first end-to-end pilot run then
+reproduced the golden master byte for byte on its first attempt.
+
+### What the port is
+
+| File | What |
+|---|---|
+| `pynum.ts` | R1. `pyRound`, `pyRoundInt`, `pyStr`, `pySumInt`, `pySumFloat`, `pySum`, `toBigInt`, `pyFormatFixed` |
+| `csvio.ts` | R2. Python's default dialect, CRLF, QUOTE_MINIMAL, plus a streaming column reader for the 55MB ILO flows |
+| `pyjson.ts` | R4. `json.dump`'s serialiser, and the tokenising reader R1's override clause needs |
+| `schema.ts` | R7. `Tier`, `Measured`, `Vintage`, the branded `Int`, and `INT_COLUMNS` |
+| `columns.ts` | Where a row value becomes a byte — the one place the `Int` brand decides `2989466` against `2989466.0` |
+| `overrides.ts` | The `WeakMap` recording what `JSON.parse` would have erased |
+| `config` `fetch` `build` `panel` `crosscheck` `report` `run` | R6. The seven modules |
+
+**`pyRound` is implemented exactly, not by the probe's approximation.** R1 asks
+for "half-to-even on the double's exact decimal value"; the source verification
+recorded `toFixed(20)` + decimal half-to-even matching over 20,000 cases. The
+port decomposes the IEEE-754 double into `mantissa * 2^exp` and computes the
+exact terminating decimal expansion with BigInt, so the rounding decision is
+made on the real value rather than on 20 places of it. Same answers on the
+fixture, no approximation behind them.
+
+### R3 / R4 / R5 — the `cmp` transcript
+
+Interpreter that produced the golden master: **Python 3.13.1** (CI pin `3.13`).
+Cache: `pipeline/raw/`, 133MB, from World Bank v2 + ILOSTAT SDMX + Eurostat.
+The Python at `14a42df` was run first and reproduced every committed output with
+zero diff, establishing that the golden master is current; the port was then run
+against the same cache.
+
+```
+cmp pipeline/data/global_labor_dataset.csv       identical
+cmp pipeline/data/global_labor_panel.csv         identical
+cmp pipeline/data/ai_exposure_sensitivity.csv    identical
+cmp pipeline/data/crosscheck_eurostat.csv        identical
+cmp pipeline/data/outliers_for_review.csv        identical
+cmp pipeline/data/pilot_labor_dataset.csv        identical
+cmp pipeline/data/validation_report.txt          identical
+cmp src/data/global_labor.json                   identical
+cmp src/data/global_labor_timeseries.json        identical
+cmp src/data/crosstabs/                          identical (218 files)
+cmp pipeline/summary_report.md                   identical, excluding the one Generated line
+cmp pipeline/data/global_labor_dataset.sqlite    6 bytes differ, all in the 100-byte header
+```
+
+**R5, in full.** Schema identical (same tables, columns, declared types,
+primary key, and `idx_region` / `idx_rowtype` / `idx_panel`). All 229 snapshot
+rows and 2,936 panel rows identical on every column *including runtime type*,
+with 46,671 NULLs preserved as NULL — never `0`, never `""`. The six differing
+bytes fall inside exactly the three fields the spec predicted:
+
+| Offset | Field | Python | Node |
+|---|---|---|---|
+| 24 | change counter | 4 | 3170 |
+| 92 | version-valid-for | 4 | 3170 |
+| 96 | `SQLITE_VERSION_NUMBER` | 3048000 (3.48.0) | 3053003 (3.53.3) |
+
+Page data is byte-identical.
+
+**R4's render check.** A green build is not evidence the page renders, so the
+page was loaded — `playwright-core` against system Chrome at 1440x900, the same
+pattern `scripts/desktop-measure.mjs` uses. The wizard was driven intro → 01 →
+02 → 03 → result. **Zero console errors, zero page errors, zero failed
+requests.** The result screen renders `8.3%`, `13.86M` and `10.8 → 8.3% · -2.5
+pp · 2013–2025` against payload values `8.2726`, `13856141` and `10.7501` →
+`8.2726`, each with its `DERIVED` badge and its 2025 vintage.
+
+### R6 — the CLI surface
+
+All three flags, not just `--pilot`. `--pilot --out-dir <tmp>` wrote a
+byte-identical pilot CSV to the temp directory and left `pipeline/data/`
+untouched; `--no-app-json` left `src/data/global_labor.json` unmodified (the
+timeseries write is not gated on it in the Python either, and is not here);
+the bare run produced the eleven outputs above. `npm run report` reaches
+`report.ts`'s entry point and passes `loadSensitivity()`, so the documented
+path produces the same document the pipeline does.
+
+### R8 `[~]` — the count, and two mechanism changes
+
+**The suite is 137 tests, not 107.** It grew on `main` between this spec's
+approval and its implementation; `CLAUDE.md` said 126 and was also stale. All
+137 are ported and pass. With R1's and R2's own blocks the file count is **158
+tests, 0 failures, 0.94s** offline — inside R8's 2s bound, against Python's
+0.292s for the 137.
+
+No test was dropped. Two changed mechanism, because the language does not offer
+the lever the Python used, and both are recorded here rather than left for a
+reviewer to find:
+
+1. **The offline proof.** Python patched `socket.getaddrinfo`; Node's `fetch`
+   does not go through it. The port replaces `globalThis.fetch` with a throwing
+   stub instead. Same criterion — a live fetch raises, and the `cached` /
+   `fetched` log assertion is unchanged.
+2. **The delegation assertion.** `test_crosscheck_delegates_to_the_shared_summariser`
+   patched `report.summarise_sensitivity` and checked `crosscheck.sensitivity`
+   returned the sentinel — asserting the delegation itself rather than that two
+   calls to one function agree, which stays green against the change it exists
+   to catch. An ES module's exported bindings are read-only, so `report.ts`
+   exposes `hooks.summariseSensitivity` and `crosscheck` calls through it. The
+   test is unchanged in what it asserts.
+
+`test_country_rows_carry_the_pair_corridorstates_keys_on` names
+`src/utils/corridorStates.js`, which spec 0010 R1 deleted with the map. The
+assertion — a country row carries a non-null `country_name` — outlived its
+original consumer and now guards `countrySearch.js`, so it ports with its
+rationale corrected rather than being dropped.
+
+### R10 `[~]` — the deletion is total inside `pipeline/`, and one file survives outside it
+
+No `.py` under `pipeline/`, and `npm run verify` passes on the deletion commit.
+Two Python files did not simply disappear, and neither is a dual implementation:
+
+- **`pipeline/tests/make_fixture.py` → `pipeline/tests/make-fixture.ts`.** It
+  regenerates the golden-master cache, and a fixture nobody can regenerate is a
+  fixture nobody can trust. Verified head-to-head against the Python on the same
+  cache *before* the Python was deleted: **25 of 25 files byte-identical after
+  decompression.** That took two fixes, and the second is this spec's own R1
+  finding biting a maintenance script — the reader was re-emitting CRLF where
+  Python's text mode had normalised it (63,281 extra bytes on one flow), and
+  `JSON.parse` was erasing the int/float distinction so every World Bank integer
+  came back spelled `1.0` (1,032 extra bytes per indicator file). The gzip
+  *container* still differs from Python's and cannot be made to match; the
+  fixture is read by decompressing and is never compared as bytes. **The
+  committed fixture is not regenerated by this change.**
+- **`scripts/generate-pynum-fixtures.py` is new, and is Python on purpose.** R1
+  requires its cases be "generated once from the pinned interpreter, with the
+  generator committed alongside so they can be regenerated if the pin moves" —
+  which cannot be written in the language being verified. It sits under
+  `scripts/`, not `pipeline/`, so R10's acceptance holds literally; it is never
+  run by `verify` or by CI, and nothing imports it. It is the one thing a
+  contributor needs if the toolchain pin ever changes.
+
+### Review round 1 (`b825837`, @syymza — `CHANGES_REQUESTED`)
+
+Six threads, all correct, all addressed. Two were gaps between what R1's
+acceptance *says* and what the suite *asserted* — both closed with tests, no
+pipeline change:
+
+- **The override criterion's second half was not exercised.** The committed test
+  built a `PyNum[]` by hand and called `pySum` directly, which is the
+  fixture-only shape R1's "end to end on a real column" sentence exists to rule
+  out. Nothing asserted that `sumColumn` consults `overrideKinds` and takes the
+  mixed branch. Added, and **probed for vacuity**: with the registry lookup
+  stubbed out — the route `JSON.parse` would have forced — the new test fails
+  and the other eleven pass.
+- **`pyStr` was asserted on a twelfth of its criterion.** `String(v) !== cell &&`
+  short-circuited, so `pyStr` ran on 6,287 cells of 71,799; a regression on an
+  ordinary value like `8.8633` left it green. The escape exists because `Int`
+  columns are written with `String(value)`, so it now selects on `isIntColumn`
+  rather than on the answer: **71,799 float-column cells through `pyStr` and
+  18,744 `Int` cells through `String()`, 0 mismatches.**
+
+The two `Consider:` items were both taken:
+
+- `sumColumn` took `intColumn` as a literal at all ten call sites, a second
+  source of truth beside `INT_COLUMNS`. It now derives it from `isIntColumn`,
+  which is still call-site selection from the declared type — the declaration
+  has moved to where it was already written down. All eleven outputs re-verified
+  byte-identical after the change.
+- `pyjson.dumps`'s comment claimed insertion order, which `Object.entries` does
+  not give for integer-like keys. Corrected to state the divergence, and the
+  dependency it rests on — `panel.ts` sorting its year keys before inserting —
+  is now named at both ends.
+
+`flattenVintage` and `DatasetRow` were named as unconsumed. They stay: R7 asks
+for the vintage pair type and for a module "consumed on both sides", and the
+Non-goals put the app's adoption in #22. Removing them would leave R7's exported
+surface smaller than the requirement describes.
+
+### R9 — every place the Python was described
+
+`CLAUDE.md` (layout, the stdlib rule, the command list, the toolchain section,
+and a new note on why the number layer is load-bearing), `package.json` (all
+five scripts, plus `typecheck` and `check:brand`), `pipeline/README.md` (the run
+block, the "standard library only" sentence, the `unittest` description and its
+invocation gotcha, the outputs table, and every `*.py` module reference),
+`.github/workflows/ci.yml` (the stdlib comment and the `python-version` pin,
+both removed). `package.json` gains **no runtime dependency**; `typescript` and
+`@types/node` are devDependencies and nothing imports them at runtime.
+
+**There is no build step.** Node 24 strips types natively, so `node
+pipeline/run.ts` runs the pipeline directly. `tsconfig.json` sets
+`erasableSyntaxOnly`, which refuses the constructs Node's stripper cannot erase
+— so nothing can type-check here and fail to start there.
+
+### Findings, recorded rather than fixed
+
+Per the Non-goals, the port fixes nothing. Two things are worth naming, and both
+want their own issue.
+
+**`generated_from` still names `pipeline/run.py`, a file this branch deletes.**
+The string is a literal in `exportAppJson` and in `exportCrosstabs`, so it ships
+in `src/data/global_labor.json` and in all 218 per-country cross-tab files.
+From `a6e45ce` the published payloads therefore carry a provenance pointer to a
+path that no longer exists.
+
+It cannot be corrected here. R3 and R4 require byte identity and this string is
+inside both payloads, so editing it would destroy the evidence the whole spec
+rests on — the same reason no other value in those files moves. It corrects
+itself the next time the data is regenerated for a real reason, and the point of
+writing it down is that the next vintage fixes the field rather than carrying
+`run.py` forward indefinitely. Provenance is the one thing this project cannot
+let drift quietly, and until this paragraph existed the only place it was
+recorded was the diff. Filed as
+[#71](https://github.com/apportico/who-gets-replaced-first/issues/71).
+
+**`data_year_context` is computed but never assigned.** The
+`loadWorldbank` writes `data_year_*` for `population`, `labor` and `sector`
+only, though `WB_INDICATORS` maps five indicators to a `context` group. The
+column is therefore always null. The port reproduces that exactly. It is a
+latent gap in provenance rather than a wrong number. Filed as
+[#72](https://github.com/apportico/who-gets-replaced-first/issues/72).
 
 ## Non-goals
 

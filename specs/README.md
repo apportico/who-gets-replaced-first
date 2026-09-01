@@ -46,11 +46,11 @@ build-first-document-later approach.
 | [0004](0004-pipeline-regression-tests.md) | Pipeline regression test suite — tiers, nulls, weighting, vintages, golden master | done — 8 done · 1 revised |
 | [0005](0005-ci-on-pull-requests.md) | CI on pull requests, merge gating, admin-bypass decision | done — 5 done |
 | [0006](0006-eslint-worktree-ignores.md) | ESLint ignores worktrees and nested build output | done — 3 done |
-| [0007](0007-pipeline-typescript-port.md) | Port the pipeline Python → TypeScript, verified byte-identical against the committed outputs | approved — 11 requirements, none implemented |
+| [0007](0007-pipeline-typescript-port.md) | Port the pipeline Python → TypeScript, verified byte-identical against the committed outputs | in-progress — plan written, 11 requirements |
 | [0008](0008-mobile-and-accessibility.md) | Mobile layout, keyboard access, screen-reader equivalents, contrast and colour-vision | done — 9 done · 2 revised · evaluated at 58cef78 |
 | [0009](0009-app-payload-drift.md) | The app payloads cannot drift from the code that writes them — regenerate `global_labor.json`, guard both | done — 6 done |
 | [0010](0010-mobile-first-redesign.md) | Mobile-first rebuild — the Replacement Date wizard on shadcn/ui, map and corridor overlay deleted | in-progress — 16 done · 4 revised · 1 not feasible |
-| [0011](0011-country-search.md) | Step 01 becomes a folded search over the 177 countries with an official series; `iso2` carried from the World Bank so `Intl.DisplayNames` supplies the alternates | approved — 11 requirements, none implemented |
+| [0011](0011-country-search.md) | Step 01 becomes a folded search over the 177 countries with an official series; `iso2` carried from the World Bank so `Intl.DisplayNames` supplies the alternates | in-progress — plan written, 11 requirements |
 
 ## Starting a new spec
 

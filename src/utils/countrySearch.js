@@ -109,8 +109,11 @@ function matchesAlias(option, q) {
   return Object.entries(ALIASES).some(([key, iso3]) => iso3 === option.iso3 && key.startsWith(q))
 }
 
-/** The four routes, exported individually so a failing test names which broke. */
-export const ROUTES = [matchesName, matchesCode, matchesIntl, matchesAlias]
+// Not exported: nothing outside this module consumes it, and an export whose
+// only claim on existence is that it looks useful is what 0010 R3 recorded and
+// R10 deleted the tag functions for. The tests reach the routes through
+// `matches` and `searchCountries`, which is what the screen uses too.
+const ROUTES = [matchesName, matchesCode, matchesIntl, matchesAlias]
 
 export function matches(option, query) {
   const q = fold(query)

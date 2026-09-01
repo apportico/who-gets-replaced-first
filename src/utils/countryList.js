@@ -28,7 +28,14 @@
 // rendering a blank.
 import { GROUPS } from './isco'
 
-/** True when the row reports at least one of the nine major groups. */
+/**
+ * True when the row reports at least one of the nine major groups.
+ *
+ * Exported although only the suite imports it: this is the "any of the nine"
+ * reading 0010 R6 fixed and 0011 R1 inherits, and the test asserts it against
+ * the committed payload rather than against a row it builds. That is a real
+ * consumer with a reason, unlike an export kept because it might be wanted.
+ */
 export function hasAnyIscoGroup(row) {
   if (!row) return false
   return GROUPS.some((g) => row[g.key] !== null && row[g.key] !== undefined)

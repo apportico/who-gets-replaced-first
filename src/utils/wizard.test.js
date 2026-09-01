@@ -217,16 +217,27 @@ describe('0011 R4 — the residual aliases are ours, small, and earn their place
   // Substring matching let a fragment reach an alias no other route returns:
   // `land` pulled SWZ out of `swaziland` and NLD out of `holland`, `or` pulled
   // CIV out of `ivory coast` and TLS out of `east timor`.
+  //
+  // Asserted through `matches`, the shipped predicate — not by reimplementing
+  // `startsWith` here. The first version of this test did reimplement it, which
+  // meant reverting `matchesAlias` to `includes` would have left it green: a
+  // guard that cannot see the regression it is named for. Third time this PR
+  // that an assertion was written from the passing case.
   it('matches by prefix, so a fragment cannot fall through to an alias', () => {
-    const viaAlias = (q) => Object.entries(ALIASES)
-      .filter(([key]) => key.startsWith(fold(q)))
-      .map(([, iso3]) => iso3)
-    expect(viaAlias('land')).toEqual([])
-    expect(viaAlias('or')).toEqual([])
+    // SWZ and CIV are reachable by these fragments *only* through the alias
+    // route, so a false here is that route and nothing else.
+    expect(matches(byIso3.SWZ, 'land')).toBe(false)
+    expect(matches(byIso3.CIV, 'or')).toBe(false)
+
+    // NLD and TLS are deliberately NOT asserted false: `Netherlands` contains
+    // "land" and `Timor-Leste` contains "or", so they match by name whatever
+    // the alias route does. Asserting false on them would be asserting a bug.
+    expect(matches(byIso3.NLD, 'land')).toBe(true)
+    expect(matches(byIso3.TLS, 'or')).toBe(true)
     // and nothing intended was lost
-    expect(viaAlias('uk')).toEqual(['GBR'])
-    expect(viaAlias('turk')).toEqual(['TUR'])
-    expect(viaAlias('czech')).toEqual(['CZE'])
+    expect(matches(byIso3.GBR, 'uk')).toBe(true)
+    expect(matches(byIso3.TUR, 'turk')).toBe(true)
+    expect(matches(byIso3.CZE, 'czech')).toBe(true)
   })
 
   it('and the excluded short forms really are already covered', () => {

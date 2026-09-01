@@ -1,6 +1,6 @@
 # 0017 — back-test the trend, publish the error
 
-**Status:** draft
+**Status:** in-review
 **Depends on:** 0004 (regression suite), 0006 (panel + time series), 0010 (result screen)
 **Issue:** [#80](https://github.com/apportico/who-gets-replaced-first/issues/80)
 **Goal:** Publish a measured retrodiction error that says plainly why this site

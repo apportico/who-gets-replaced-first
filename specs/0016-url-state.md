@@ -71,7 +71,7 @@ query at all, so the landing URL stays the bare site root.
 | Parameter | Vocabulary | Source of the vocabulary |
 |---|---|---|
 | `step` | `country`, `occupation`, `optional`, `result` | `STEPS` in `WizardShell.jsx`, minus `intro` |
-| `country` | one of the 177 `iso3` values carrying a series, or one of the 41 without (R5) | `global_labor.json` |
+| `country` | one of the 218 `row_type: country` `iso3` values — the 177 with a series, or the 41 without (R5). The **11 aggregate rows are not accepted**: `WLD` is a row in the payload but not a country, and a URL naming it must degrade under R6 rather than render a world figure as though it were somebody's country | `global_labor.json` |
 | `group` | `1`–`9` | ISCO-08 major groups |
 | `age` | `15_24`, `25_54`, `55_64` | the crosstab keys, probed uniform across 218 files |
 | `edu` | `ltb`, `bas`, `int`, `adv` | as above |
@@ -160,14 +160,18 @@ a hand-edited `age=30_40` all travel the same path.
 
 Dropping is not enough on its own: the screen states what it did, so a reader
 who was sent a link that no longer works learns that rather than assuming the
-site is broken.
+site is broken. The statement renders as a `.wz-note` directly under the
+screen's lede on whichever step the clamp landed on — the slot step 01 already
+uses for 0011 R5's locale absence, so the wording sits where a reader of this
+app has already learned to find an explanation, rather than in a new banner.
 
 **Acceptance:** each of `?step=result&country=ZZZ&group=3`,
-`?step=result&country=GBR&group=12`, `?step=result` and `?step=banana&country=GBR`
-loads without a runtime error (console clean) and lands on step 01, 02, 01 and
-02 respectively. Each renders a visible note naming the dropped parameter — e.g.
-"That link named `ZZZ`, which is not a country in this dataset." A vitest case
-asserts the `dropped` array returned by `decode` for all four, and
+`?step=result&country=GBR&group=12`, `?step=result`, `?step=banana&country=GBR`
+and `?step=result&country=WLD&group=3` loads without a runtime error (console
+clean) and lands on step 01, 02, 01, 02 and 01 respectively. Each renders a
+visible note naming the dropped parameter — e.g. "That link named `ZZZ`, which
+is not a country in this dataset." A vitest case asserts the `dropped` array
+returned by `decode` for all five, and
 `?step=result&country=GBR&group=3&age=30_40&edu=adv` decodes to the result step
 with `age: null`, `edu: 'adv'` and `dropped: ['age']`.
 
@@ -183,13 +187,24 @@ Once the cross-tab for the chosen country and group resolves, a band it does not
 publish is removed from the URL with `replaceState` (no new history entry, since
 the reader did not navigate).
 
+**Only on a resolved source absence — never on a load problem.** This is
+`absence.isSourceAbsence` doing exactly the job R20 of spec 0010 gave it, one
+layer up. `NOT_LOADED` and `LOAD_FAILED` mean the fetch has not answered, not
+that ILOSTAT publishes nothing; stripping the band on either would let one
+offline moment silently delete an answer the reader gave, and would make an
+invented absence permanent in the link they then copy. The strip fires only when
+the cross-tab state is `PRESENT` (or `WITHHELD` / `NOT_PUBLISHED`, which are
+statements about the source) and the band is absent from the published set.
+
 **Acceptance:** find a country and group whose cross-tab omits an age band — the
 suite locates one from the committed files rather than hard-coding it — and open
 the result URL naming that band. After the cross-tab resolves, `location.search`
 no longer carries `age=`, `history.length` is unchanged, and the screen shows no
-age line. If no such cell exists in the committed data, this requirement is
-marked `[!]` with the query that found nothing, rather than tested against a
-fixture invented for it.
+age line. Separately, with the cross-tab import forced to reject (`LOAD_FAILED`),
+the same URL **keeps** `age=` and the screen shows the load-failure wording, not
+the not-published wording — a vitest case asserts both halves. If no cell in the
+committed data omits a band, this requirement is marked `[!]` with the query that
+found nothing, rather than tested against a fixture invented for it.
 
 ### R8. [ ] The result screen carries a copy-link affordance
 
@@ -199,12 +214,18 @@ to showing the URL in a selectable field where the clipboard write is refused.
 It follows the design contract: mono uppercase face, `--radius-pill`, and at
 least the 48px tertiary touch-target floor.
 
-**Acceptance:** in a browser at 390×844, the result screen shows the control; a
-click writes `location.href` to the clipboard, verified by reading
-`navigator.clipboard.readText()` back and comparing to `location.href`; the
-confirmation is in an `aria-live` region. `src/styles/contrast.test.js` and
-`tokens.test.js` still pass, and the rendered control's `min-height` is
-`>= 48px` measured in the browser.
+**Acceptance:** a vitest case stubs `navigator.clipboard.writeText`, clicks the
+control, and asserts it was called with exactly `location.href` and that the
+confirmation text appears in an `aria-live` region; a second case makes the stub
+reject and asserts the URL is rendered in a selectable field instead, with no
+unhandled rejection. In a browser at 390×844 the control is visible on the result
+screen and its measured `min-height` is `>= 48px`. `contrast.test.js` and
+`tokens.test.js` still pass.
+
+Deliberately **not** `navigator.clipboard.readText()`: reading the clipboard back
+needs a separate permission that an automated browser will prompt on or refuse,
+so an acceptance built on it would fail for a reason that says nothing about the
+feature.
 
 ### R9. [ ] Every URL the app writes survives the `/who-gets-replaced-first/` base path
 
@@ -249,11 +270,13 @@ tier, and it must not acquire a router to do it — 0010's Non-goals record "the
 is no router" as a decision, and the browser's own History API is what R2 and R4
 are built on.
 
-**Acceptance:** `git diff main...HEAD -- package.json package-lock.json` shows no
-added dependency. No file under `src/` gains a numeric literal presented to a
-reader as a statistic — the diff introduces no new call to `groupShare`,
-`groupHeadcount`, `trendFor` or `readBands`, and the tier badges on the result
-screen are unchanged, asserted by the existing `wizard.render.test.jsx`.
+**Acceptance:** `git diff origin/main...HEAD -- package.json package-lock.json`
+shows no added entry under `dependencies`. `git diff origin/main...HEAD --stat`
+shows no change to `src/utils/groupFigures.js`, `laborMetrics.js`, `trend.js`,
+`terms.js` or `crossTabs.js` — the five modules that produce or tier a figure —
+and `wizard.render.test.jsx` and `computed.test.jsx` pass **with no assertion in
+them modified**, which is what makes their green a statement about the figures
+rather than about a rewritten test.
 
 ## Non-goals
 

@@ -79,7 +79,7 @@ export default function CountryScreen({ rows, iso3, excluded, notice, onPick, on
     >
       <div style={{ paddingTop: 40 }}>
         <p className="wz-eyebrow">Question 01</p>
-        <h2 className="wz-h2">Where do you work?</h2>
+        <h1 className="wz-h2">Where do you work?</h1>
         {/* R10. The provenance the per-row tag used to carry. Every row in this
             list has a series, so tagging all 177 identically said nothing; what
             is worth saying is what the list *is*. */}

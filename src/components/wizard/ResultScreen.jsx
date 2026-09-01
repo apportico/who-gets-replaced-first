@@ -31,6 +31,7 @@ import { groupByNumber } from '@/utils/isco'
 import { ageBands, eduBands } from '@/utils/crossTabs'
 import { qualityTone } from '@/utils/laborMetrics'
 import { PRESENT, LOAD_FAILED, NOT_LOADED, absenceMessage } from '@/utils/absence'
+import ShareCardButton from './ShareCardButton'
 
 function Figure({ label, result, note }) {
   return (
@@ -84,11 +85,11 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart })
         {subject}
       </p>
 
-      <h2 className="wz-h2" style={{ marginTop: 14, fontSize: 40 }}>
+      <h1 className="wz-h2" style={{ marginTop: 14, fontSize: 40 }}>
         {share.state === PRESENT
           ? <>{share.display} of {row.country_name}&apos;s workers</>
           : <>No published figure</>}
-      </h2>
+      </h1>
 
       {/* R14. Said plainly, at the top, rather than left as an absence the
           reader has to notice. */}
@@ -281,6 +282,25 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart })
           the cell the reader landed on, and sending it to someone is the thing
           they are most likely to want next. Starting over is the retreat. */}
       <CopyLink />
+
+      {/* 0015 R5. Above "start again", because the reader who has just read
+          the figures is the one who wants to keep them. */}
+      <ShareCardButton row={row} group={group} />
+
+      {/* 0015 R8. A real link with an href, not a scripted navigation: it has
+          to survive being opened in a new tab, and be followed by a crawler.
+          One click from the result, which is what #78 asks for and what a
+          third accordion would not have been. */}
+      <a
+        href="methodology.html"
+        className="wz-option"
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          marginTop: 10, minHeight: 'var(--tap-option)', textDecoration: 'none',
+        }}
+      >
+        How these numbers are made, and what we refuse to say →
+      </a>
 
       <button
         type="button"

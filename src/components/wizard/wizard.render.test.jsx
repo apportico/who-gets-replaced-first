@@ -482,6 +482,98 @@ describe('0011 R8 — the search cost no dependency and no fourth ui file', () =
 })
 
 // ---------------------------------------------------------------------------
+// 0015 R1 — one h1 per screen, and no skipped level.
+//
+// Measured 2026-09-01 before the change: the intro carried exactly one `h1`
+// and steps 01-04 carried none, so the document outline opened at `h2` on
+// every screen a reader actually lands on. #78 recorded "0 across the whole
+// app, every step"; the intro was already correct and the other four were not.
+//
+// The second assertion is the one that would have caught the regression this
+// change could have introduced: Radix's AccordionHeader renders `h3`, so
+// promoting the result heading to `h1` without touching the accordion would
+// have produced h1 -> h3 and traded one outline defect for another.
+// ---------------------------------------------------------------------------
+describe('0015 R1 — one h1 per screen, no skipped level', () => {
+  const levels = () =>
+    [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].map((el) =>
+      Number(el.tagName[1]),
+    )
+
+  const expectWellFormedOutline = () => {
+    const seen = levels()
+    expect(seen.filter((n) => n === 1)).toHaveLength(1)
+    expect(seen[0]).toBe(1)
+    for (let i = 1; i < seen.length; i += 1) {
+      // A level may return to any shallower depth; it may only ever go one
+      // deeper. That is the whole rule, and it is what "no skipped level"
+      // means -- not that every level appears.
+      expect(seen[i] - seen[i - 1]).toBeLessThanOrEqual(1)
+    }
+  }
+
+  const toOccupation = () => {
+    startWizard()
+    pickCountry('United Kingdom')
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+  }
+
+  const toResult = async () => {
+    toOccupation()
+    fireEvent.change(screen.getByLabelText('Your job title'), {
+      target: { value: 'electrical engineering technician' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    fireEvent.click(screen.getByRole('button', { name: /skip/i }))
+    await waitFor(() =>
+      expect(document.body.textContent).toContain('No displacement date is published'),
+    )
+  }
+
+  it('intro', () => {
+    render(<App />)
+    expectWellFormedOutline()
+  })
+
+  it('01 country', () => {
+    startWizard()
+    expectWellFormedOutline()
+  })
+
+  it('02 occupation', () => {
+    toOccupation()
+    expectWellFormedOutline()
+  })
+
+  it('03 optional', () => {
+    toOccupation()
+    fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    expectWellFormedOutline()
+  })
+
+  it('04 result, with the two accordions in the outline', async () => {
+    await toResult()
+    expectWellFormedOutline()
+    // Named explicitly: the accordions are the only other headings on this
+    // screen, and h2 is what keeps the outline unbroken under the new h1.
+    const accordionLevels = [...document.querySelectorAll('[data-slot="accordion-trigger"]')]
+      .map((btn) => btn.closest('h1,h2,h3,h4,h5,h6')?.tagName)
+    expect(accordionLevels).toEqual(['H2', 'H2'])
+  })
+
+  it('the result h1 is the figure sentence, and keeps its display size', async () => {
+    await toResult()
+    const h1 = document.querySelector('h1')
+    expect(h1.textContent).toContain("of United Kingdom's workers")
+    // 0012 R3 -- the type scale is attached to the class, not to the tag, so
+    // promoting h2 to h1 must not move the display size.
+    expect(h1.className).toContain('wz-h2')
+  })
+})
+
 // Spec 0016 — the wizard's state lives in the URL.
 //
 // Added, never edited: nothing above this line changed except the `resetUrl()`
@@ -514,8 +606,19 @@ describe('0016 R3 — a cold load restores the wizard from the URL', () => {
     // `Start ->` and would also match the result screen's `Start again`. If the
     // shell had restored in an effect rather than a lazy initialiser, this
     // would be in the tree for a frame.
-    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    //
+    // 0015 R1 changed how this is asked, not what it asks. This used to be
+    // `queryByRole('heading', { level: 1 })` is null, which worked only while
+    // the intro was the ONLY screen with an h1; every screen has one now, so
+    // that assertion started matching the result screen's own headline and
+    // failed for the opposite of its intent. Asked directly instead: the
+    // intro's headline text is absent, and the h1 that IS present belongs to
+    // the result. The second form is strictly stronger -- it would have caught
+    // an intro frame that rendered with no heading at all.
+    expect(document.body.textContent).not.toContain('says about')
     expect(document.body.textContent).not.toContain('Measured, not forecast')
+    expect(screen.getByRole('heading', { level: 1 }).textContent)
+      .toContain("of United Kingdom's workers")
   })
 
   it('restores step 02 and step 03 too, not only the result', () => {

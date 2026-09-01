@@ -1,8 +1,13 @@
 # 0014 — the wizard can go back
 
-**Status:** in-review
+**Status:** in-progress
 **Depends on:** 0010, 0011, 0012
 **Issue:** [#77](https://github.com/apportico/who-gets-replaced-first/issues/77)
+**Approved:** Dani (@syymza), 2026-09-02 — given **directly, not as a GitHub
+review**. The spec PR ([#85](https://github.com/apportico/who-gets-replaced-first/pull/85))
+is self-authored, so GitHub refuses an approval from its author and
+`reviewDecision` stays `REVIEW_REQUIRED` regardless. That field is not a signal
+on this PR; this line is the record of the approval instead.
 **Goal:** the wizard is navigable backwards without losing an answer, and step 02
 shows the reader their own words, checked as:
 1. From step 04, going back to step 01 and forward again reproduces the same
@@ -191,6 +196,107 @@ dependency; `location.href` is unchanged after walking to step 04 and back.
 **Acceptance:** `npm run verify` exits 0 (the pilot self-skips in a worktree with
 no `pipeline/raw/` cache — that is expected and is stated in the output). The
 render suite gains assertions for R1, R3, R4, R5 and R6 and passes.
+
+## Implementation Plan
+
+**Planned:** 2026-09-02
+
+### Files to create
+
+None. Every change lands in files that already exist — this is a wizard that
+already has four screens and a shell that already owns the answers.
+
+### Files to modify
+
+| File | Change |
+|---|---|
+| `src/styles/index.css` | `.wz-back` (the control) and `.wz-actions` (the secondary row it sits in), both from tokens, at the `--tap-tertiary` floor |
+| `src/components/wizard/WizardShell.jsx` | Lift step 01's `query` and step 02's input state out of the screens; pass `onBack` to steps 01–04 |
+| `src/components/wizard/CountryScreen.jsx` | Take `query` / `onQuery` as props; render the back control in the footer |
+| `src/components/wizard/OccupationScreen.jsx` | Take the lifted input state; render the verbatim echo; render back |
+| `src/components/wizard/OptionalScreen.jsx` | Render back alongside `Skip` in one secondary row |
+| `src/components/wizard/ResultScreen.jsx` | Render back alongside `Start again` |
+| `src/components/wizard/wizard.render.test.jsx` | Assertions for R1, R3, R4, R5, R6 |
+
+### The one design decision inside the code
+
+Step 02's input state moves into the shell as **one object**, not three
+`useState`s:
+
+```js
+const [occ, setOcc] = useState({ title: '', tried: false, echo: null })
+```
+
+`echo` is the load-bearing field and it is deliberately not derived from `title`.
+It holds the string the *current* resolution was made from, so it is set on a
+successful resolve and cleared when a chip overrides — which is exactly what R6
+needs, and what a naive `echo = title` would get wrong: type `paralegal`, resolve,
+then click `1 · Managers`, and a derived echo would report that you typed
+`paralegal` to reach Managers. `group` stays a separate piece of state because it
+is the *answer*; `occ` is how the reader got to it.
+
+### Sequence
+
+1. **CSS** — `.wz-back` and `.wz-actions`. Nothing depends on this but everything
+   renders through it, so it is first. (R2, R7)
+2. **Shell** — lift `query` and `occ`; add `onBack={() => go(n - 1)}` to steps
+   01–04. Each handler changes `step` and nothing else; that *is* R3. (R1, R3, R5)
+3. **CountryScreen** — `query`/`onQuery` props replace the local `useState`;
+   `active` stays local, since an arrow-key position is not an answer. Back goes
+   in the existing `wz-footer wz-footer--anchored`. (R1, R5)
+4. **OccupationScreen** — consume `occ`; render the echo; back in the footer. (R1, R4, R5, R6)
+5. **OptionalScreen** — back and `Skip` share one `.wz-actions` row under the CTA. (R1)
+6. **ResultScreen** — back and `Start again` share one row. This screen has no
+   `wz-footer`; the row stays inline where `Start again` already is. (R1)
+7. **Tests** — extend `wizard.render.test.jsx`. (R10)
+8. **`npm run verify`**, then the browser walk at 390×844 and 1440×900. (R3, R7, R8, R9, R10)
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | `onBack` on steps 01–04, one step back each | `WizardShell.jsx` + all four screens | Browser walk `04→03→02→01→intro` reading the header counter; `wizard.render.test.jsx` |
+| R2 | Control rendered inside the footer, never in `<header>` | the four screens | `document.querySelectorAll('header button').length === 0` in the browser |
+| R3 | Back handlers set `step` and touch no other state | `WizardShell.jsx` | Step-04 DOM text compared string-for-string across a `04→01→04` round trip |
+| R4 | `occ.echo` rendered verbatim next to `groupDisplay(group)` | `OccupationScreen.jsx` | `main` text contains `paralegal` **and** `3 · Technicians and associate professionals`; `Bookkeeper` keeps its casing |
+| R5 | `query` and `occ` lifted into the shell | `WizardShell.jsx`, `CountryScreen.jsx`, `OccupationScreen.jsx` | Type, go back, go forward — input values survive; asserted in both browser and suite |
+| R6 | Chip click sets `echo: null` | `OccupationScreen.jsx` | After a chip, `main` names the group and does **not** contain `You typed` |
+| R7 | `.wz-back` at `min-height: var(--tap-tertiary)`, focus ring untouched | `index.css` | `getBoundingClientRect().height >= 48`; `outlineWidth`/`outlineOffset` on the focused element; no new hex in `src/components/wizard/` |
+| R8 | Already derived from `step` — verified, not built | `WizardShell.jsx` (unchanged logic) | Counter and accent segment count read in a **focused** browser tab |
+| R9 | Nothing added | — | `grep -rniE "react-router\|pushState\|..." src/` empty; `package.json` unchanged |
+| R10 | Suite extended | `wizard.render.test.jsx` | `npm run verify` exits 0 |
+
+### Tier and vintage handling
+
+**Not applicable, and that is a checked claim rather than an omission.** This
+change produces no number. The echo renders a string the reader typed; navigation
+moves `step`. Every figure on step 04 keeps the tier and year it already carries,
+and R3's string-for-string comparison of the step-04 DOM across a round trip is
+what proves it — a tier or year that changed would fail that check.
+
+### Validation
+
+The pipeline is untouched, so `[validate]`, `[crosscheck]` and `[outliers]` have
+nothing to say here and no new pipeline check is needed. The coverage that
+matters is `wizard.render.test.jsx`, which mounts the real shell against the real
+payload — plus the browser walk, because `REVIEW.md` Pass 7 is explicit that a
+passing build is not evidence a page renders.
+
+### Risks
+
+- **The step-04 comparison is the strictest check here and may catch something
+  unrelated.** Radix accordion state resets on remount, so the comparison must be
+  taken with the accordions in the same state on both passes. If it fails on
+  something that is genuinely not an answer, that is an R3 revision to record, not
+  a check to loosen.
+- **Three stacked controls on step 03.** CTA (60px) + a 48px secondary row is
+  ~120px of sticky footer at 390×844. If it crowds the bands, the fix is the row
+  layout, not dropping back — and it is why back and `Skip` share a row rather
+  than stacking.
+- **`prefers-reduced-motion` and the frozen-animation trap.** `.wz-step` is
+  `animation: stepin ... both`, so an unfocused tab screenshots every step blank
+  and reads the progress bar short. Every browser measurement must be taken with
+  the tab focused, or R8 will produce a false failure.
 
 ## Non-goals
 

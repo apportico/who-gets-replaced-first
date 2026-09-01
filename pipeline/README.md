@@ -395,6 +395,93 @@ problem.
 | `exposed_wage_bill_ppp` | modeled | `ai_exposure_weighted_score × employed_total × gdp_per_capita_ppp`. An order of magnitude for the economic scale of exposure. **Never an amount at risk.** |
 | `ict_service_exports_usd` | official | Service exports × ICT share — white-collar labor sold abroad. Countries whose exposed jobs are export-facing carry a compounding risk. |
 
+## Back-test: what the trend can and cannot retrodict (0017)
+
+The result screen states no replacement date. Spec 0010 R13 probed for one and
+found nothing published anywhere, which is the right reason but not a measured
+one. This is the measurement.
+
+**Method.** For every country and each of the nine ISCO-08 major-group shares,
+fit ordinary least squares on the observations in **2013–2019**, evaluate the
+fitted line at **2025**, and score it against the 2025 value the panel already
+holds. Only years actually observed take part; a gap year is skipped, never
+interpolated. A pair needs **at least 3** fit-window observations and a non-null
+2025 value, or it produces no row at all.
+
+**Outputs.** `data/backtest.csv` (574 rows) and `data/backtest_summary.csv`
+(nine groups plus `POOLED`), with `src/data/backtest.json` for the app.
+
+| Field | Tier | Meaning |
+|---|---|---|
+| `last_fit_pct`, `observed_2025_pct` | derived | Panel ISCO shares |
+| `retrodicted_2025_pct` | **modeled** | The fitted line at 2025 |
+| `error_pp`, `persistence_error_pp`, `direction_correct` | **modeled** | A difference is only as measured as its least-measured term |
+| `fit_start_year`, `fit_end_year`, `fit_obs`, `target_year` | not a measurement | Provenance |
+
+### The result
+
+| | Clerical, n=64 | Pooled, 9 groups, n=574 |
+|---|---|---|
+| Trend MAE / RMSE | 0.940 / 1.295 pp | **1.806 / 3.867 pp** |
+| **Persistence** MAE / RMSE | **0.645 / 0.843 pp** | **1.292 / 2.046 pp** |
+| Trend beats persistence on | — | **234 / 574 (40.8%)** |
+| Direction wrong | **31 / 64** | **241 / 574 (42.0%)** |
+| Worst case | `GEO` 5.06pp | `RWA` 58.39pp |
+
+**The trend model is beaten by assuming nothing changes.** Persistence — carry
+the last fit-window observation forward unchanged — wins on MAE and RMSE pooled
+and in eight of the nine groups, and the trend improves on it for only 40.8% of
+pairs. It also gets the *direction of travel* wrong 42% of the time, which is
+close to a coin flip and is a failure no error magnitude reports.
+
+A mean would hide this. The clerical mean signed error is −0.055pp, which reads
+as an almost unbiased model while the worst country is out by 5.06pp.
+
+**Why, and why a better fit would not help.** The observed employment share is a
+**net** figure. It bundles displacement with demand growth, offshoring, ageing,
+labour supply and reclassification. A model reading the net and calling it
+displacement measures the wrong thing, and no amount of curve-fitting recovers
+the components from the total.
+
+**This is why no replacement year ships, in any tier.** Nothing here authorises
+one; `pipeline/backtest.ts` emits no year column beyond the fit window and the
+target year, and the test suite enforces that against an allowlist.
+
+### The 31 clerical countries whose direction is wrong
+
+Named individually rather than counted, because a country whose sign is wrong is
+not a country with a slightly worse error:
+
+Argentina (`ARG`), Bolivia (`BOL`), Brazil (`BRA`), Bulgaria (`BGR`), Colombia
+(`COL`), Cyprus (`CYP`), Czechia (`CZE`), Denmark (`DNK`), Dominican Republic
+(`DOM`), Estonia (`EST`), Georgia (`GEO`), Greece (`GRC`), Hungary (`HUN`),
+Iceland (`ISL`), Latvia (`LVA`), Lithuania (`LTU`), Moldova (`MDA`), Mongolia
+(`MNG`), North Macedonia (`MKD`), Norway (`NOR`), Pakistan (`PAK`), Panama
+(`PAN`), Paraguay (`PRY`), Poland (`POL`), Rwanda (`RWA`), Serbia (`SRB`),
+Slovenia (`SVN`), Spain (`ESP`), St. Lucia (`LCA`), Sweden (`SWE`), West Bank
+and Gaza (`PSE`).
+
+### Coverage: 64 of 177
+
+**177** countries carry an ISCO series; only **64** can be back-tested. The other
+**113** are unscorable — 108 have no 2025 observation, and 5 more (`AGO`, `BFA`,
+`GMB`, `IND`, `VUT`) have a 2025 value but fewer than three fit-window
+observations. The error figures above describe those 64 and no others.
+
+Two of the missing ones matter more than the rest, because they are the cases
+that motivated the exercise:
+
+- **Japan** — the clerical series runs 2013 (19.86%) to 2023 (21.19%) and stops.
+  There is no 2025 observation, so Japan cannot be scored at all. It is the
+  headline counter-example for the net-figure problem: clerical work *grew* there
+  across the whole window.
+- **India** — two fit-window observations (2018, 2019). A two-point fit has no
+  residual and would enter the distribution as a spuriously confident row, so it
+  is excluded rather than fitted.
+
+Reporting a 64-country error without that denominator would overstate the
+coverage of exactly the cases the finding is about.
+
 ## Validation and cross-checks
 
 Beyond v1's range and sum checks:

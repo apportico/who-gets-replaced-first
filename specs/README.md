@@ -53,9 +53,11 @@ build-first-document-later approach.
 | [0008](0008-mobile-and-accessibility.md) | Mobile layout, keyboard access, screen-reader equivalents, contrast and colour-vision | done — 9 done · 2 revised · evaluated at 58cef78 |
 | [0009](0009-app-payload-drift.md) | The app payloads cannot drift from the code that writes them — regenerate `global_labor.json`, guard both | done — 6 done |
 | [0010](0010-mobile-first-redesign.md) | Mobile-first rebuild — the Replacement Date wizard on shadcn/ui, map and corridor overlay deleted | in-progress — 15 done · 5 revised · 1 not feasible |
-| [0011](0011-country-search.md) | Step 01 becomes a folded search over the 177 countries with an official series; `iso2` carried from the World Bank so `Intl.DisplayNames` supplies the alternates | done — 11 done |
+| [0011](0011-country-search.md) | Step 01 becomes a folded search over the 177 countries with an official series; `iso2` carried from the World Bank so `Intl.DisplayNames` supplies the alternates | done — 8 done · 3 revised (R1/R3/R9 by 0013) |
 | [0012](0012-desktop-layout.md) | Desktop layout — one breakpoint at 768px, a 640px column, display scale, un-docked CTA, and the browser-measurement path restored | in-progress — 9 done · 3 revised, review rounds 1–2 addressed |
+| [0013](0013-country-fold.md) | Step 01 opens folded — the selected country alone, a 12-row cap on matches and a 3-row cap on the stated absences, both truncations stated; and the 0011 criteria that passed against a 12,294px list tightened | done — 7 done · merged at `8627c93` |
 | [0016](0016-url-state.md) | The wizard's state lives in the URL — a query string on the existing path, cold-load restore, browser Back walking the steps, and a copy-link on the result | in-progress — 9 done · 2 revised |
+| [0017](0017-backtest.md) | Back-test the naive trend — fit 2013–2019, retrodict 2025, publish the per-country error and why no date ships | done — 9 done |
 
 ## Starting a new spec
 

@@ -91,9 +91,9 @@ export function termsFor(row, group, crosstabs) {
   return terms
 }
 
-/** R16's back-test half: the floor, stated rather than implied. */
-export const BACKTEST_NOTE =
-  'Occupation detail bottoms out at nine major groups worldwide. No source ' +
-  'supports telling an individual that their specific role is at risk — only ' +
-  'their occupational group. No back-test is claimed here, because no ' +
-  'displacement model ships.'
+// R16's back-test half. 0017 R7 moved the text to `utils/backtest.js`, where it
+// sits beside the measurement it now describes: the old wording ended "no
+// back-test is claimed here, because no displacement model ships", and a
+// back-test IS claimed as of spec 0017. Re-exported rather than relocated
+// wholesale so existing importers of `terms` keep working.
+export { BACKTEST_NOTE } from './backtest'

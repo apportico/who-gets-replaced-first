@@ -50,7 +50,7 @@ used — with `document.title` asserted before anything was measured.
 
 ## Requirements
 
-### R1. [ ] One breakpoint, declared once, at 768px
+### R1. [x] One breakpoint, declared once, at 768px
 
 The stylesheet gains a **single** `@media (min-width: 768px)` block, and every
 desktop value in this spec lives inside it. 768px is not a new number: spec 0008
@@ -63,7 +63,7 @@ the right answer.
 conditions — `(prefers-reduced-motion: reduce)` and `(min-width: 768px)` — at
 every viewport in R6's list. A second width breakpoint is a review finding.
 
-### R2. [ ] The column grows to 640px above the breakpoint
+### R2. [x] The column grows to 640px above the breakpoint
 
 `--column-wide: 640px` joins `--column: 480px` as a layout token, and the wrapper
 in `WizardShell.jsx:79` resolves to the wide value above the breakpoint. Both are
@@ -73,7 +73,7 @@ tokens; neither is a literal in a component, per 0010 R2.
 and 1920, and **480** at 375, 480 and 767. `documentElement.scrollWidth ===
 innerWidth` at all six, so the wider column introduces no horizontal scroll.
 
-### R3. [ ] The display scale grows with the column
+### R3. [x] The display scale grows with the column
 
 Above the breakpoint the display tokens are redefined: `--step-h1: 78px`,
 `--step-h2: 54px`, `--step-stat: 44px`. Body, mono and every label size are
@@ -91,7 +91,7 @@ exactly, and puts every desktop value in one place a reviewer can read.
 a stat figure **38px** → **44px**. The h1 renders on no more than three lines at
 1440.
 
-### R4. [ ] The CTA un-docks above the breakpoint
+### R4. [x] The CTA un-docks above the breakpoint
 
 `.wz-footer` drops to `position: static` above the breakpoint and loses its
 gradient fade, so the primary action on steps 01–03 is an inline button in the
@@ -103,7 +103,7 @@ is already inline (probed) and does not change.
 all six the CTA's measured height is **≥ 60px**, and at 1440 the dock's box
 bottom is **not** equal to `innerHeight`.
 
-### R5. [ ] Below the breakpoint, nothing moves
+### R5. [x] Below the breakpoint, nothing moves
 
 The phone layout is the primary surface and this change may not touch it. The
 375 and 480 rows of R6's report must match a baseline committed from `main`
@@ -115,7 +115,7 @@ produces rows **deep-equal** to that file — column 480, h1 66px, h2 46px, CTA
 60px, dock `sticky`, `scrollWidth === innerWidth`, zero page errors — and the
 script exits non-zero on any difference.
 
-### R6. [ ] The measure script is restored, committed and documented
+### R6. [x] The measure script is restored, committed and documented
 
 `scripts/desktop-measure.mjs` returns the browser-measurement path `ada3897`
 deleted, rebuilt around the wizard instead of the map: six viewports (375, 480,
@@ -130,7 +130,7 @@ prints a row per viewport and exits **0**; it exits **non-zero** on a title
 mismatch (verifiable by pointing `APP_URL` at any other page) and non-zero on any
 R2–R5 threshold breach. `playwright-core` does **not** appear in `package.json`.
 
-### R7. [ ] The desktop layout is clean at every width
+### R7. [x] The desktop layout is clean at every width
 
 No horizontal scroll, no console errors, no overlapping or clipped elements at
 any of the six viewports.
@@ -139,7 +139,7 @@ any of the six viewports.
 script's collected `pageerror` + `console.error` list is **empty**. Screenshots
 at 375, 768, 1440 and 1920 are attached to the implementation PR.
 
-### R8. [ ] The accessibility floors hold at every width
+### R8. [x] The accessibility floors hold at every width
 
 Touch targets, the focus ring and reduced motion are width-independent. 0008's
 floors and 0010 R5's targets survive: primary CTA ≥60px, options and secondary
@@ -151,7 +151,7 @@ script additionally reports, at **all six** viewports, `.wz-cta` height ≥60,
 every `.wz-option` height ≥56, and a focused CTA computing `outline-width: 2px`
 with `outline-color: rgb(255, 90, 43)`.
 
-### R9. [ ] The data surface is identical at every width
+### R9. [x] The data surface is identical at every width
 
 This is the rule `CLAUDE.md` puts hardest on the result screen: a layout change
 must not alter a figure, a tier badge, a `no series` result or a stand-in
@@ -163,7 +163,7 @@ figures and the full set of tier badge strings (`OFFICIAL` / `DERIVED` /
 `PROXY` / `MODELED`) are **string-identical** between the two viewports. A
 figure that appears at one width and not the other fails the requirement.
 
-### R10. [ ] The tests that pin 480px describe the new contract
+### R10. [x] The tests that pin 480px describe the new contract
 
 `tokens.test.js:210` and `computed.test.jsx:262` currently assert a single 480px
 column. They are updated to assert **both** tokens and the breakpoint's
@@ -176,7 +176,7 @@ build pass.
 applies no media query, which is the honest jsdom-side check). `npm run verify`
 is green.
 
-### R11. [ ] The desktop contract is written down where the canvas cannot say it
+### R11. [x] The desktop contract is written down where the canvas cannot say it
 
 The canvas has no desktop artboard and could not be enumerated (probed above), so
 `CLAUDE.md`'s *Shape* section — which currently reads `max-width: 480px centred`
@@ -194,6 +194,38 @@ mobile-only and this spec as the desktop authority; and spec 0010 R5 carries a
 as a count of a prose phrase: `grep -c "480px centred"` returns 0 **today**,
 because the file writes it as `` `max-width: 480px` centred `` with backticks —
 a criterion that passes before the work is done is not a criterion.)
+
+### R12. [x] The sparkline draws its whole width at the wider column
+
+Added 2026-09-01, during implementation, from a screenshot the plan's step 7
+required. `Sparkline.jsx` animates its trend with `stroke-dasharray="400"` and
+`@keyframes draw`, and the path also carries `vector-effect: non-scaling-stroke`
+— which puts the **dash pattern in screen pixels, not user units**. At the 480px
+column the card is ~392px wide, so a 400px dash covered the whole path and the
+defect was invisible. At 640px the card is ~596px wide: the trend line stops
+dead at 400px and the accent "now" dot sits ~180px further right, unconnected.
+
+This is not a new defect, and it is not cosmetic — it is a chart that stops
+drawing part-way and leaves a marker floating away from the series it marks. The
+fix is `pathLength="1"` with `stroke-dasharray="1"` and `draw` animating from
+`1`, which normalises the dash to the path's own length at any rendered width.
+
+**Acceptance:** at **all six** viewports the script reports the path carrying
+`pathLength` **and no `vector-effect`**, with a dash of at least one normalised
+unit; where the path is not normalised, the dash must be at least its rendered
+length. `tokens.test.js` still finds all four keyframes, and R5's baseline
+comparison still passes — the evidence that the fix does not move the phone
+rendering, where the path already fitted inside the 400px dash.
+
+**The first version of this criterion was wrong and is recorded rather than
+quietly replaced.** It compared the path's bounding-box right edge with the end
+dot's centre, which passed at every viewport while a screenshot showed the line
+stopping 180px short: a bounding box is the path's *geometry* and ignores the
+dash entirely. The check now compares dash against rendered length in the same
+units, and additionally forbids `vector-effect` alongside `pathLength` — because
+the first attempted *fix* (normalising the dash while keeping
+`non-scaling-stroke`) also passed the old check and still clipped the line, at
+52% instead of 72%.
 
 ## Implementation Plan
 
@@ -246,6 +278,7 @@ and what keeps a raw px out of `src/components/wizard/`.
 | R9 | No change — the layout never touches the data path | — | Script drives to step 04 at 375 and 1440, for one country with a series and one without, and diffs the stat figures and tier badge strings |
 | R10 | Both width assertions rewritten to the new contract | the two test files | `npm run verify` green with the new assertions in place |
 | R11 | *Shape* section and 0010 R5's note | `CLAUDE.md`, `specs/0010-*.md` | The `max-width: 480px` line also contains `768px`; 0010 R5 carries a `[~]` linking 0012 |
+| R12 | `pathLength="1"`, dash normalised, `draw` from `1` | `Sparkline.jsx`, `index.css` | Script: path right edge within 4px of the dot centre at all six viewports |
 
 ### Tier and vintage handling
 
@@ -286,6 +319,46 @@ between the two widths, the layout has touched the data surface and R9 fails.
   script without `npm install --no-save playwright-core` first. That is the
   deliberate trade recorded in Non-goals, and the script says so when the import
   fails.
+
+
+## Evaluation
+
+**Run 2026-09-01** against the branch, `npm run dev -- --port 5273 --strictPort`,
+`node scripts/desktop-measure.mjs --baseline scripts/desktop-baseline.json`:
+
+```
+ 375  column 375  h1 66  h2 46  stat 38  dock sticky  cta 60  opt 62  errors 0
+ 480  column 480  h1 66  h2 46  stat 38  dock sticky  cta 60  opt 62  errors 0
+ 767  column 480  h1 66  h2 46  stat 38  dock sticky  cta 60  opt 62  errors 0
+1024  column 640  h1 78  h2 54  stat 44  dock static  cta 60  opt 62  errors 0
+1440  column 640  h1 78  h2 54  stat 44  dock static  cta 60  opt 62  errors 0
+1920  column 640  h1 78  h2 54  stat 44  dock static  cta 60  opt 62  errors 0
+
+all checks passed
+```
+
+| Req | Verdict | Evidence |
+|---|---|---|
+| R1 | `[x]` | The parsed stylesheet carries exactly two media conditions at all six viewports: `(min-width: 768px)` and `(prefers-reduced-motion: reduce)` |
+| R2 | `[x]` | Column 640 at 1024/1440/1920, 480 at 480/767, 375 at 375 (the wrapper is `width: 100%` under the cap). `scrollWidth === innerWidth` at all six |
+| R3 | `[x]` | h1 66→78, h2 46→54, stat 38→44 across the breakpoint. The h1 runs 3 lines at 1440 |
+| R4 | `[x]` | Dock `sticky` at 375/480/767 and `static` at 1024/1440/1920; at 1440 it is no longer on the viewport floor. CTA ≥60px at all six |
+| R5 | `[x]` | `--baseline scripts/desktop-baseline.json` (captured at `91ec0f6` before any CSS changed) passes: the 375 and 480 rows are deep-equal, figures and badges included |
+| R6 | `[x]` | `scripts/desktop-measure.mjs` runs and exits 0; it exits 1 on a title mismatch and 1 on any threshold breach — both seen during development. `playwright-core` is absent from `package.json` |
+| R7 | `[x]` | Zero console and page errors and no horizontal scroll at all six. Screenshots taken at 375, 768, 1440, 1920 for intro, step 01 and the result |
+| R8 | `[x]` | CTA 60px, shortest option 62px, and a Tab-focused control computing `2px rgb(255, 90, 43)` at `3px` offset — at all six widths |
+| R9 | `[x]` | At 375 and 1440 the result is string-identical: figures `["8.9%", "2.99M"]`, badges `["DERIVED","2025","DERIVED","2025","DERIVED"]`, and the no-series country's withdrawal headline matches too |
+| R10 | `[x]` | Both tests rewritten to the new contract; `npm run verify` green |
+| R11 | `[x]` | `CLAUDE.md` line 76 carries both widths and `768px`; the canvas-authority paragraph names the desktop exception; spec 0010 R5 carries a third `[~]` note linking here |
+| R12 | `[x]` | Path normalised with `pathLength`, `vector-effect` removed, dash covers the full line at all six. Confirmed in a screenshot, which is what found the defect |
+
+**Two findings worth carrying forward.** The measure script's first two attempts
+at R8 and R4 reported failures that were not defects — a programmatic `.focus()`
+does not match `:focus-visible`, and both readings were taken mid-animation
+(`stepin` 0.5s, `.wz-option`'s `transition: all 0.18s`). And R12's first
+acceptance criterion passed against a visibly broken chart. In both directions
+the lesson is the same one `CLAUDE.md` draws about the font `@import`: a check
+that does not observe what the browser paints will agree with you.
 
 ## Non-goals
 

@@ -50,7 +50,7 @@ build-first-document-later approach.
 | [0008](0008-mobile-and-accessibility.md) | Mobile layout, keyboard access, screen-reader equivalents, contrast and colour-vision | done — 9 done · 2 revised · evaluated at 58cef78 |
 | [0009](0009-app-payload-drift.md) | The app payloads cannot drift from the code that writes them — regenerate `global_labor.json`, guard both | done — 6 done |
 | [0010](0010-mobile-first-redesign.md) | Mobile-first rebuild — the Replacement Date wizard on shadcn/ui, map and corridor overlay deleted | in-progress — 16 done · 4 revised · 1 not feasible |
-| [0012](0012-desktop-layout.md) | Desktop layout — one breakpoint at 768px, a 640px column, display scale, un-docked CTA, and the browser-measurement path restored | in-progress — 11 requirements, plan written |
+| [0012](0012-desktop-layout.md) | Desktop layout — one breakpoint at 768px, a 640px column, display scale, un-docked CTA, and the browser-measurement path restored | in-progress — 12 done, awaiting review |
 
 ## Starting a new spec
 

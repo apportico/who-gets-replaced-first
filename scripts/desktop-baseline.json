@@ -1,0 +1,89 @@
+{
+  "375": {
+    "viewport": 375,
+    "column": 375,
+    "h1": 66,
+    "h1Lines": 3,
+    "h2": 46,
+    "stat": 38,
+    "scrollWidth": 375,
+    "dockPosition": "sticky",
+    "dockOnViewportFloor": true,
+    "ctaHeight": 60,
+    "minOptionHeight": 62,
+    "optionCount": 218,
+    "ringWidth": "2px",
+    "ringColor": "rgb(255, 90, 43)",
+    "ringOffset": "3px",
+    "headline": "8.9% of United Kingdom's workers",
+    "figures": [
+      "8.9%",
+      "2.99M"
+    ],
+    "badges": [
+      "DERIVED",
+      "2025",
+      "DERIVED",
+      "2025",
+      "DERIVED"
+    ]
+  },
+  "480": {
+    "viewport": 480,
+    "column": 480,
+    "h1": 66,
+    "h1Lines": 3,
+    "h2": 46,
+    "stat": 38,
+    "scrollWidth": 480,
+    "dockPosition": "sticky",
+    "dockOnViewportFloor": true,
+    "ctaHeight": 60,
+    "minOptionHeight": 62,
+    "optionCount": 218,
+    "ringWidth": "2px",
+    "ringColor": "rgb(255, 90, 43)",
+    "ringOffset": "3px",
+    "headline": "8.9% of United Kingdom's workers",
+    "figures": [
+      "8.9%",
+      "2.99M"
+    ],
+    "badges": [
+      "DERIVED",
+      "2025",
+      "DERIVED",
+      "2025",
+      "DERIVED"
+    ]
+  },
+  "767": {
+    "viewport": 767,
+    "column": 480,
+    "h1": 66,
+    "h1Lines": 3,
+    "h2": 46,
+    "stat": 38,
+    "scrollWidth": 767,
+    "dockPosition": "sticky",
+    "dockOnViewportFloor": true,
+    "ctaHeight": 60,
+    "minOptionHeight": 62,
+    "optionCount": 218,
+    "ringWidth": "2px",
+    "ringColor": "rgb(255, 90, 43)",
+    "ringOffset": "3px",
+    "headline": "8.9% of United Kingdom's workers",
+    "figures": [
+      "8.9%",
+      "2.99M"
+    ],
+    "badges": [
+      "DERIVED",
+      "2025",
+      "DERIVED",
+      "2025",
+      "DERIVED"
+    ]
+  }
+}

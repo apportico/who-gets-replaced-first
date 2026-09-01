@@ -61,7 +61,7 @@ previews the reader's own result" would be a requirement no probe supports.
 
 ## Requirements
 
-### R1. [ ] Every screen has exactly one `h1`, and the outline never skips a level
+### R1. [x] Every screen has exactly one `h1`, and the outline never skips a level
 
 Each of the five screens gets one `h1` as its top heading. The intro already has
 one and keeps it. Steps 01–04 promote their current `h2` to `h1`; the result
@@ -77,7 +77,28 @@ levels on each screen, read in document order, never increases by more than one.
 Checked on the result screen for *Technicians · United Kingdom* at both 375px and
 1440px, and asserted in the vitest suite for all five screens.
 
-### R2. [ ] A methodology page exists as a real page, not a third accordion
+
+**Done (2026-09-02).** Measured in Chrome against the running app, all five
+screens: `h1` count **1** on each, and the result screen's outline reads
+`H1 H2 H2` — no skipped level. Re-measured inside a 375px iframe (see the note
+below) and it holds there too: `{"frameInnerWidth":375,"h1":1,"outline":"H1 H2 H2"}`.
+
+The accordion was the trap. Radix's `AccordionHeader` renders `Primitive.h3`,
+which was correct under an `h2` and became a skipped level the moment the result
+heading was promoted — h1 straight to h3. Rendered `asChild` as an `h2` in
+`accordion.jsx`, with the divergence from upstream noted at the top of the file
+per CLAUDE.md rule 4.
+
+Six tests added to `wizard.render.test.jsx`, and **both canaried**: reverting the
+accordion to `h3` fails with `expected 2 to be less than or equal to 1`, and
+reverting step 01 to `h2` fails the `01 country` case. The type scale did not
+move — the promoted elements keep the `wz-h2` **class**, asserted directly.
+
+**Correcting the issue's measurement:** #78 records `h1: 0` for "the whole app,
+every step". The intro screen already had exactly one; it is steps 01-04 that had
+none. The defect was real and one screen smaller than reported.
+
+### R2. [x] A methodology page exists as a real page, not a third accordion
 
 A second built page at `/who-gets-replaced-first/methodology.html`, emitted by a
 second Vite entry rather than by a router — 0010's Non-goals keep the wizard
@@ -92,7 +113,21 @@ exactly one `h1`; its text contains all four tier names; and it renders in the
 project palette rather than unstyled — verified by screenshot, not by the build
 exiting 0.
 
-### R3. [ ] The methodology page states the no-date refusal in full
+
+**Done (2026-09-02).** `npm run build` emits `dist/methodology.html` from a
+second `rollupOptions.input` entry — no router, so 0010's Non-goals stand and
+#79 is untouched. The built page carries the processed stylesheet with the base
+path applied (`/who-gets-replaced-first/assets/styles-*.css`) and **no JS
+bundle at all**.
+
+Palette confirmed by reading computed styles in the browser rather than by
+screenshot alone: `body` background `rgb(13, 12, 10)` = `--bg`, colour
+`rgb(232, 228, 218)` = `--fg`, `.wz-card` `rgb(22, 20, 17)` = `--surface`,
+`h1` in Instrument Serif, body in Geist, badges in Geist Mono. One `h1`, outline
+`H1 H2 H2 H2 H2`. All four tier names present, asserted by `check-meta.mjs`.
+Screenshots at both widths in `.snapshots/0015/`.
+
+### R3. [x] The methodology page states the no-date refusal in full
 
 The `[!]` on 0010 R13 is the site's main claim to credibility and it goes on the
 page in full: that no source publishes a displacement date per occupation, that
@@ -106,7 +141,20 @@ not a footnote.
 its own heading, naming the 2026-08-31 probe and the reason. Read on the rendered
 page, and asserted by a test that greps the built HTML for the sentence.
 
-### R4. [ ] Site-level OG and Twitter meta, correct under the base path
+
+**Done (2026-09-02).** "What this site refuses to say" is its own section with
+its own `h2`, stating the refusal, that it applies **in any tier**, the probe
+date (31 August 2026), what the nearest published work actually is (US decadal
+occupational churn on US census classifications — not ISCO-08, not per country,
+not AI displacement), and that reviving a date as `MODELED` would need its own
+formula and sensitivity analysis.
+
+`check-meta.mjs` asserts **five separate load-bearing phrases** rather than one
+matchable sentence, so a rewrite cannot quietly drop half the argument.
+Canaried: changing "31 August 2026" to "last year" fails with
+`R3 requires the date the probe was run`.
+
+### R4. [x] Site-level OG and Twitter meta, correct under the base path
 
 `index.html` and `methodology.html` each carry `og:title`, `og:description`,
 `og:type`, `og:url`, `og:image`, `twitter:card` (`summary_large_image`),
@@ -126,7 +174,26 @@ and **every** `content` that is a URL starts with
 the built files, so the failure the probe found cannot return silently. The
 referenced image resolves to a file present in `dist/`.
 
-### R5. [ ] A share image is generated for the reader's own result
+
+**Done (2026-09-02).** Nine named tags on both built pages, every URL absolute
+under `https://apportico.github.io/who-gets-replaced-first/`, and the referenced
+image present in `dist/`. `public/og.png` is 1200×630 — exactly what its
+`og:image:width`/`height` declare, rather than the 2× the reader's card uses.
+
+`scripts/check-meta.mjs` runs **after the build** in `verify.sh`, which is the
+whole point: the probed defect exists only in the built output. Canaried three
+ways, all three fire:
+
+```
+og:image content "/og.png" is not absolute under https://apportico.github.io/who-gets-replaced-first/
+missing <meta> twitter:image
+R3 requires the date the probe was run — "31 August 2026" is absent
+```
+
+It checks each tag **by name**, not by count, per the self-review finding: nine
+wrong tags would have passed a count.
+
+### R5. [x] A share image is generated for the reader's own result
 
 A control on the result screen generates a 1200×630 PNG of the reader's result,
 drawn client-side into a canvas with the site's own fonts and palette, and hands
@@ -142,7 +209,24 @@ drawn at 2× — and the **rendered image is opened and looked at** — its text
 the trend, in the project's own typefaces, not in a fallback stack. The PNG is
 committed to `.snapshots/0015/` as evaluation evidence.
 
-### R6. [ ] The share image carries every tier and the stand-in disclosure
+
+**Done (2026-09-02).** `ShareCardButton` on the result screen draws the model
+into a canvas and hands the reader a PNG, offering `navigator.share` first where
+the browser can share files and falling back to a download.
+
+Generated for *Technicians · United Kingdom* and the PNG is **2400×1260**
+intrinsic (the 1200×630 card at 2×), 221KB. The fonts were verified by
+measurement, not by `fonts.check`: `{"loaded":true,"withFace":107.78,"fallback":165.31}`
+— the same figures the spec's probe recorded, so the card is genuinely in
+Instrument Serif and not silently in Georgia.
+
+**The image was opened and looked at**, which is what this acceptance asks for
+and is how two layout defects were found that the code did not show: the display
+headline sat one line-height under the subject (fixed, 34 → 52), and the site
+card had ~300px of dead space in the middle (fixed). Committed as
+`.snapshots/0015/share-card-technicians-gbr.png`.
+
+### R6. [x] The share image carries every tier and the stand-in disclosure
 
 Each figure on the card carries the tier it was given by the same code that
 feeds the screen — `DERIVED` for all three figures in the UK Technicians case —
@@ -162,7 +246,29 @@ layout model asserts that a figure with a null tier is omitted and that a
 stand-in trend always emits the disclosure string — so the guarantee is checked
 by machine as well as by eye.
 
-### R7. [ ] The share image never states a year
+
+**Done (2026-09-02).** Read off the rendered image: three figures, each with a
+`DERIVED` badge and its vintage (`2025`, `2025`, `2013–2025`), and the stand-in
+sentence in full — "Clerical support workers shown as a stand-in — no time
+series is published for this group." The card carries the site URL.
+
+The machine half runs over **every country × all nine groups**, not just the UK
+cell, because the interesting cells are the ones with a missing figure or a
+stand-in series and one hand-picked example misses exactly those:
+
+- no figure on any card, for any cell, is drawn without a tier (offenders `[]`)
+- every tier used is one of the project's four
+- every non-clerical group with a series carries the stand-in disclosure
+- a country with no published share drops the figure and states the absence in
+  words, with the headline falling back to "No published figure"
+
+A late correction worth recording: the site OG card first drew "177 countries"
+and "9 groups" as **tiered stat cards**. Neither is a measurement, so both were
+inventing provenance — on the most-shared surface the site has. Replaced with a
+legend of the four tier words, captioned as a vocabulary rather than as
+figures.
+
+### R7. [x] The share image never states a year
 
 0010 R13 is `[!] not feasible` and R14 requires the result to read as finished
 without a date; an image is not an exemption. The card carries **no** projected
@@ -179,7 +285,25 @@ today" is the wrong shape twice over: it would pass a card stating 2030 once
 loosely. Confirmed by reading the rendered image: no date is offered as an
 outcome.
 
-### R8. [ ] The methodology page is reachable from the result in one click
+
+**Done (2026-09-02).** `allowedYears` is a whitelist: every four-digit token in
+the card's text must trace to a figure's vintage or to an endpoint of the series
+being drawn. Asserted across every country × group; offenders `[]`.
+
+Two supporting checks, because a whitelist alone can pass vacuously: the UK card
+is asserted to actually contain years (`allowedYears` = `[2013, 2025]`), and a
+canary pushes "Replacement expected by 2041." into the model and confirms 2041
+is rejected. A second, independent angle asserts no card anywhere contains a
+year later than the latest vintage in the payload.
+
+The whitelist shape came out of the self-review on PR #84: the original
+acceptance was a blacklist ("no year later than today"), which would pass a card
+stating 2030 once 2031 arrives. This also forced a real change to the card — the
+trend label is `Share since ${first.year}`, derived, not the screen's hardcoded
+"Share since 2013", because on a country whose series starts later the hardcoded
+label names a year the series never reaches. The check caught a small lie.
+
+### R8. [x] The methodology page is reachable from the result in one click
 
 A single control on the result screen goes to the methodology page — one click,
 above the fold on mobile is not required but "buried in a footer" is
@@ -190,7 +314,19 @@ and is followed by a crawler, not a button that scripts a navigation.
 `methodology.html` is present and reachable by keyboard, and clicking it in a
 browser lands on the methodology page. Verified in Chrome at 375px and 1440px.
 
-### R9. [ ] `npm run verify` stays green and the new checks join it
+
+**Done (2026-09-02).** A real `<a href="methodology.html">` on the result
+screen, `tabIndex` 0, above "start again". **Clicked in Chrome**: lands on
+`/methodology.html`, title "Method — WHO GETS REPLACED FIRST", `h1` "How these
+numbers are made." Present and correctly wrapped at both widths — verified at a
+genuine 375px viewport and at desktop.
+
+A link rather than a scripted navigation so it survives open-in-new-tab and is
+followed by a crawler. The relative href resolves correctly under the base path
+(`/who-gets-replaced-first/methodology.html`) without needing the absolute URL
+the meta tags require.
+
+### R9. [x] `npm run verify` stays green and the new checks join it
 
 Every test this spec adds runs inside `npm run verify` in the same change that
 adds it — CLAUDE.md's rule that a check added to CI is added to `verify`. The
@@ -200,6 +336,21 @@ the build step rather than in the vitest suite that precedes it.
 **Acceptance:** `npm run verify` exits 0 from a clean tree, with the new
 assertions visible in its output. The pilot self-skipping for want of
 `pipeline/raw/` is expected in a worktree and is not a failure.
+
+### A note on how the browser checks were taken
+
+`resize_window` is unreliable in this setup — it reports success while
+`innerWidth` does not change (recorded in the global notes, and it happened
+again here: a request for 375 left `innerWidth` at 1512). So the mobile
+measurements were **not** taken from a resized window. Every 375px figure above
+comes from the app loaded inside a 375×812 iframe, where media queries resolve
+against the frame; `w.innerWidth` was read back as `375` before each
+measurement, so the width is asserted rather than assumed.
+
+The desktop figures were taken at the real window width, **1512px**, not the
+1440px the acceptance criteria name. Both sit above the single 768px breakpoint
+and exercise the same desktop branch, so the checks hold, but the number in the
+evidence is the one that was actually measured.
 
 ## Implementation Plan
 
@@ -236,6 +387,24 @@ assertions visible in its output. The pilot self-skipping for want of
 3. **R4** — generate `public/og.png` with the renderer from step 2 in site mode, then the meta on both pages, then `check-meta.mjs`.
 4. **R2 / R3 / R8** — the methodology page, its Vite entry, and the link from the result screen.
 5. **R9** — `npm run verify` green, with the new checks inside it.
+
+
+**Done (2026-09-02).** `npm run verify` exits 0 from a clean tree with the new
+step in its output:
+
+```
+==> built meta (0015 R2/R3/R4 -- og/twitter tags, absolute URLs, the refusal)
+check-meta OK — 9 tags on both pages, all URLs absolute under the base path
+==> js tests
+ Test Files  6 passed (6)
+      Tests  158 passed (158)
+...
+verify PASSED
+```
+
+`check:meta` is placed after `build` rather than in the vitest step, because the
+files it reads do not exist before it. The pilot self-skipped for want of
+`pipeline/raw/`, which is expected in a worktree and is not a failure.
 
 ### Requirement mapping
 

@@ -32,6 +32,15 @@ echo "==> build"
 npm run --silent build || fail "build"
 
 echo ""
+# Spec 0015 R4/R9. Runs HERE, after the build, because the defect it guards
+# exists only in the built output: Vite applies the base path to a `rel="icon"`
+# link and never to `meta content`, so a relative og:image is correct-looking in
+# source and a 404 in production. A source-level test cannot see it, which is
+# the same shape as the @import failure 0010 R2 shipped twice.
+echo "==> built meta (0015 R2/R3/R4 -- og/twitter tags, absolute URLs, the refusal)"
+npm run --silent check:meta || fail "built meta -- a social tag is missing, relative, or points at a file not in dist/"
+
+echo ""
 # Spec 0010 R19. The JS suite. Added to `verify` in the same change that
 # introduced it, per CLAUDE.md's rule that a check added to CI is added here —
 # otherwise a contributor who is green locally lands red on the gate.

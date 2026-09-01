@@ -27,7 +27,7 @@ export default function OccupationScreen({ group, onPick, onNext }) {
     >
       <div style={{ paddingTop: 40 }}>
         <p className="wz-eyebrow">Question 02</p>
-        <h2 className="wz-h2">What do you do?</h2>
+        <h1 className="wz-h2">What do you do?</h1>
         <p className="wz-body" style={{ margin: '16px 0 0' }}>
           Type a title. It resolves to one of nine groups — the resolution is
           shown, never hidden, and you can override it.

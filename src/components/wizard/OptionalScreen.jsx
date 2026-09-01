@@ -84,7 +84,7 @@ export default function OptionalScreen({ group, cross, age, edu, onAge, onEdu, o
     >
       <div style={{ paddingTop: 40 }}>
         <p className="wz-eyebrow">Optional — narrows the answer</p>
-        <h2 className="wz-h2">Two more, if you like.</h2>
+        <h1 className="wz-h2">Two more, if you like.</h1>
         <p className="wz-body" style={{ margin: '16px 0 0' }}>
           Both are real cross-tabulated dimensions in the source, so each answer
           lands on a different published cell.

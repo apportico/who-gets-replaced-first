@@ -1,6 +1,6 @@
 # 0013 — the step 01 country list folds
 
-**Status:** approved
+**Status:** in-progress
 **Depends on:** 0011 (the search, its four match routes, the locale pre-fill and
 the stated absences — this spec tightens three of its acceptance criteria rather
 than replacing them) · 0012 (R4's anchored dock on step 01 is justified by a
@@ -45,12 +45,17 @@ nobody later reads it as one.
   3. **R1/R3 never named the resting copy**, so the implementation would have
      inherited `CountryScreen.jsx:151`'s "No country matches that." as the
      greeting for every reader whose locale does not resolve.
-- **Approved 2026-09-01 to unblock implementation**, on the precedent spec 0011
-  records for the same situation. `claude-review.yml` cannot approve and an author
-  cannot approve their own PR, so the spec *status* moves on the self-review while
-  **PR #87 itself still waits on a human approval before it can merge**. Branch
-  protection is neither routed around nor asked to be relaxed: `verify` stays a
-  required check and `enforce_admins` stays true.
+- **Approved by Dani on 2026-09-01, directly rather than as a GitHub review**,
+  with the instruction to continue to implementation and leave the merge until it
+  is done. GitHub could not record it: the PR is self-authored, so
+  `reviewDecision` stays `REVIEW_REQUIRED` and is **not a meaningful signal on
+  this PR**. Written down here because the spec file is the only place that
+  approval exists — a later reader checking the PR's review state will find
+  nothing and should not conclude the spec was never approved.
+
+  Branch protection is neither routed around nor asked to be relaxed: `verify`
+  stays a required check and `enforce_admins` stays true, and the merge still
+  happens through the normal gate once the implementation lands.
 
 ## Objective
 
@@ -401,6 +406,109 @@ including every new case, `test:pipeline`, and the pilot (or its stated skip in
 a worktree with no `pipeline/raw/` cache). `node scripts/desktop-measure.mjs`
 reports the step 01 fold rows at all seven viewports with no failures, and
 `package.json` gains no dependency.
+
+## Implementation Plan
+
+**Planned:** 2026-09-01
+
+### Files to create
+
+None. Every change lands in a file that already exists — which is the shape of
+this ticket: nothing new is being built, something built too eagerly is being
+folded.
+
+### Files to modify
+
+| Path | Change |
+|---|---|
+| `src/utils/countrySearch.js` | R2 — `MATCH_LIMIT = 12` and `ABSENT_LIMIT = 3`; `searchCountries` takes both limits and returns `matchCount` / `absentCount` / `truncated` / `absentTruncated`. R1 — a new `renderedCountries(rows, query, selectedIso3)`, the screen-facing resolver that returns the resting state for an empty query and delegates to `searchCountries` otherwise |
+| `src/components/wizard/CountryScreen.jsx` | R1, R3 — render `renderedCountries` rather than `searchCountries`; the resting copy table; the two truncation lines; the live region empty at rest; `No country matches that.` gated on a non-empty query; `active` resets to `-1` rather than `0` when the query empties |
+| `src/utils/wizard.test.js` | R2, R4 — the cap cases and the counts; 0011's `hit('') → 177` predicate assertion **stays** |
+| `src/components/wizard/wizard.render.test.jsx` | R1, R3, R4, R5 — the resting state, the France/`Escape` case, the live-region strings, and the three assertions R5 moves (`:281`, `:379`, `:385`) |
+| `scripts/desktop-measure.mjs` | R7 — a `fold` probe at every viewport: option count and `body.scrollHeight / innerHeight` at rest, after `a`, and after `united`, plus the absence-line count. R6 — step 01's dock re-checked against the folded screen |
+| `specs/0011-country-search.md` | R5 — R1, R3 and R9 re-marked `[~]`; the *Verification* table's "Options rendered 177" row annotated |
+| `specs/0012-desktop-layout.md` | R6 — R4's stale 12,739px justification corrected |
+| `specs/README.md` | R5 — 0011's row `11 done` → `8 done · 3 revised` |
+
+**Why a second function rather than a flag on `searchCountries`.** 0011 R3's
+acceptance — `''` returns all 177 — is a correct statement about a *search
+predicate* and R5 keeps it. What was wrong was the screen rendering the
+predicate's answer verbatim. Splitting them makes that exact: `searchCountries`
+stays the predicate, unchanged in meaning, and `renderedCountries` is the new,
+separately-named thing that decides what appears. A flag would have left one
+function with two contracts and the same conflation inside it.
+
+### Sequence
+
+1. **R2 first** — the caps and the counts in `countrySearch.js`, tested as pure
+   functions before anything renders them. This is where the review's finding
+   landed, so it is where the evidence has to be strongest.
+2. **R1** — `renderedCountries`, then the screen. The screen change is the resting
+   state, the copy table and the `active` reset; nothing about the combobox
+   model moves.
+3. **R3** — the truncation lines and the live region, on screen and in the suite.
+4. **R4** — re-run 0011's existing cases unmodified and confirm they pass; only
+   the three R5 names may change.
+5. **R5** — the 0011 revisions and the index tally. Done after the code, so the
+   `[~]` notes describe what shipped rather than what was intended.
+6. **R6** — 0012 R4's correction, with the dock re-measured rather than argued.
+7. **R7** — extend `scripts/desktop-measure.mjs`, run it at all seven viewports,
+   then `npm run verify`.
+
+### Requirement mapping
+
+| Req | How it will be satisfied | Where | How acceptance is checked |
+|---|---|---|---|
+| R1 | `renderedCountries` returns the selected country alone for an empty query; the screen's resting copy table | `countrySearch.js`, `CountryScreen.jsx` | Chrome at 390×844 and 1440×900: 1 option for `en-GB`, 0 for an unresolvable locale, `scrollHeight/innerHeight < 2` at both; Vitest for the France/`Escape` case |
+| R2 | `MATCH_LIMIT`/`ABSENT_LIMIT` applied inside `searchCountries`, counts returned | `countrySearch.js` | Vitest on the committed payload: `a` → 150/12/true and 39/3/true; `united` → 3/3/false; `china` → 3 pickable, 1 absent, not truncated |
+| R3 | Two truncation lines plus the live region | `CountryScreen.jsx` | Vitest render on the exact strings; the visible line asserted outside `.wz-sr-only`; live region exactly `''` at rest |
+| R4 | No behaviour removed | all of the above | 0011's existing Vitest cases pass unmodified; the browser walk re-checks the ring, the tap targets and the `china` absence |
+| R5 | `[~]` on 0011 R1/R3/R9 + the *Verification* annotation | `specs/0011-*.md`, `specs/README.md` | `grep` for the three `[~]` marks and the tally; no assertion that step 01 renders `countryOptions(rows).length` options survives |
+| R6 | 0012 R4's measurement corrected, its rule re-derived | `specs/0012-*.md` | The script reports step 01 `sticky` + `anchored` and the CTA on screen at 1440 and 1920 |
+| R7 | The `fold` probe in the measurement script | `scripts/desktop-measure.mjs` | The script exits 0 at all seven viewports; `npm run verify` exits 0; `package.json` unchanged |
+
+### Tier and vintage handling
+
+**No new number ships, so no new tier or vintage is created.** This change adds
+two counts — how many countries matched, and how many stated absences were
+elided — and both are cardinalities of the rendered list, not measurements of
+the world. They are neither `OFFICIAL`, `DERIVED`, `PROXY` nor `MODELED`, in the
+same way `iso3` is `NOT_A_MEASUREMENT`, and they carry no year because they are
+not observations of anything with a vintage.
+
+Every figure that does carry a tier is on step 04 and is untouched. No pipeline
+file, no CSV, no payload column and no `field_tiers` entry moves in this change.
+
+### Validation
+
+`[validate]`, `[crosscheck]` and `[outliers]` are pipeline blocks and are not
+reached: nothing under `pipeline/` changes, and `npm run test:pipeline` should
+report the same 159 tests passing before and after. That is the check — an
+app-only change that moves a pipeline count is a change that was not app-only.
+
+The new coverage is in the app suite and in the browser script, split by what
+each can actually see: the counts, the caps, the copy and the keyboard in Vitest
+(no layout needed); the heights and the dock in Chrome (nothing else can see
+them). The defect this spec fixes was invisible to a green `verify`, so R7's
+script is the part that stops it returning.
+
+### Risks
+
+- **The measurement script waits on `.wz-option` immediately after entering step
+  01.** With the list folded, a context whose locale resolves to nothing renders
+  zero options and that wait hangs until it times out. The wait must move to the
+  combobox. This is the one place the fold can break an existing green check,
+  and it is a change to the script rather than to the app.
+- **`stepOne`'s `minOptionHeight` is `Math.min(...[])` when nothing renders**,
+  which is `Infinity` and would pass a `>= 56` check while measuring nothing.
+  Needs an explicit guard, and the guard is the finding: a tap-target check that
+  passes by having no targets is the same shape of false green as the one this
+  spec is fixing.
+- **Cap sizes are a judgement, bounded by measurement.** If the copy grows, the
+  page budget that put 17 at 390×844 shrinks. 12 leaves the headroom; R7's
+  script is what would catch it if it stopped being enough.
+- **No source risk.** Nothing here reads an API. Every probe is against the
+  committed payload or the rendered page, both of which are in-tree.
 
 ## Non-goals
 

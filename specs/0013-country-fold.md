@@ -1,6 +1,6 @@
 # 0013 — the step 01 country list folds
 
-**Status:** in-review
+**Status:** approved
 **Depends on:** 0011 (the search, its four match routes, the locale pre-fill and
 the stated absences — this spec tightens three of its acceptance criteria rather
 than replacing them) · 0012 (R4's anchored dock on step 01 is justified by a
@@ -22,6 +22,35 @@ tightened in the same change, checked as:
 6. The standing data rules are untouched: no figure loses its tier, no country
    is imputed, and no country is dropped from the dataset — only from what is
    *rendered before the reader has asked for it*.
+
+**Review record.** The green `review` check on
+[PR #87](https://github.com/apportico/who-gets-replaced-first/pull/87) is **not**
+a review: `.github/workflows/claude-review.yml` is inert until the Claude GitHub
+App is installed (issue #44), and it passes when it skips. Recorded here so
+nobody later reads it as one.
+
+- **Self-review against `REVIEW.md`, 2026-09-01**, before the status moved —
+  [review 5082517526](https://github.com/apportico/who-gets-replaced-first/pull/87#pullrequestreview-5082517526).
+  `REQUEST_CHANGES` in substance, posted as `COMMENT` because GitHub does not let
+  an author request changes on their own PR. Three findings, all upheld and fixed
+  in `dffd73b`:
+  1. **R2 exempted the stated-absence rows from the cap** on the reasoning that
+     there are only ever a few. Probed: `a` returns **39**, `i` 30, `s` and `an`
+     21 each — enough to break the goal's own two-viewport bound on the absences
+     alone, with the matches already capped. An unprobed claim inside a spec
+     whose whole subject is an unprobed claim.
+  2. **R1 keyed the resting state to the locale country**, so a reader who picks
+     France and presses `Escape` would have seen United Kingdom rendered while
+     France drove `Continue`.
+  3. **R1/R3 never named the resting copy**, so the implementation would have
+     inherited `CountryScreen.jsx:151`'s "No country matches that." as the
+     greeting for every reader whose locale does not resolve.
+- **Approved 2026-09-01 to unblock implementation**, on the precedent spec 0011
+  records for the same situation. `claude-review.yml` cannot approve and an author
+  cannot approve their own PR, so the spec *status* moves on the self-review while
+  **PR #87 itself still waits on a human approval before it can merge**. Branch
+  protection is neither routed around nor asked to be relaxed: `verify` stays a
+  required check and `enforce_admins` stays true.
 
 ## Objective
 

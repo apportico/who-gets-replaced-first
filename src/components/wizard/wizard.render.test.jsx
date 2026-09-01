@@ -16,9 +16,20 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import App from '@/App'
 import * as crossTabs from '@/utils/crossTabs'
 
+
+// 0016. The URL is the wizard's state now, and jsdom keeps one document per
+// file — so a test that walks to the result leaves `?step=result&…` in the
+// address bar and the NEXT test boots straight onto the result screen. That is
+// the feature working, not a bug, but each case needs a clean slate. Nothing
+// below asserts anything new; this only resets the harness.
+function resetUrl() {
+  globalThis.history?.replaceState(null, '', '/')
+}
+
 beforeEach(() => {
   cleanup()
   crossTabs._resetCache()
+  resetUrl()
 })
 
 function startWizard() {
@@ -467,6 +478,234 @@ describe('0011 R8 — the search cost no dependency and no fourth ui file', () =
       .map((p) => p.split('/').pop().replace('.jsx', ''))
       .sort()
     expect(files).toEqual(['accordion', 'toggle', 'toggle-group'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Spec 0016 — the wizard's state lives in the URL.
+//
+// Added, never edited: nothing above this line changed except the `resetUrl()`
+// in `beforeEach`, which is harness rather than assertion. 0016 R11 depends on
+// that — an existing suite rewritten to accommodate a change stops being
+// evidence about the change.
+// ---------------------------------------------------------------------------
+
+const at = () => globalThis.location.pathname + globalThis.location.search
+
+function open(url) {
+  globalThis.history.replaceState(null, '', url)
+  render(<App />)
+}
+
+describe('0016 R3 — a cold load restores the wizard from the URL', () => {
+  it('lands straight on the result, with both bands applied', async () => {
+    open('/?step=result&country=GBR&group=3&age=25_54&edu=adv')
+    expect(document.body.textContent)
+      .toContain('Technicians and associate professionals · United Kingdom')
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('are aged 25–54')
+      expect(document.body.textContent).toContain('have tertiary education')
+    })
+  })
+
+  it('never paints the intro on the way', () => {
+    open('/?step=result&country=GBR&group=3')
+    // The intro's own headline is the tell -- not its CTA, which reads
+    // `Start ->` and would also match the result screen's `Start again`. If the
+    // shell had restored in an effect rather than a lazy initialiser, this
+    // would be in the tree for a frame.
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    expect(document.body.textContent).not.toContain('Measured, not forecast')
+  })
+
+  it('restores step 02 and step 03 too, not only the result', () => {
+    open('/?step=occupation&country=GBR')
+    expect(document.body.textContent).toContain('What do you do?')
+    cleanup()
+    open('/?step=optional&country=GBR&group=3')
+    expect(document.body.textContent).toContain('Two more, if you like.')
+  })
+})
+
+describe('0016 R2 — a step transition pushes, an answer change replaces', () => {
+  it('adds exactly one history entry per step, not one per tap', async () => {
+    globalThis.history.replaceState(null, '', '/')
+    const before = globalThis.history.length
+    startWizard()                                   // intro -> 01
+    expect(globalThis.history.length).toBe(before + 1)
+
+    // Three taps on step 01. None of them is a navigation.
+    const lengthAtStep01 = globalThis.history.length
+    for (const name of ['France', 'Germany', 'United Kingdom']) {
+      fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: name } })
+      fireEvent.click(screen.getByRole('option', { name: new RegExp(name) }))
+    }
+    expect(globalThis.history.length).toBe(lengthAtStep01)
+    expect(globalThis.location.search).toContain('country=GBR')
+
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))   // 01 -> 02
+    expect(globalThis.history.length).toBe(before + 2)
+  })
+
+  it('writes the answer into the URL as it is given', async () => {
+    startWizard()
+    fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'United Kingdom' } })
+    fireEvent.click(screen.getByRole('option', { name: /United Kingdom/ }))
+    expect(at()).toBe('/?step=country&country=GBR')
+  })
+})
+
+describe('0016 R4 — popstate walks the steps', () => {
+  it('re-decodes the URL the browser moved to, without pushing', async () => {
+    open('/?step=result&country=GBR&group=3')
+    expect(document.body.textContent).toContain('United Kingdom')
+
+    // What a Back press does: the URL changes, then popstate fires. jsdom has
+    // no Back button, so the two halves are driven by hand; the real press
+    // stays a browser check in the spec's acceptance.
+    const len = globalThis.history.length
+    globalThis.history.replaceState(null, '', '/?step=occupation&country=GBR')
+    globalThis.dispatchEvent(new PopStateEvent('popstate'))
+
+    await waitFor(() => expect(document.body.textContent).toContain('What do you do?'))
+    expect(globalThis.history.length).toBe(len)      // the listener never pushes
+  })
+
+  it('a pop back to the bare root returns the intro', async () => {
+    open('/?step=country&country=GBR')
+    globalThis.history.replaceState(null, '', '/')
+    globalThis.dispatchEvent(new PopStateEvent('popstate'))
+    await waitFor(() =>
+      expect(document.body.textContent).toContain('Measured, not forecast'))
+  })
+})
+
+describe('0016 R5 — a deep link to a country with no series', () => {
+  it('lands on step 01 and names China, with no figure anywhere', () => {
+    open('/?step=result&country=CHN&group=3')
+    expect(document.body.textContent).toContain('Where do you work?')
+    expect(document.body.textContent).toContain('China')
+    expect(document.body.textContent).toContain('no occupation breakdown')
+    // The thing that must not happen: a number for a country with no series.
+    expect(document.body.textContent).not.toContain('% of')
+    expect(document.body.textContent).not.toContain('DERIVED')
+  })
+
+  it('normalises the address bar to the screen actually shown', async () => {
+    open('/?step=result&country=CHN&group=3')
+    await waitFor(() => expect(globalThis.location.search).not.toContain('step=result'))
+    expect(globalThis.location.search).not.toContain('country=CHN')
+  })
+})
+
+describe('0016 R6 — a broken link degrades and says so', () => {
+  it('names the unknown country rather than opening blank', () => {
+    open('/?step=result&country=ZZZ&group=3')
+    expect(document.body.textContent).toContain('Where do you work?')
+    expect(document.body.textContent).toContain('does not carry')
+  })
+
+  it('a bad group lands on step 02 and says why', () => {
+    open('/?step=result&country=GBR&group=12')
+    expect(document.body.textContent).toContain('What do you do?')
+    expect(document.body.textContent).toContain('outside the nine')
+  })
+
+  it('clears the notice once the reader moves on', () => {
+    open('/?step=result&country=ZZZ&group=3')
+    expect(document.body.textContent).toContain('does not carry')
+    fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'United Kingdom' } })
+    fireEvent.click(screen.getByRole('option', { name: /United Kingdom/ }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    expect(document.body.textContent).not.toContain('does not carry')
+  })
+})
+
+// The requirement with the sharpest edge. Both cells below were located from
+// the committed cross-tabs, not invented: ALB group 1 publishes bas/int/adv and
+// no `ltb`, and AZE group 1 publishes a share with no age bands at all.
+describe('0016 R7 — a band the cell does not publish stops being claimed', () => {
+  it('strips an education band the country and group do not publish', async () => {
+    open('/?step=result&country=ALB&group=1&edu=ltb')
+    await waitFor(() => expect(globalThis.location.search).not.toContain('edu=ltb'))
+    expect(globalThis.location.search).toContain('country=ALB')
+    expect(document.body.textContent).not.toContain('have below basic education')
+  })
+
+  it('strips an age band for a cell that publishes no age at all', async () => {
+    open('/?step=result&country=AZE&group=1&age=25_54')
+    await waitFor(() => expect(globalThis.location.search).not.toContain('age='))
+    expect(globalThis.location.search).toContain('country=AZE')
+  })
+
+  it('adds no history entry when it strips', async () => {
+    open('/?step=result&country=ALB&group=1&edu=ltb')
+    const len = globalThis.history.length
+    await waitFor(() => expect(globalThis.location.search).not.toContain('edu=ltb'))
+    expect(globalThis.history.length).toBe(len)
+  })
+
+  // The half that matters most, and the one the first draft of this spec got
+  // wrong: a fetch that never answered is not the source publishing nothing.
+  // Stripping here would delete a reader's answer over a network blip and bake
+  // that invented absence into the link they copy.
+  it('KEEPS the band when the cross-tab failed to load', async () => {
+    vi.spyOn(crossTabs, 'loadCrossTabs').mockResolvedValue({
+      state: 'load_failed', data: null,
+    })
+    try {
+      open('/?step=result&country=GBR&group=3&age=25_54')
+      await waitFor(() => expect(document.body.textContent).toContain('Could not load'))
+      expect(globalThis.location.search).toContain('age=25_54')
+      expect(document.body.textContent).not.toContain('does not publish a figure')
+    } finally {
+      vi.restoreAllMocks()
+    }
+  })
+})
+
+describe('0016 R8 — the copy-link control', () => {
+  it('copies exactly the current URL and announces it', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: { writeText }, configurable: true,
+    })
+    open('/?step=result&country=GBR&group=3')
+    fireEvent.click(screen.getByRole('button', { name: /copy link/i }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(globalThis.location.href))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Link copied'))
+  })
+
+  it('falls back to a selectable field when the clipboard refuses', async () => {
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
+      configurable: true,
+    })
+    open('/?step=result&country=GBR&group=3')
+    fireEvent.click(screen.getByRole('button', { name: /copy link/i }))
+    await waitFor(() => {
+      const field = screen.getByLabelText('Link to this result')
+      expect(field.value).toBe(globalThis.location.href)
+    })
+    expect(screen.getByRole('status').textContent).toContain('clipboard is unavailable')
+  })
+})
+
+describe('0016 R11 — no dependency, no figure module touched', () => {
+  it('adds no runtime dependency', async () => {
+    const pkg = (await import('../../../package.json')).default
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies }
+    for (const name of ['react-router', 'react-router-dom', 'wouter', 'history', 'qs']) {
+      expect(deps[name]).toBeUndefined()
+    }
+  })
+
+  it('writes no fragment into the URL', async () => {
+    startWizard()
+    fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'United Kingdom' } })
+    fireEvent.click(screen.getByRole('option', { name: /United Kingdom/ }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    expect(globalThis.location.hash).toBe('')
   })
 })
 

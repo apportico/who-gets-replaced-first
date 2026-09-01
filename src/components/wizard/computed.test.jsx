@@ -20,12 +20,23 @@
 // button actually paint 60px tall against its content and box model), real font
 // loading, and the painted colour. Those need a browser. The Verification
 // section says so.
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import App from '@/App'
+
+// 0016. The URL is the wizard's state now, and jsdom keeps one document per
+// file — so a test that walks to the result leaves `?step=result&…` in the
+// address bar and the NEXT test boots straight onto the result screen. That is
+// the feature working, not a bug, but each case needs a clean slate. Nothing
+// below asserts anything new; this only resets the harness.
+function resetUrl() {
+  globalThis.history?.replaceState(null, '', '/')
+}
+
+beforeEach(resetUrl)
 
 // jsdom cannot fetch `@import`ed sheets, and Tailwind's own layer is generated
 // at build time, so those lines are dropped. Everything this suite asserts is

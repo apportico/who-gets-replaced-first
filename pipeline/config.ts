@@ -446,3 +446,46 @@ for (const c of CROSSTAB_COLUMNS) {
   if (c.endsWith('_pct')) FIELD_TIERS.set(c, 'DERIVED');
   else if (c.endsWith('_year') || c.endsWith('_flag')) FIELD_TIERS.set(c, NOT_A_MEASUREMENT);
 }
+
+// 0017 R2. The back-test's own tier registry.
+//
+// Separate from FIELD_TIERS on purpose: `tiers.test.ts` asserts FIELD_TIERS is
+// *equal* to run.COLUMNS, so extending that map with a column the snapshot does
+// not have would fail it. This one covers the union of both back-test CSV
+// headers, and the same map drives `field_tiers` in the app payload -- a tier
+// that stopped at the CSV would be a tier the result screen cannot render.
+//
+// The line that matters: the retrodiction is MODELED and the values it is
+// scored against are DERIVED, and the error between them is MODELED because a
+// difference is only as measured as its least-measured term. That is the whole
+// reason this file has a tier vocabulary.
+export const BACKTEST_FIELD_TIERS = new Map<string, FieldTier>([
+  // identity and provenance
+  ['iso3', NOT_A_MEASUREMENT],
+  ['country_name', NOT_A_MEASUREMENT],
+  ['group', NOT_A_MEASUREMENT],
+  ['fit_start_year', NOT_A_MEASUREMENT],
+  ['fit_end_year', NOT_A_MEASUREMENT],
+  ['fit_obs', NOT_A_MEASUREMENT],
+  ['target_year', NOT_A_MEASUREMENT],
+  ['n', NOT_A_MEASUREMENT],
+  ['max_abs_error_iso3', NOT_A_MEASUREMENT],
+  ['trend_beats_persistence_n', NOT_A_MEASUREMENT],
+  ['direction_wrong_n', NOT_A_MEASUREMENT],
+  // observed: panel ISCO shares, arithmetic on official statistics
+  ['last_fit_pct', 'DERIVED'],
+  ['observed_2025_pct', 'DERIVED'],
+  // modeled: the fit, and everything computed from it
+  ['retrodicted_2025_pct', 'MODELED'],
+  ['error_pp', 'MODELED'],
+  ['persistence_error_pp', 'MODELED'],
+  ['direction_correct', 'MODELED'],
+  ['mean_signed_error_pp', 'MODELED'],
+  ['mae_pp', 'MODELED'],
+  ['rmse_pp', 'MODELED'],
+  ['median_abs_error_pp', 'MODELED'],
+  ['p90_abs_error_pp', 'MODELED'],
+  ['max_abs_error_pp', 'MODELED'],
+  ['persistence_mae_pp', 'MODELED'],
+  ['persistence_rmse_pp', 'MODELED'],
+]);

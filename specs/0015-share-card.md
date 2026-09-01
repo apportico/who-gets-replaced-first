@@ -3,6 +3,7 @@
 **Status:** in-review
 **Depends on:** 0010 (the wizard and its result screen), 0011 (country search), 0012 (the 768px breakpoint)
 **Issue:** [#78](https://github.com/apportico/who-gets-replaced-first/issues/78)
+**Absorbs:** [#13](https://github.com/apportico/who-gets-replaced-first/issues/13) (methodology page) and [#25](https://github.com/apportico/who-gets-replaced-first/issues/25) (social preview cards) — #78 says to close both if this lands covering them. R2/R3 cover #13; R4 covers the site-level half of #25, and its per-country half is **not** covered, for the reason in *What the probes rule out*. So #25 closes only if that partial coverage is accepted; otherwise it stays open, narrowed to the part no static host can do.
 **Goal:** The result survives leaving the site, checked as:
 1. A result screen has exactly one `h1`, and no screen skips a heading level.
 2. A methodology page is reachable from the result in one click — a page, not a
@@ -117,10 +118,12 @@ does **not** show a result, since no probe supports a per-result preview on a
 static host.
 
 **Acceptance:** after `npm run build`, `dist/index.html` and
-`dist/methodology.html` each contain ≥9 OG/Twitter tags, and **every** `content`
-that is a URL starts with `https://apportico.github.io/who-gets-replaced-first/`.
-Asserted by a test over the built files, so the failure the probe found cannot
-return silently. The referenced image resolves to a file present in `dist/`.
+`dist/methodology.html` each contain **every one of the nine named tags above,
+by name** — a count is not the check, because nine wrong tags would pass it —
+and **every** `content` that is a URL starts with
+`https://apportico.github.io/who-gets-replaced-first/`. Asserted by a test over
+the built files, so the failure the probe found cannot return silently. The
+referenced image resolves to a file present in `dist/`.
 
 ### R5. [ ] A share image is generated for the reader's own result
 
@@ -133,8 +136,8 @@ scale so the text is not soft. Where a figure is absent on screen it is absent o
 the card, stated in words, never as a dash or a zero.
 
 **Acceptance:** on the result screen for *Technicians · United Kingdom*, the
-control produces a PNG that is 2400×1260 device pixels (1200×630 CSS), and the
-**rendered image is opened and looked at** — its text reads `14.1%`, `4.77M` and
+control produces a PNG whose intrinsic size is **2400×1260** — the 1200×630 card
+drawn at 2× — and the **rendered image is opened and looked at** — its text reads `14.1%`, `4.77M` and
 the trend, in the project's own typefaces, not in a fallback stack. The PNG is
 committed to `.snapshots/0015/` as evaluation evidence.
 
@@ -145,8 +148,11 @@ feeds the screen — `DERIVED` for all three figures in the UK Technicians case 
 and the card reproduces the clerical stand-in disclosure verbatim where the trend
 is a stand-in: "Clerical support workers shown as a stand-in — no time series is
 published for this group." The card never invents a tier and has no default:
-a figure whose tier is null is not drawn. It also carries the site URL, so the
-image out of context can be traced back to the method.
+a figure whose tier is null is not drawn. It also carries a URL, so the image
+out of context can be traced back to the method. Until #79 lands that URL is the
+site root, which returns the reader to the intro rather than to this result — the
+card is built to take a result URL the moment one exists, and must not imply it
+already has one.
 
 **Acceptance:** for *Technicians · United Kingdom*, the rendered PNG shows
 `DERIVED` next to each of the three figures and the full stand-in sentence,
@@ -164,10 +170,13 @@ are not this: `2025` as the vintage of a measured figure is a per-field year the
 data rules *require*, and it stays, labelled as a vintage. What is forbidden is a
 year presented as when replacement happens.
 
-**Acceptance:** a test asserts the card's text model contains no
-future-year token — no four-digit year greater than the current year — and that
-every four-digit year it does contain is attached to a figure as its vintage.
-Confirmed by reading the rendered image: no date is offered as an outcome.
+**Acceptance:** a test asserts that **every** four-digit year token in the
+card's text model traces to a vintage or to a trend-series endpoint — a
+whitelist, not a blacklist of future years. A blacklist keyed on "later than
+today" is the wrong shape twice over: it would pass a card stating 2030 once
+2031 arrives, and it would fail the trend's own 2013–2025 endpoints if written
+loosely. Confirmed by reading the rendered image: no date is offered as an
+outcome.
 
 ### R8. [ ] The methodology page is reachable from the result in one click
 

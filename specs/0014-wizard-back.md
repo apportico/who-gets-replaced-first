@@ -1,6 +1,6 @@
 # 0014 — the wizard can go back
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** 0010, 0011, 0012
 **Issue:** [#77](https://github.com/apportico/who-gets-replaced-first/issues/77)
 **Approved:** Dani (@syymza), 2026-09-02 — given **directly, not as a GitHub

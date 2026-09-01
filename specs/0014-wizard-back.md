@@ -256,7 +256,7 @@ The harness was a single untracked `mobile-harness.html`, deleted after the run;
 | R7 | `[x]` | Back is `48px` tall × `86px` wide at both viewports. Real `Tab` keypress from the CTA lands on it: `focusVisible: true`, `outline: 2px solid rgb(255, 90, 43)`, `outline-offset: 3px`. No new raw hex in `src/components/wizard/*.jsx` (the three matches are pre-existing token assertions in `computed.test.jsx`) |
 | R8 | `[~]` | Behaviour verified; the instrument changed from `getComputedStyle` to the inline style. Reason under R8 |
 | R9 | `[x]` | `grep -rniE "react-router\|history\.(push\|replace)\|pushState\|replaceState\|location\.hash" src/` → the only hit is the assertion in `wizard.render.test.jsx` naming the packages it forbids. `react-router`, `react-router-dom`, `wouter` all `absent`. `location.href` unchanged after walking to 04 and back; `history.length` stays `2` |
-| R10 | `[x]` | `npm run verify` → `verify PASSED`. Front-end suite `153 passed (153)`; pipeline suite `159 passed`. Pilot self-skipped (no `pipeline/raw/` in a worktree), as designed |
+| R10 | `[x]` | `npm run verify` → `verify PASSED`. Front-end suite `154 passed (154)`; pipeline suite `159 passed`. Pilot self-skipped (no `pipeline/raw/` in a worktree), as designed |
 
 ### Step 03 and step 04 share a row, checked properly
 

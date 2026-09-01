@@ -674,3 +674,41 @@ describe('0014 R9 — no router and no URL state', () => {
     }
   })
 })
+
+// R5 lifted step 01's `query` and step 02's `occ` into WizardShell. Before that
+// they were local to screens that unmount on every step change, so `Start
+// again` cleared them for free. Now it has to do it explicitly, and nothing
+// else would catch it if those two lines were dropped: the wizard would quietly
+// carry the old typed title into a fresh run.
+describe('0014 R5 — Start again still clears what it used to clear', () => {
+  it('resets the typed title and the search query, and keeps the country', async () => {
+    startWizard()
+    pickCountry('United Kingdom')
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.change(screen.getByLabelText('Your job title'), {
+      target: { value: 'paralegal' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+    fireEvent.click(screen.getByRole('button', { name: /see the figures/i }))
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("of United Kingdom's workers"),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /start again/i }))
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+
+    // Probed 2026-09-01 and left alone by this spec: `onRestart` never touches
+    // `iso3`, so the country survives while the other three answers do not.
+    // The issue's claim that Start again "discards the country" is wrong.
+    expect(screen.getByLabelText('Search countries').value).toBe('')
+    expect(screen.getByRole('option', { name: /United Kingdom/ }).getAttribute('aria-selected'))
+      .toBe('true')
+
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    expect(screen.getByLabelText('Your job title').value).toBe('')
+    const text = document.querySelector('main').textContent
+    expect(text).not.toContain('You typed')
+    expect(text).not.toContain('paralegal')
+  })
+})

@@ -553,9 +553,9 @@ what the browser paints will agree with you.
   clone with no network and no browser download. This is a manual one-off, and
   R6's install line is `--no-save` because of it.
 - **No router, no routes, no Next.js.** Issues #24, #15 and #23 are untouched.
-- **Step 01 stays a list of 218.** The scroll height is 15,519px at 1440 and that
-  was genuinely bad, and #66 has since landed (#68) — step 01 is a search over
-  177 now. It is **still** 12,739px tall at 1440 with an empty query, because the
+- **Step 01's list length is not this spec's problem.** It was 218 rows and
+  15,519px tall at 1440 when this spec opened; #66 has since landed (#68) and it
+  is a search over 177. It is **still** 12,739px tall at 1440 with an empty query, because the
   search filters a list that is fully rendered until someone types, so R4's
   `wz-footer--anchored` stays. Making step 01 render only its matches is a
   further change and belongs to whoever owns #66's follow-up, not here.

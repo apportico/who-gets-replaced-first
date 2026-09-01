@@ -226,7 +226,11 @@ describe('R5 — the touch targets and the focus ring are declared', () => {
     expect(block).toMatch(/--step-h1:\s*78px/)
     expect(block).toMatch(/--step-h2:\s*54px/)
     expect(block).toMatch(/--step-stat:\s*44px/)
-    expect(block).toMatch(/\.wz-footer\s*{[^}]*position:\s*static/)
+    // 0012 R4 is scoped, and the scope is the assertion: an unqualified
+    // `.wz-footer` here would put step 01's only way forward 15,433px below
+    // the fold at 1440, which is what review caught.
+    expect(block).toMatch(/\.wz-footer:not\(\.wz-footer--anchored\)\s*{[^}]*position:\s*static/)
+    expect(block).not.toMatch(/\.wz-footer\s*{[^}]*position:\s*static/)
     // Body and label sizes are NOT in the desktop block: a wider measure is a
     // display-type problem, and 0008 R4's 11px floor is a floor, not a step.
     expect(block).not.toMatch(/--step-body|--step-badge|--step-meta|--step-eyebrow/)

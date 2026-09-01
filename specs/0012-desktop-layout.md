@@ -53,15 +53,31 @@ used — with `document.title` asserted before anything was measured.
 ### R1. [x] One breakpoint, declared once, at 768px
 
 The stylesheet gains a **single** `@media (min-width: 768px)` block, and every
-desktop value in this spec lives inside it. 768px is not a new number: spec 0008
-R11 recorded *"768px is R1's desktop baseline"*, and the probe shows 768 is
-already 37.5% empty ground, so it is where the phone layout has stopped being
-the right answer.
+desktop value in this spec lives inside it.
+
+**On the precedent, corrected 2026-09-01 after review.** This requirement first
+claimed 768 from spec 0008 R11's *"768px is R1's desktop baseline"*. That is a
+misread: 0008's 768 is the measured **element width** of `.leaflet-container` at
+a 1440 viewport (1440 − 288 − 384), not a viewport breakpoint, and the three
+columns that arithmetic describes were deleted by 0010. The real precedent is
+one requirement away — 0008 R1 wrote this app's desktop split at Tailwind's
+`md:`, which *is* 768px (`BottomSheet.jsx` used `md:contents`, and R1's prose
+says "below the `md` breakpoint"). That code is gone too: `git grep "md:"
+91ec0f6 -- src/` returns only `--radius-md`. So 768 is a recorded decision of
+this app's rather than a live one, and the self-standing argument is the probe:
+768 already carries 37.5% empty ground.
 
 **Acceptance:** enumerating `CSSMediaRule`s from inside the browser (the check
-`CLAUDE.md` requires, not a `grep` of the source) returns exactly **two**
-conditions — `(prefers-reduced-motion: reduce)` and `(min-width: 768px)` — at
-every viewport in R6's list. A second width breakpoint is a review finding.
+`CLAUDE.md` requires, not a `grep` of the source), the set of **`min-width`**
+conditions is exactly `["(min-width: 768px)"]` at every viewport in R6's list.
+Scoped to `min-width` on purpose: `index.css` imports `tailwindcss` and
+`tw-animate-css`, and a utility class that later ships some other media
+condition is not this requirement's business — a second *width* breakpoint is.
+The script must also **count the stylesheets it could not read** and assert that
+the sheet declaring `--column-wide` was among the ones it could: the Google
+Fonts stylesheet is cross-origin and throws `SecurityError` on `.cssRules`, and
+without that assertion a sheet skipped by an exception is indistinguishable from
+a sheet with no media rules — the check would pass by not looking.
 
 ### R2. [x] The column grows to 640px above the breakpoint
 
@@ -69,9 +85,13 @@ every viewport in R6's list. A second width breakpoint is a review finding.
 in `WizardShell.jsx:79` resolves to the wide value above the breakpoint. Both are
 tokens; neither is a literal in a component, per 0010 R2.
 
-**Acceptance:** R6's script reports the measured column as **640** at 1024, 1440
-and 1920, and **480** at 375, 480 and 767. `documentElement.scrollWidth ===
-innerWidth` at all six, so the wider column introduces no horizontal scroll.
+**Acceptance:** R6's script reports the measured column as **640** at 768, 1024,
+1440 and 1920, and the viewport width capped at 480 below that — 480 at 480 and
+767, and 375 at 375, because the wrapper is `width: 100%` under the cap.
+`documentElement.scrollWidth === innerWidth` at all seven, so the wider column
+introduces no horizontal scroll. **768 matters most here**: it is the
+breakpoint's inclusive lower bound and the narrowest viewport the 640px column
+is ever asked to fit inside, with 64px of ground each side.
 
 ### R3. [x] The display scale grows with the column
 
@@ -87,39 +107,82 @@ redefinition inside `min-width: 768px` makes it an equality R5 can assert
 exactly, and puts every desktop value in one place a reviewer can read.
 
 **Acceptance:** R6's script reports `.wz-h1` computed `font-size` of **66px** at
-375, 480 and 767 and **78px** at 1024, 1440, 1920; `.wz-h2` **46px** → **54px**;
-a stat figure **38px** → **44px**. The h1 renders on no more than three lines at
-1440.
+375, 480 and 767 and **78px** at **768**, 1024, 1440 and 1920; `.wz-h2` **46px**
+→ **54px**; a stat figure **38px** → **44px**. The h1 renders on no more than
+three lines at 1440.
 
-### R4. [x] The CTA un-docks above the breakpoint
+### R4. [~] The CTA un-docks above the breakpoint — on the steps that fit
 
 `.wz-footer` drops to `position: static` above the breakpoint and loses its
-gradient fade, so the primary action on steps 01–03 is an inline button in the
-flow rather than a 640px slab pinned to the bottom of a 900px window. The intro
-is already inline (probed) and does not change.
+gradient fade, so the primary action is an inline button in the flow rather than
+a 640px slab pinned to the bottom of a 900px window. The intro is already inline
+(probed) and does not change.
 
-**Acceptance:** R6's script, driven to step 01, reports `.wz-footer` computed
-`position` as **`sticky`** at 375/480/767 and **`static`** at 1024/1440/1920, at
-all six the CTA's measured height is **≥ 60px**, and at 1440 the dock's box
-bottom is **not** equal to `innerHeight`.
+**`[~]` revised 2026-09-01, after review — this applies to steps 02 and 03 only.**
+As first written it applied to all three, and that made step 01's primary action
+**unreachable**. Step 01 is the 218-country list: its page is **15,519px tall at
+1440**, `.wz-footer` renders after `options.map`, and with `position: static` the
+"Continue" button measured `top: 15433` in a 900px viewport — 15,433px below the
+fold, on the one step with no other way forward. Measured, not argued: the same
+run puts steps 02 and 03 at `top: 814` and `757`, both comfortably on screen,
+because those screens fit the viewport.
+
+Neither of this requirement's original criteria could see it. `position: static`
+and "the dock's box bottom is not `innerHeight`" are *exactly* what an
+unreachable CTA looks like, and R7 could not see it either — nothing overflows
+and nothing errors. So the un-dock is scoped by a `wz-footer--anchored`
+modifier on `CountryScreen`'s footer, and the rule becomes: **a screen that does
+not fit the viewport keeps its dock.** If #66's search lands and step 01 stops
+being a 15,519px page, the modifier comes off and R4 applies uniformly again.
+
+**Acceptance (revised):** R6's script, driving to each of steps 01, 02 and 03 at
+**all seven** viewports, reports:
+
+- step **01**'s dock computes `sticky` at every width, and carries
+  `wz-footer--anchored`;
+- steps **02** and **03** compute `sticky` at 375/480/767 and `static` at
+  768/1024/1440/1920;
+- and on **every one of the three steps, at every viewport, the CTA's
+  `getBoundingClientRect().top` is less than `innerHeight` with no scrolling.**
+  This is the clause that fails when a primary action is off-screen at first
+  paint, and without it R4 could go `[x]` on a screen nobody can get past.
+
+The CTA's measured height is ≥ 60px at all seven throughout.
 
 ### R5. [x] Below the breakpoint, nothing moves
 
-The phone layout is the primary surface and this change may not touch it. The
-375 and 480 rows of R6's report must match a baseline committed from `main`
-before any CSS changes.
+The phone layout is the primary surface and this change may not touch it. Every
+viewport **below** the breakpoint — 375, 480 **and 767** — must match a baseline
+captured from `main` before any CSS in this spec changed.
 
-**Acceptance:** `scripts/desktop-baseline.json` is generated from `main` at
-`91ec0f6` and committed. After the change, R6's script re-run at 375 and 480
-produces rows **deep-equal** to that file — column 480, h1 66px, h2 46px, CTA
-60px, dock `sticky`, `scrollWidth === innerWidth`, zero page errors — and the
-script exits non-zero on any difference.
+**Acceptance:** `scripts/desktop-baseline.json` is generated from a pristine
+checkout of `main` at `91ec0f6` and committed. After the change, R6's script
+re-run at 375, 480 and 767 produces rows **deep-equal** to that file, and exits
+non-zero on any difference or on a row the baseline does not cover.
+
+**The compared schema is named, and it is deliberately narrow** (revised
+2026-09-01 after review). Exactly eight keys, all computed styles, booleans or
+counts:
+
+`column` · `h1` · `h2` · `stat` · `ctaHeight` · `dockPosition` ·
+`scrollEqualsViewport` · `errorCount`
+
+Nothing that is a **text box measurement** is in it. The three fonts are fetched
+from `fonts.googleapis.com` at run time over a real fallback stack, so a slow or
+blocked font request silently re-lays out the headline; a baseline holding
+`h1Lines` or `minOptionHeight` would then fail R5 on a network condition rather
+than on a change to this repo, and Chrome version drift does the same to
+sub-pixel rounding (R6 pins no Chrome version). The script asserts the committed
+file's key set **is** this list, so the artefact cannot quietly grow a geometry
+field. Nothing is lost by the narrowing: the focus ring is R8's and is asserted
+at every width, and the rendered figures and tier badges are R9's and are
+asserted across the breakpoint.
 
 ### R6. [x] The measure script is restored, committed and documented
 
 `scripts/desktop-measure.mjs` returns the browser-measurement path `ada3897`
-deleted, rebuilt around the wizard instead of the map: six viewports (375, 480,
-767, 1024, 1440, 1920), `playwright-core` installed `--no-save`, Chrome from
+deleted, rebuilt around the wizard instead of the map: **seven** viewports (375,
+480, 767, **768**, 1024, 1440, 1920), `playwright-core` installed `--no-save`, Chrome from
 `CHROME_PATH` or the macOS default, `--json`, and **`EXPECTED_TITLE` asserted
 before a single measurement is taken** — spec 0008 recorded a run that measured
 a different project on port 5173 and produced entirely plausible numbers.
@@ -133,9 +196,9 @@ R2–R5 threshold breach. `playwright-core` does **not** appear in `package.json
 ### R7. [x] The desktop layout is clean at every width
 
 No horizontal scroll, no console errors, no overlapping or clipped elements at
-any of the six viewports.
+any of the seven viewports.
 
-**Acceptance:** at all six, `documentElement.scrollWidth === innerWidth` and the
+**Acceptance:** at all seven, `documentElement.scrollWidth === innerWidth` and the
 script's collected `pageerror` + `console.error` list is **empty**. Screenshots
 at 375, 768, 1440 and 1920 are attached to the implementation PR.
 
@@ -147,7 +210,7 @@ floors and 0010 R5's targets survive: primary CTA ≥60px, options and secondary
 the four keyframes suppressed under `prefers-reduced-motion`.
 
 **Acceptance:** `computed.test.jsx` and `tokens.test.js` stay green, and R6's
-script additionally reports, at **all six** viewports, `.wz-cta` height ≥60,
+script additionally reports, at **all seven** viewports, `.wz-cta` height ≥60,
 every `.wz-option` height ≥56, and a focused CTA computing `outline-width: 2px`
 with `outline-color: rgb(255, 90, 43)`.
 
@@ -157,11 +220,33 @@ This is the rule `CLAUDE.md` puts hardest on the result screen: a layout change
 must not alter a figure, a tier badge, a `no series` result or a stand-in
 notice. Nothing here produces a number, and nothing here may change one.
 
-**Acceptance:** R6's script drives to step 04 for one country with a series and
-one without, at 375 and at 1440, and asserts the result card's rendered stat
-figures and the full set of tier badge strings (`OFFICIAL` / `DERIVED` /
-`PROXY` / `MODELED`) are **string-identical** between the two viewports. A
-figure that appears at one width and not the other fails the requirement.
+**Acceptance:** R6's script drives to step 04 at 375 and at 1440 for **two named
+countries** and asserts the rendered stat figures and the full set of tier badge
+strings are **string-identical** between the two viewports. A figure that appears
+at one width and not the other fails the requirement.
+
+**The countries are named, not selected** (revised 2026-09-01 after review). A
+run-time scan of the payload can pick a different country as the data refreshes,
+and R9 would then compare two different result screens on different days while
+still reporting pass.
+
+- **GBR**, for the series side. `CLAUDE.md` records its clerical figures as the
+  real dataset (`isco4_clerical_pct` 8.8633, 2,989,466 people), so a reviewer can
+  eyeball the numbers the script prints.
+- **NZL**, for the absence side. `CLAUDE.md` records New Zealand as deliberately
+  unfilled in `manual_overrides.json`, and the committed payload carries no ISCO
+  block for it — checked, 2026-09-01.
+  **Armenia, named in that same `CLAUDE.md` sentence, is not a valid pick: it
+  carries a series in the payload.** The review suggested any of the three; the
+  payload settles which.
+
+**Both sides are asserted non-vacuous before they are compared.** The series
+country's figures and tier badges must be non-empty, and the no-series screen
+must actually render its withdrawal — the string `does not publish a figure`,
+from `absenceMessage(NOT_PUBLISHED)` — at **both** widths. Without that second
+assertion, "string-identical" is satisfied by a screen that renders nothing at
+all, which would make the weakest check in this spec the one guarding the rule
+`CLAUDE.md` puts hardest on the result screen.
 
 ### R10. [x] The tests that pin 480px describe the new contract
 
@@ -210,7 +295,7 @@ drawing part-way and leaves a marker floating away from the series it marks. The
 fix is `pathLength="1"` with `stroke-dasharray="1"` and `draw` animating from
 `1`, which normalises the dash to the path's own length at any rendered width.
 
-**Acceptance:** at **all six** viewports the script reports the path carrying
+**Acceptance:** at **all seven** viewports the script reports the path carrying
 `pathLength` **and no `vector-effect`**, with a dash of at least one normalised
 unit; where the path is not normalised, the dash must be at least its rendered
 length. `tokens.test.js` still finds all four keyframes, and R5's baseline
@@ -235,23 +320,26 @@ the first attempted *fix* (normalising the dash while keeping
 
 | Path | Purpose |
 |---|---|
-| `scripts/desktop-measure.mjs` | R6. The browser-measurement path `ada3897` deleted, rebuilt around the wizard: six viewports, `playwright-core` + system Chrome, `EXPECTED_TITLE` asserted before any measurement, `--json`, and `--baseline <file>` to diff the phone rows against R5's committed baseline. Exits non-zero on a title mismatch or any threshold breach |
-| `scripts/desktop-baseline.json` | R5. The 375 and 480 rows measured from the tree **before** any CSS in this spec changes, so "the phone layout did not move" is an equality against a committed artefact rather than a claim |
+| `scripts/desktop-measure.mjs` | R6. The browser-measurement path `ada3897` deleted, rebuilt around the wizard: seven viewports, `playwright-core` + system Chrome, `EXPECTED_TITLE` asserted before any measurement, `--json`, and `--baseline <file>` to diff the phone rows against R5's committed baseline. Exits non-zero on a title mismatch or any threshold breach |
+| `scripts/desktop-baseline.json` | R5. The 375, 480 and 767 rows measured from a pristine `91ec0f6` checkout **before** any CSS in this spec changes, over R5's named eight-key schema, so "the phone layout did not move" is an equality against a committed artefact rather than a claim |
 
 ### Files to modify
 
 | Path | Change |
 |---|---|
-| `src/styles/index.css` | `--column-wide: 640px` on `:root` beside `--column: 480px`; **one** `@media (min-width: 768px)` block (R1) that redefines `--column: var(--column-wide)` (R2), the three display tokens to 78/54/44 (R3), and `.wz-footer` to `position: static` with the gradient dropped (R4) |
+| `src/styles/index.css` | `--column-wide: 640px` on `:root` beside `--column: 480px`; **one** `@media (min-width: 768px)` block (R1) that redefines `--column: var(--column-wide)` (R2), the three display tokens to 78/54/44 (R3), and `.wz-footer:not(.wz-footer--anchored)` to `position: static` with the gradient dropped (R4) |
+| `src/components/wizard/CountryScreen.jsx` | R4. Its footer carries `wz-footer--anchored`, so step 01 — 15,519px tall at 1440 — keeps its dock at every width |
 | `src/styles/tokens.test.js:209` | R10. "the column is capped at the canvas width" becomes the two-token, one-breakpoint contract |
 | `src/components/wizard/computed.test.jsx:260` | R10. Keeps asserting the **base** computed token is `480px` — jsdom applies no media query, and saying so in the test name is the honest jsdom-side check |
 | `CLAUDE.md` (*Shape*, line 65) | R11. The unconditional `` `max-width: 480px` centred `` gains the breakpoint and both widths, plus the sentence naming the canvas as mobile-only and this spec as the desktop authority |
 | `specs/0010-mobile-first-redesign.md` (R5) | R11. A `[~]` note: its "the column token is 480px" acceptance clause is now conditional, superseded by 0012 |
 
-**No component file changes.** `WizardShell.jsx:79` already reads
-`maxWidth: 'var(--column)'`; redefining `--column` inside the media query means
-the desktop layout is entirely a token change, which is what 0010 R2 asks for
-and what keeps a raw px out of `src/components/wizard/`.
+**One component file changes, and only by a class name.** `WizardShell.jsx:79`
+already reads `maxWidth: 'var(--column)'`, so redefining `--column` inside the
+media query is the whole desktop *column* — a token change, which is what 0010
+R2 asks for and what keeps a raw px out of `src/components/wizard/`. The single
+exception is R4's `wz-footer--anchored` on `CountryScreen`, added after review:
+which screens un-dock is a per-screen fact and cannot be expressed in a token.
 
 ### Sequence
 
@@ -267,18 +355,18 @@ and what keeps a raw px out of `src/components/wizard/`.
 
 | Req | How it will be satisfied | Where | How acceptance is checked |
 |---|---|---|---|
-| R1 | One `@media (min-width: 768px)` block, all desktop values inside it | `index.css` | Script enumerates `CSSMediaRule`s in-browser; expects exactly `(prefers-reduced-motion: reduce)` and `(min-width: 768px)` |
-| R2 | `--column-wide: 640px`; `--column: var(--column-wide)` inside the block | `index.css` | Script: column 640 at 1024/1440/1920, 480 at 375/480/767, `scrollWidth === innerWidth` at all six |
+| R1 | One `@media (min-width: 768px)` block, all desktop values inside it | `index.css` | Script enumerates `CSSMediaRule`s in-browser; the `min-width` set is exactly `["(min-width: 768px)"]`, unreadable sheets are counted, and the sheet declaring `--column-wide` is proven read |
+| R2 | `--column-wide: 640px`; `--column: var(--column-wide)` inside the block | `index.css` | Script: column 640 at 768/1024/1440/1920, capped below that, `scrollWidth === innerWidth` at all seven |
 | R3 | `--step-h1/h2/stat` → 78/54/44 inside the block | `index.css` | Script: `.wz-h1` 66→78, `.wz-h2` 46→54, stat 38→44 across the breakpoint; h1 ≤ 3 lines at 1440 |
-| R4 | `.wz-footer { position: static; background: none }` inside the block | `index.css` | Script at step 01: dock `sticky` at 375/480/767, `static` at 1024/1440/1920; CTA ≥60px at all six; dock bottom ≠ `innerHeight` at 1440 |
-| R5 | Baseline captured before step 3 and diffed after | `scripts/desktop-baseline.json` | `node scripts/desktop-measure.mjs --baseline scripts/desktop-baseline.json` exits 0; non-zero on any phone-row difference |
+| R4 | `.wz-footer:not(.wz-footer--anchored) { position: static; background: none }`, and the modifier on step 01 | `index.css`, `CountryScreen.jsx` | Script at steps 01/02/03: step 01 `sticky` and anchored everywhere; 02/03 `static` above the breakpoint; **and the CTA on screen at first paint on all three steps at all seven** |
+| R5 | Baseline captured from a pristine `91ec0f6` worktree before step 3, diffed after | `scripts/desktop-baseline.json` | `--baseline` exits 0; non-zero on any difference across 375/480/767, on a missing row, or on a key set that is not the named eight |
 | R6 | The recovered `ada3897^` pattern, rebuilt for the wizard | `scripts/desktop-measure.mjs` | Runs and exits 0; exits non-zero with `APP_URL` pointed elsewhere; `playwright-core` absent from `package.json` |
-| R7 | Falls out of R2–R4; verified, not assumed | — | Script: `scrollWidth === innerWidth` and an empty error list at all six; four screenshots on the PR |
-| R8 | No change — the floors are width-independent tokens | — | `computed.test.jsx` + `tokens.test.js` green; script re-checks 60/56 heights and the focus ring at **all six** |
-| R9 | No change — the layout never touches the data path | — | Script drives to step 04 at 375 and 1440, for one country with a series and one without, and diffs the stat figures and tier badge strings |
+| R7 | Falls out of R2–R4; verified, not assumed | — | Script: `scrollWidth === innerWidth` and an empty error list at all seven; screenshots on the PR |
+| R8 | No change — the floors are width-independent tokens | — | `computed.test.jsx` + `tokens.test.js` green; script re-checks 60/56 heights and the focus ring at **all seven** |
+| R9 | No change — the layout never touches the data path | — | Script drives to step 04 at 375 and 1440 for **GBR and NZL**, asserts both sides non-vacuous (figures present; the withdrawal sentence rendered), then diffs figures and tier badge strings |
 | R10 | Both width assertions rewritten to the new contract | the two test files | `npm run verify` green with the new assertions in place |
 | R11 | *Shape* section and 0010 R5's note | `CLAUDE.md`, `specs/0010-*.md` | The `max-width: 480px` line also contains `768px`; 0010 R5 carries a `[~]` linking 0012 |
-| R12 | `pathLength="1"`, dash normalised, `draw` from `1` | `Sparkline.jsx`, `index.css` | Script: path right edge within 4px of the dot centre at all six viewports |
+| R12 | `pathLength="1"`, `vector-effect` removed, `draw` from `1` | `Sparkline.jsx`, `index.css` | Script: dash covers the rendered path at all seven — compared in matching units, never by bounding box |
 
 ### Tier and vintage handling
 
@@ -323,42 +411,73 @@ between the two widths, the layout has touched the data surface and R9 fails.
 
 ## Evaluation
 
-**Run 2026-09-01** against the branch, `npm run dev -- --port 5273 --strictPort`,
-`node scripts/desktop-measure.mjs --baseline scripts/desktop-baseline.json`:
+**Round 2, 2026-09-01**, after review. `npm run dev -- --port 5273 --strictPort`,
+`node scripts/desktop-measure.mjs --baseline scripts/desktop-baseline.json`
+(`NN:stic`/`NN:stat` is each step's computed dock position; `!OFF` would mark a
+CTA off-screen at first paint):
 
 ```
- 375  column 375  h1 66  h2 46  stat 38  dock sticky  cta 60  opt 62  errors 0
- 480  column 480  h1 66  h2 46  stat 38  dock sticky  cta 60  opt 62  errors 0
- 767  column 480  h1 66  h2 46  stat 38  dock sticky  cta 60  opt 62  errors 0
-1024  column 640  h1 78  h2 54  stat 44  dock static  cta 60  opt 62  errors 0
-1440  column 640  h1 78  h2 54  stat 44  dock static  cta 60  opt 62  errors 0
-1920  column 640  h1 78  h2 54  stat 44  dock static  cta 60  opt 62  errors 0
+ 375  column 375  h1 66  h2 46  stat 38  01:stic 02:stic 03:stic  cta 60  errors 0
+ 480  column 480  h1 66  h2 46  stat 38  01:stic 02:stic 03:stic  cta 60  errors 0
+ 767  column 480  h1 66  h2 46  stat 38  01:stic 02:stic 03:stic  cta 60  errors 0
+ 768  column 640  h1 78  h2 54  stat 44  01:stic 02:stat 03:stat  cta 60  errors 0
+1024  column 640  h1 78  h2 54  stat 44  01:stic 02:stat 03:stat  cta 60  errors 0
+1440  column 640  h1 78  h2 54  stat 44  01:stic 02:stat 03:stat  cta 60  errors 0
+1920  column 640  h1 78  h2 54  stat 44  01:stic 02:stat 03:stat  cta 60  errors 0
 
 all checks passed
 ```
 
 | Req | Verdict | Evidence |
 |---|---|---|
-| R1 | `[x]` | The parsed stylesheet carries exactly two media conditions at all six viewports: `(min-width: 768px)` and `(prefers-reduced-motion: reduce)` |
-| R2 | `[x]` | Column 640 at 1024/1440/1920, 480 at 480/767, 375 at 375 (the wrapper is `width: 100%` under the cap). `scrollWidth === innerWidth` at all six |
-| R3 | `[x]` | h1 66→78, h2 46→54, stat 38→44 across the breakpoint. The h1 runs 3 lines at 1440 |
-| R4 | `[x]` | Dock `sticky` at 375/480/767 and `static` at 1024/1440/1920; at 1440 it is no longer on the viewport floor. CTA ≥60px at all six |
-| R5 | `[x]` | `--baseline scripts/desktop-baseline.json` (captured at `91ec0f6` before any CSS changed) passes: the 375 and 480 rows are deep-equal, figures and badges included |
-| R6 | `[x]` | `scripts/desktop-measure.mjs` runs and exits 0; it exits 1 on a title mismatch and 1 on any threshold breach — both seen during development. `playwright-core` is absent from `package.json` |
-| R7 | `[x]` | Zero console and page errors and no horizontal scroll at all six. Screenshots taken at 375, 768, 1440, 1920 for intro, step 01 and the result |
-| R8 | `[x]` | CTA 60px, shortest option 62px, and a Tab-focused control computing `2px rgb(255, 90, 43)` at `3px` offset — at all six widths |
-| R9 | `[x]` | At 375 and 1440 the result is string-identical: figures `["8.9%", "2.99M"]`, badges `["DERIVED","2025","DERIVED","2025","DERIVED"]`, and the no-series country's withdrawal headline matches too |
+| R1 | `[x]` | The `min-width` set is exactly `["(min-width: 768px)"]` at all seven; one sheet is unreadable (Google Fonts, cross-origin) and is *counted*, and the sheet declaring `--column-wide` is proven read |
+| R2 | `[x]` | Column 640 at 768/1024/1440/1920; 480 at 480/767; 375 at 375 (the wrapper is `width: 100%` under the cap). `scrollWidth === innerWidth` at all seven |
+| R3 | `[x]` | h1 66→78, h2 46→54, stat 38→44 across the breakpoint, with 768 measured. The h1 runs 3 lines at 1440 |
+| R4 | `[~]` | **Revised, not merely done.** Step 01 stays `sticky` and anchored at all seven; 02 and 03 go `static` at 768 and above. Every one of the three steps has its CTA on screen at first paint at every viewport — the clause added after review, which the first version failed at `top: 15433` |
+| R5 | `[x]` | Baseline captured from a pristine `91ec0f6` worktree with this same script, over the named eight-key schema; 375, 480 and 767 all deep-equal, and the script also asserts the committed key set is that schema |
+| R6 | `[x]` | Seven viewports; exits 0 here, 1 on a title mismatch and 1 on any threshold breach — both seen during development. `playwright-core` absent from `package.json` |
+| R7 | `[x]` | Zero console and page errors, no horizontal scroll, at all seven. Screenshots at 375, 768, 1440 and 1920 for intro, step 01 and the result |
+| R8 | `[x]` | CTA 60px, shortest option 62px, and a Tab-focused control computing `2px rgb(255, 90, 43)` at `3px` offset — at all seven |
+| R9 | `[x]` | GBR and NZL, both named. Figures `["8.9%", "2.99M"]` and badges `["DERIVED","2025","DERIVED","2025","DERIVED"]` identical at 375 and 1440; NZL renders "does not publish a figure" at both, so neither side can pass vacuously |
 | R10 | `[x]` | Both tests rewritten to the new contract; `npm run verify` green |
-| R11 | `[x]` | `CLAUDE.md` line 76 carries both widths and `768px`; the canvas-authority paragraph names the desktop exception; spec 0010 R5 carries a third `[~]` note linking here |
-| R12 | `[x]` | Path normalised with `pathLength`, `vector-effect` removed, dash covers the full line at all six. Confirmed in a screenshot, which is what found the defect |
+| R11 | `[x]` | `CLAUDE.md` carries both widths, the breakpoint, the desktop type scale, the un-dock and the canvas exception; spec 0010 R5 carries a third `[~]` note linking here |
+| R12 | `[x]` | `pathLength` with no `vector-effect`; the dash covers the rendered path at all seven. Found by a screenshot, and its first criterion and first fix both passed a check that could not see the defect |
 
-**Two findings worth carrying forward.** The measure script's first two attempts
-at R8 and R4 reported failures that were not defects — a programmatic `.focus()`
-does not match `:focus-visible`, and both readings were taken mid-animation
-(`stepin` 0.5s, `.wz-option`'s `transition: all 0.18s`). And R12's first
-acceptance criterion passed against a visibly broken chart. In both directions
-the lesson is the same one `CLAUDE.md` draws about the font `@import`: a check
-that does not observe what the browser paints will agree with you.
+### What review caught, recorded rather than absorbed
+
+Round 1 raised six threads and **all six were valid**; one was a shipped defect
+of exactly the kind this spec exists to prevent.
+
+- **R4 made step 01 unreachable.** `position: static` under 218 rows put
+  "Continue" 15,433px below the fold at 1440. Both of R4's original criteria
+  described that state as success, and R7 could not see it either. The
+  measurable lesson is now in R4's acceptance: *a criterion that asserts a
+  property of the control must also assert the control is on screen.*
+- **R1 cited a precedent that says something else.** 0008's "768px is R1's
+  desktop baseline" is a map element's width, not a viewport breakpoint. The
+  real precedent — 0008 R1's Tailwind `md:` split, also 768 — was one
+  requirement away, and its code has since been deleted.
+- **768 was missing from the viewport list**, which is the one width the spec is
+  about and the exact place an off-by-one lives.
+- **R5's "deep-equal" had no named schema**, so it silently compared text box
+  geometry that a slow webfont fetch would move.
+- **R9 did not name its countries**, so a payload refresh could change what it
+  compared while still reporting pass. Naming them also caught that Armenia —
+  one of the three the review offered — carries a series and would have been the
+  wrong pick.
+- **"Exactly two media conditions" counted rules this spec does not own**, and
+  the enumeration could not distinguish a sheet with no media rules from one it
+  was refused permission to read.
+
+### Two findings from implementation, worth carrying forward
+
+The measure script's first attempts at R8 and R4 reported failures that were not
+defects — a programmatic `.focus()` does not match `:focus-visible`, and both
+readings were taken mid-animation (`stepin` 0.5s, `.wz-option`'s `transition:
+all 0.18s`). And R12's first acceptance criterion passed against a visibly
+broken chart, as did its first attempted fix. In every direction the lesson is
+the one `CLAUDE.md` draws about the font `@import`: a check that does not observe
+what the browser paints will agree with you.
 
 ## Non-goals
 
@@ -379,5 +498,7 @@ that does not observe what the browser paints will agree with you.
   clone with no network and no browser download. This is a manual one-off, and
   R6's install line is `--no-save` because of it.
 - **No router, no routes, no Next.js.** Issues #24, #15 and #23 are untouched.
-- **Step 01 stays a list of 218.** The scroll height is 15,511px at 1440 and that
-  is genuinely bad, but it is issue #66's search, not a width problem.
+- **Step 01 stays a list of 218.** The scroll height is 15,519px at 1440 and that
+  is genuinely bad, but it is issue #66's search, not a width problem. It is also
+  why R4 does not un-dock that one screen: see R4's revision note. When #66 lands,
+  `wz-footer--anchored` should come off and R4 should apply uniformly.

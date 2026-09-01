@@ -51,10 +51,14 @@ const EXPECTED_TITLE = 'WHO GETS REPLACED FIRST';
 // by disagreeing with itself.
 const BREAKPOINT = 768;
 
+// Seven, not six. 768 is the breakpoint's inclusive lower bound -- the exact
+// place an off-by-one lives, and the narrowest viewport the 640px column is
+// ever asked to fit inside (64px of ground each side).
 const VIEWPORTS = [
   { name: '375', width: 375, height: 812 },
   { name: '480', width: 480, height: 900 },
   { name: '767', width: 767, height: 900 },
+  { name: '768', width: 768, height: 1024 },
   { name: '1024', width: 1024, height: 768 },
   { name: '1440', width: 1440, height: 900 },
   { name: '1920', width: 1920, height: 1080 },
@@ -66,17 +70,29 @@ const TYPE = {
   narrow: { h1: 66, h2: 46, stat: 38 },
   wide: { h1: 78, h2: 54, stat: 44 },
 };
-const MEDIA = [`(min-width: ${BREAKPOINT}px)`, '(prefers-reduced-motion: reduce)'];
-
 // R8. Width-independent floors, re-checked at every width rather than assumed
 // from the jsdom suite.
 const TAP = { cta: 60, option: 56 };
 const RING = { width: '2px', color: 'rgb(255, 90, 43)', offset: '3px' };
 
-// R9. One country with an official series and one without. Both are picked by
-// exact name: "China" is a prefix of three other rows in the payload.
+// R9. Both countries are NAMED rather than selected by scanning the payload: a
+// run-time scan can pick a different country as the data refreshes, and R9
+// would then compare two different result screens and still report pass. Both
+// are matched on exact row text, because "China" is a prefix of three other
+// rows in the payload.
+//
+// GBR because CLAUDE.md records its clerical figures as the real dataset, so
+// the numbers this prints are eyeballable. NZL because the payload carries no
+// ISCO block for it at all, and CLAUDE.md records it as deliberately unfilled
+// in manual_overrides.json -- a stable absence rather than a transient gap.
+// Armenia is named in that same CLAUDE.md sentence but is NOT a valid pick: it
+// carries a series in the committed payload. Checked, not assumed.
 const SERIES_COUNTRY = 'United Kingdom';
-const NO_SERIES_COUNTRY = 'China';
+const NO_SERIES_COUNTRY = 'New Zealand';
+// The withdrawal in words, from absenceMessage(NOT_PUBLISHED) via groupShare.
+// Asserted so that "string-identical at both widths" cannot be satisfied by a
+// screen that renders nothing at all.
+const WITHDRAWAL = 'does not publish a figure';
 const R9_VIEWPORTS = ['375', '1440'];
 
 // Every screen mounts with `stepin` (0.4-0.5s) and `.wz-option` carries
@@ -116,6 +132,38 @@ const intro = () => {
   const col = document.querySelector('main').parentElement;
   const h1 = document.querySelector('.wz-h1');
   const lh = h1 ? parseFloat(getComputedStyle(h1).lineHeight) : 0;
+
+  // Enumerated from the stylesheets the browser actually parsed, not grepped
+  // from source. CLAUDE.md's font @import incident is exactly this: the file
+  // said one thing and the browser was asked for another.
+  //
+  // Two refinements over the first version. It counts only `min-width`
+  // conditions, because index.css imports tailwindcss and tw-animate-css and a
+  // utility shipping some other media condition is not this spec's business.
+  // And it *counts the sheets it could not read*: the Google Fonts stylesheet
+  // is cross-origin and throws SecurityError on .cssRules, so a sheet skipped
+  // by an exception must not be indistinguishable from a sheet with no media
+  // rules -- otherwise this check passes by not looking.
+  let unreadable = 0;
+  let sawOwnSheet = false;
+  const conditions = [];
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = [...sheet.cssRules] } catch { unreadable += 1; continue }
+    // Our stylesheet is the one declaring the layout tokens. Proving it was
+    // read is what makes "exactly one min-width condition" mean anything.
+    if (rules.some((r) => r.cssText && r.cssText.includes('--column-wide'))) sawOwnSheet = true;
+    for (const rule of rules) {
+      if (rule instanceof window.CSSMediaRule) conditions.push(rule.conditionText);
+    }
+  }
+  const media = {
+    minWidth: conditions.filter((c) => c.includes('min-width')).sort(),
+    all: conditions.sort(),
+    unreadable,
+    sawOwnSheet,
+  };
+
   return {
     viewport: window.innerWidth,
     column: Math.round(col.getBoundingClientRect().width),
@@ -124,31 +172,43 @@ const intro = () => {
     // honest count for a block with no other children.
     h1Lines: lh ? Math.round(h1.getBoundingClientRect().height / lh) : null,
     scrollWidth: document.documentElement.scrollWidth,
-    // Enumerated from the stylesheets the browser actually parsed, not grepped
-    // from source. CLAUDE.md's font @import incident is exactly this: the file
-    // said one thing and the browser was asked for another.
-    media: [...document.styleSheets]
-      .flatMap((s) => { try { return [...s.cssRules] } catch { return [] } })
-      .filter((r) => r instanceof window.CSSMediaRule)
-      .map((r) => r.conditionText)
-      .sort(),
+    media,
   };
 };
 
 const stepOne = () => {
   const cta = document.querySelector('.wz-cta');
-  const dock = cta.closest('.wz-footer');
   const options = [...document.querySelectorAll('.wz-option')];
   return {
     h2: parseFloat(getComputedStyle(document.querySelector('.wz-h2')).fontSize),
-    dockPosition: dock ? getComputedStyle(dock).position : 'none',
-    // R4. A docked CTA sits on the viewport floor; an un-docked one does not.
-    dockOnViewportFloor: dock
-      ? Math.round(dock.getBoundingClientRect().bottom) === window.innerHeight
-      : null,
     ctaHeight: Math.round(cta.getBoundingClientRect().height),
     minOptionHeight: Math.min(...options.map((o) => Math.round(o.getBoundingClientRect().height))),
     optionCount: options.length,
+  };
+};
+
+// R4, per step -- because the answer differs per step: a screen that does not
+// fit the viewport keeps its dock. `onScreen` is the criterion that matters. A
+// static footer under 218 country rows put "Continue" 15,433px below the fold
+// at 1440, and neither `position: static` nor "nothing overflows" could see it.
+const stepDock = () => {
+  const cta = document.querySelector('.wz-cta');
+  const dock = cta.closest('.wz-footer');
+  const r = cta.getBoundingClientRect();
+  return {
+    dock: dock ? getComputedStyle(dock).position : 'none',
+    anchored: dock ? dock.classList.contains('wz-footer--anchored') : null,
+    ctaTop: Math.round(r.top),
+    innerHeight: window.innerHeight,
+    onScreen: r.top < window.innerHeight && r.bottom > 0,
+    // Reported, not asserted. Steps 02 and 03 are short screens whose padded
+    // container puts ~26px below the docked CTA even on a phone, so "the dock
+    // sits on the viewport floor" is false there at every width and says
+    // nothing about whether the dock is doing its job. What matters is the
+    // computed position and whether the CTA is on screen, both asserted above.
+    dockOnViewportFloor: dock
+      ? Math.round(dock.getBoundingClientRect().bottom) === window.innerHeight
+      : null,
   };
 };
 
@@ -180,6 +240,7 @@ const result = () => {
     headline: document.querySelector('.wz-h2')?.textContent.trim() ?? null,
     figures: [...document.querySelectorAll('.wz-stat')].map((e) => e.textContent.trim()),
     badges: [...document.querySelectorAll('.wz-badge')].map((e) => e.textContent.trim()),
+    text: document.querySelector('main')?.innerText ?? '',
     // R12. NOT a bounding box: a bbox is the path's geometry and ignores the
     // dash entirely, so the first version of this check passed while the line
     // was visibly clipped in a screenshot. What matters is whether the dash is
@@ -235,16 +296,25 @@ const ctaReads = (page, text) => page.waitForFunction(
 // figures and no tier badges — which is the point of it, and is what withdrawal
 // looks like — so waiting for a `.wz-badge` there hangs for the full timeout.
 // The first run of this script did exactly that.
-async function driveToResult(page, country, { expectBadges = true } = {}) {
+async function driveToResult(page, country, { expectBadges = true, steps = null } = {}) {
   await page.click('.wz-cta');
   await page.waitForSelector('.wz-option');
+  await page.waitForTimeout(MOUNT_SETTLE);
+  if (steps) steps['01'] = await page.evaluate(stepDock);
+
   await pickCountry(page, country);
   await page.click('.wz-cta');
   await atStep(page, '02/04');
+  await page.waitForTimeout(MOUNT_SETTLE);
+  if (steps) steps['02'] = await page.evaluate(stepDock);
+
   await page.locator('.wz-chip').nth(3).click();   // ISCO major group 4, clerical
   await ctaReads(page, 'Confirm');
   await page.click('.wz-cta');
   await atStep(page, '03/04');
+  await page.waitForTimeout(MOUNT_SETTLE);
+  if (steps) steps['03'] = await page.evaluate(stepDock);
+
   await ctaReads(page, 'See the figures');
   await page.click('.wz-cta');                     // bands skipped
   await atStep(page, '04/04');
@@ -284,7 +354,8 @@ for (const vp of VIEWPORTS) {
   Object.assign(row, await page.evaluate(ring));
 
   await page.goto(URL_, { waitUntil: 'networkidle' });
-  await driveToResult(page, SERIES_COUNTRY);
+  row.steps = {};
+  await driveToResult(page, SERIES_COUNTRY, { steps: row.steps });
   await page.waitForTimeout(DRAW_SETTLE);
   Object.assign(row, await page.evaluate(result));
 
@@ -297,6 +368,7 @@ for (const vp of VIEWPORTS) {
       headline: withdrawn.headline,
       figures: withdrawn.figures,
       badges: withdrawn.badges,
+      statesAbsence: withdrawn.text.includes(WITHDRAWAL),
     };
   }
 
@@ -321,7 +393,11 @@ for (const vp of VIEWPORTS) {
   const w = wide ? 'wide' : 'narrow';
   const at = `at ${vp.name}`;
 
-  check('R1', eq(r.media, MEDIA), `${at} media conditions are ${JSON.stringify(r.media)}, want ${JSON.stringify(MEDIA)}`);
+  // R1. One *width* breakpoint, plus proof the enumeration read our own sheet.
+  check('R1', eq(r.media.minWidth, [`(min-width: ${BREAKPOINT}px)`]),
+    `${at} the min-width conditions are ${JSON.stringify(r.media.minWidth)}, want exactly ["(min-width: ${BREAKPOINT}px)"]`);
+  check('R1', r.media.sawOwnSheet,
+    `${at} the stylesheet declaring --column-wide was never read (${r.media.unreadable} sheet(s) unreadable) — this check would pass by not looking`);
   // The wrapper is `width: 100%` capped by the token, so below the cap the
   // column is simply the viewport. 375 is a 375px column, not a broken 480.
   const wantColumn = Math.min(vp.width, COLUMN[w]);
@@ -330,8 +406,19 @@ for (const vp of VIEWPORTS) {
   check('R3', r.h2 === TYPE[w].h2, `${at} h2 is ${r.h2}px, want ${TYPE[w].h2}px`);
   check('R3', r.stat === TYPE[w].stat, `${at} stat figure is ${r.stat}px, want ${TYPE[w].stat}px`);
   if (vp.name === '1440') check('R3', r.h1Lines <= 3, `at 1440 the h1 runs ${r.h1Lines} lines, want <= 3`);
-  check('R4', r.dockPosition === (wide ? 'static' : 'sticky'), `${at} the CTA dock is ${r.dockPosition}`);
-  check('R4', r.dockOnViewportFloor === !wide, `${at} dock on the viewport floor: ${r.dockOnViewportFloor}`);
+  // R4, per step. Step 01 is 15,519px tall at 1440 and keeps its dock at every
+  // width; 02 and 03 fit the viewport and un-dock above the breakpoint.
+  check('R4', r.steps['01'].dock === 'sticky' && r.steps['01'].anchored === true,
+    `${at} step 01's dock is ${r.steps['01'].dock} (anchored: ${r.steps['01'].anchored}) — it must stay sticky, its page is 15,519px tall`);
+  for (const step of ['02', '03']) {
+    check('R4', r.steps[step].dock === (wide ? 'static' : 'sticky'),
+      `${at} step ${step}'s dock is ${r.steps[step].dock}`);
+  }
+  // The clause that would have caught what the first version of R4 shipped.
+  for (const step of ['01', '02', '03']) {
+    check('R4', r.steps[step].onScreen,
+      `${at} step ${step}'s CTA is at top ${r.steps[step].ctaTop} in a ${r.steps[step].innerHeight}px viewport — off-screen at first paint`);
+  }
   check('R7', r.scrollWidth === r.viewport, `${at} scrollWidth ${r.scrollWidth} != innerWidth ${r.viewport}`);
   check('R7', r.errors.length === 0, `${at} ${r.errors.length} console/page errors: ${r.errors.join(' | ')}`);
   check('R12', r.spark && (r.spark.normalised
@@ -350,31 +437,58 @@ for (const vp of VIEWPORTS) {
 const [a, b] = R9_VIEWPORTS.map((n) => report.viewports[n]);
 check('R9', a.figures.length > 0, `no stat figures rendered at ${R9_VIEWPORTS[0]} — nothing to compare`);
 check('R9', a.badges.length > 0, `no tier badges rendered at ${R9_VIEWPORTS[0]} — nothing to compare`);
-check('R9', !!a.noSeries.headline, `the no-series result says nothing at ${R9_VIEWPORTS[0]} — an empty screen would compare equal to an empty screen`);
+check('R9', a.noSeries.statesAbsence && b.noSeries.statesAbsence,
+  `the no-series result does not state the absence ("${WITHDRAWAL}") at both widths — "string-identical" could be satisfied by an empty screen`);
 check('R9', eq(a.figures, b.figures), `figures differ across the breakpoint: ${JSON.stringify(a.figures)} vs ${JSON.stringify(b.figures)}`);
 check('R9', eq(a.badges, b.badges), `tier badges differ: ${JSON.stringify(a.badges)} vs ${JSON.stringify(b.badges)}`);
 check('R9', eq(a.noSeries, b.noSeries), `the no-series result differs: ${JSON.stringify(a.noSeries)} vs ${JSON.stringify(b.noSeries)}`);
 
-// R5. The phone layout may not move. Compared on rendering only: `media` is
-// excluded on purpose, because the stylesheet legitimately gains a rule the
-// phone viewport does not apply, and `errors`/`when` are run-scoped.
-const PHONE_SHAPE = ['viewport', 'column', 'h1', 'h1Lines', 'h2', 'stat', 'scrollWidth',
-  'dockPosition', 'dockOnViewportFloor', 'ctaHeight', 'minOptionHeight', 'optionCount',
-  'ringWidth', 'ringColor', 'ringOffset', 'headline', 'figures', 'badges'];
-const phoneShape = (r) => Object.fromEntries(PHONE_SHAPE.map((k) => [k, r[k]]));
+// R5. The phone layout may not move -- at every viewport below the breakpoint,
+// which is 375, 480 and 767.
+//
+// The compared schema is named here and in the requirement, and holds only
+// computed styles, booleans and counts. Deliberately NOT in it: anything whose
+// value is a *text box measurement*. The three fonts are fetched from
+// fonts.googleapis.com at run time over a real fallback stack, so a slow or
+// blocked font request silently re-lays out the headline -- and a baseline
+// holding `h1Lines` or `minOptionHeight` would then fail R5 on a network
+// condition rather than on a change to this repo. Chrome version drift does the
+// same to sub-pixel rounding, and this script pins no Chrome version.
+//
+// Nothing is lost by the narrowing: the focus ring is R8's and is asserted at
+// every width, and the rendered figures and tier badges are R9's and are
+// asserted across the breakpoint.
+const BASELINE_KEYS = ['column', 'h1', 'h2', 'stat', 'ctaHeight', 'dockPosition',
+  'scrollEqualsViewport', 'errorCount'];
+const phoneShape = (r) => ({
+  column: r.column,
+  h1: r.h1,
+  h2: r.h2,
+  stat: r.stat,
+  ctaHeight: r.ctaHeight,
+  dockPosition: r.steps['01'].dock,
+  scrollEqualsViewport: r.scrollWidth === r.viewport,
+  errorCount: r.errors.length,
+});
 const phones = Object.fromEntries(VIEWPORTS.filter((v) => v.width < BREAKPOINT)
   .map((v) => [v.name, phoneShape(report.viewports[v.name])]));
 
 const writeBaseline = flag('--write-baseline');
 if (writeBaseline) {
   writeFileSync(writeBaseline, `${JSON.stringify(phones, null, 2)}\n`);
-  console.log(`baseline written: ${writeBaseline}`);
+  console.log(`baseline written: ${writeBaseline} (keys: ${BASELINE_KEYS.join(', ')})`);
 }
 
 const baseline = flag('--baseline');
 if (baseline) {
   const want = JSON.parse(readFileSync(baseline, 'utf8'));
-  for (const name of Object.keys(want)) {
+  const wantRows = Object.keys(want).sort();
+  const gotRows = VIEWPORTS.filter((v) => v.width < BREAKPOINT).map((v) => v.name).sort();
+  check('R5', eq(wantRows, gotRows),
+    `the baseline covers ${JSON.stringify(wantRows)} but the viewports below the breakpoint are ${JSON.stringify(gotRows)}`);
+  for (const name of wantRows) {
+    check('R5', eq(Object.keys(want[name]).sort(), [...BASELINE_KEYS].sort()),
+      `the baseline row ${name} holds ${JSON.stringify(Object.keys(want[name]))}, not the named schema`);
     check('R5', eq(phones[name], want[name]),
       `the phone layout moved at ${name}\n     was: ${JSON.stringify(want[name])}\n     now: ${JSON.stringify(phones[name])}`);
   }
@@ -385,7 +499,9 @@ if (json) writeFileSync(json, `${JSON.stringify(report, null, 2)}\n`);
 
 for (const vp of VIEWPORTS) {
   const r = report.viewports[vp.name];
-  console.log(`${vp.name.padStart(4)}  column ${String(r.column).padStart(3)}  h1 ${r.h1}  h2 ${r.h2}  stat ${r.stat}  dock ${r.dockPosition.padEnd(6)}  cta ${r.ctaHeight}  opt ${r.minOptionHeight}  errors ${r.errors.length}`);
+  const docks = ['01', '02', '03']
+    .map((st) => `${st}:${r.steps[st].dock.slice(0, 4)}${r.steps[st].onScreen ? '' : '!OFF'}`).join(' ');
+  console.log(`${vp.name.padStart(4)}  column ${String(r.column).padStart(3)}  h1 ${r.h1}  h2 ${r.h2}  stat ${r.stat}  ${docks}  cta ${r.ctaHeight}  errors ${r.errors.length}`);
 }
 
 if (failures.length) {

@@ -50,7 +50,12 @@ export default function CountryScreen({ rows, iso3, onPick, onNext }) {
           ))}
         </div>
       </div>
-      <div className="wz-footer">
+      {/* 0012 R4: `--anchored` keeps this dock sticky at every width. The
+          desktop un-dock applies to steps 02 and 03, whose screens fit the
+          viewport; this one is 218 rows and 15,519px tall at 1440, so a static
+          footer puts "Continue" 15,433px below the fold on the one step with no
+          other way forward. Reverts to the plain class if #66's search lands. */}
+      <div className="wz-footer wz-footer--anchored">
         <button type="button" className="wz-cta" onClick={onNext} disabled={!iso3}>
           Continue →
         </button>

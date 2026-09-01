@@ -192,7 +192,7 @@ row and forbids dropping the statement, and a count is a statement.
 
 ## Requirements
 
-### R1. [ ] Step 01 opens folded — the selected country alone, or nothing
+### R1. [x] Step 01 opens folded — the selected country alone, or nothing
 
 On a cold load of step 01, before the reader has typed, the listbox renders
 **the currently selected country and nothing else**, and **no options at all**
@@ -241,7 +241,32 @@ case the browser walk cannot easily reach: search `france`, pick it, press
 `Escape`, and assert the single rendered option is **France** and not the locale
 country — the bug this requirement's first draft would have shipped.
 
-### R2. [ ] A query renders at most 12 matches and 3 stated absences, both capped in the pure function
+**Done (2026-09-01).** `renderedCountries(rows, query, selectedIso3)` in
+`countrySearch.js`, rendered by `CountryScreen`.
+
+Measured in Chrome, `locale: 'en-GB'`, cold load of step 01:
+
+| | 375×812 | 1440×900 | before |
+|---|---|---|---|
+| `[role=option]` | **1** — `United Kingdom`, `aria-selected` | **1** | 177 |
+| `body.scrollHeight` | **812px** | **900px** | 12,754 / 12,739px |
+| viewport heights | **1.00** | **1.00** | 15.11 / 14.15 |
+
+A 15.7x reduction at 375, and the pre-fill is now the *only* thing on the screen
+rather than row 170 of 177.
+
+Vitest covers the three resting cases and the one the browser walk cannot easily
+reach: `en-GB` → 1 option, `United Kingdom`, `aria-selected`, `Continue`
+enabled; `xx` → 0 options, the page reads `Start typing to search all 177
+countries` and **not** `No country matches that`; `zh-CN` → 0 options and
+`China reports no occupation breakdown to ILOSTAT` (0011 R5 intact, and reading
+better against an empty list than against 177 other countries).
+
+And the case the self-review caught before it shipped: pick `France`, press
+`Escape`, and the single resting row is **France**, not the locale's country.
+Keyed to the locale this would have rendered one country while acting on another.
+
+### R2. [x] A query renders at most 12 matches and 3 stated absences, both capped in the pure function
 
 `searchCountries` takes the limits and returns what it truncated, rather than
 leaving the screen to slice lists the live region has already counted. Its return
@@ -283,7 +308,21 @@ untouched by either cap; `searchCountries(rows, 'zzzz')` returns 0 and 0. In a
 browser at both widths, typing `a` renders **12** `[role=option]` nodes and at
 most **3** absence lines, and leaves `body.scrollHeight / innerHeight` **< 2**.
 
-### R3. [ ] Both truncations are stated on screen and announced, and the count keeps 0011's wording
+**Done (2026-09-01).** `MATCH_LIMIT = 12` and `ABSENT_LIMIT = 3` in
+`countrySearch.js`; `searchCountries` takes both and returns `matchCount`,
+`absentCount`, `truncated` and `absentTruncated`.
+
+Vitest, against the committed payload: `a` → `matchCount` **150**,
+`matches.length` **12**, `truncated` true, `absentCount` **39**, `absent.length`
+**3**, `absentTruncated` true. The capped sets are `uncapped.slice(0, 12)` and
+`uncapped.slice(0, 3)` **by identity**, so the cap narrows the list without
+reordering it. `united` → 3/3 and both flags false. `china` → `['HKG','MAC','TWN']`
+pickable and `['CHN']` absent, neither flag set, so 0011 R6's flagship case is
+untouched by either cap. And the assertion that makes a cap of 3 safe: `china`,
+`saudi`, `new zea`, `uzbek` and `oman` each return `absentCount` **1**, so a
+reader who typed a country's name never loses the named statement to a count.
+
+### R3. [x] Both truncations are stated on screen and announced, and the count keeps 0011's wording
 
 Whenever `truncated` is true the screen renders a line saying how many matches
 are shown and that typing narrows further; whenever `absentTruncated` is true it
@@ -310,7 +349,24 @@ exactly `''`; with the query `a` it contains `150 of 177 countries match`,
 truncation string appears anywhere on the page. In a browser, the visible lines
 are read back out of the rendered page rather than asserted.
 
-### R4. [ ] Everything spec 0011 settled still holds
+**Done (2026-09-01).** Both truncations render and both announce. Read back out
+of the rendered page at **375×812 and 1440×900**, identical at both:
+
+> `150 matches — showing the first 12. Keep typing to narrow.`
+> `American Samoa is in the dataset but reports no occupation breakdown, so there is no result to give you.`
+> `Andorra …` · `Antigua and Barbuda …`
+> `36 more countries matching that search are in the dataset but report no occupation breakdown.`
+
+Three named, thirty-six counted, nothing silently dropped. The live region reads
+`150 of 177 countries match, showing the first 12. 36 more matching countries
+report no occupation breakdown` — 0011 R6's wording verbatim, with the
+truncations appended rather than substituted.
+
+At rest `textContent.trim()` is exactly `''`, asserted positively in Vitest and
+re-checked in the browser at all seven viewports. `united` gives exactly
+`3 of 177 countries match` and no truncation string appears anywhere on the page.
+
+### R4. [x] Everything spec 0011 settled still holds
 
 This change moves *how much* is rendered and nothing else. Each of these is
 re-checked rather than assumed, because a fold is exactly the kind of change
@@ -338,7 +394,25 @@ then `ArrowDown` then `Enter` advances to step 02 with `GBR` selected; the
 an arrow-key-active option computes `outline: 2px solid rgb(255, 90, 43)` at
 offset `3px`; the console carries no errors.
 
-### R5. [ ] The 0011 criteria that pass against a 12,294px list are re-marked `[~]`
+**Done (2026-09-01).** Every 0011 case passes, and only the three R5 names
+changed. `npm run verify` runs the whole suite: **159 Vitest across 5 files**, up
+from 142, with the 17 new cases added and none removed.
+
+The browser walk re-checked the parts jsdom cannot: the `china` absence is still
+present and still satisfies `!closest('button') && tabIndex < 0`; the arrow-key
+ring is still `2px solid rgb(255, 90, 43)` at `offset 3px`; option and CTA
+targets still clear 56px and 60px; **0 console or page errors at all seven
+viewports**.
+
+One thing this requirement caught that the caps did not: `minOptionHeight` was
+`Math.min(...[])` when nothing renders, which is `Infinity` and passes a
+`>= 56` check while measuring nothing. Under this spec step 01 can legitimately
+render zero options, so that guard would have become a tap-target check that
+passes by having no targets — the same shape of false green as the defect being
+fixed. It returns `null` now, and the check skips explicitly rather than by
+accident.
+
+### R5. [x] The 0011 criteria that pass against a 12,294px list are re-marked `[~]`
 
 Three acceptance criteria in `specs/0011-country-search.md` are satisfied *only*
 by rendering all 177, and one of them specifies it. They are re-marked `[~]`
@@ -363,7 +437,31 @@ right number, and nobody asked whether the number was right.
 The suite contains no assertion that step 01 renders `countryOptions(rows).length`
 option elements.
 
-### R6. [ ] 0012 R4's dock survives, but its stale justification is corrected
+**Done (2026-09-01).** `specs/0011-country-search.md` R1, R3 and R9 are `[~]`,
+each naming this spec and recording what moved:
+
+- **R1** — the requirement holds; its *render* acceptance does not. The
+  `=== 177` render assertion is replaced by 0013 R1's resting state and R2's cap;
+  `countryOptions(rows).length === 177` stays in `wizard.test.js` as the data
+  claim it always should have been.
+- **R3** — *"an empty query returns all 177, so the screen opens as a list and
+  narrows"*. The first half is a correct statement about a predicate and stays
+  asserted; the second half took a claim about a predicate and made it a claim
+  about a screen, which is the defect written as a requirement.
+- **R9** — `Escape` returns to the resting state rather than restoring 177, and
+  the live region is empty at rest rather than reading `177 of 177`.
+
+0011's *Verification the suite cannot do* table keeps its `Options rendered: 177`
+row and gains the note that **this row is the defect, recorded as a pass**:
+nothing about the check was faulty — real browser, right property, right number
+— but it was compared against `countryOptions(rows).length`, an expectation
+derived from the implementation and therefore one that cannot fail.
+
+`specs/README.md` moves 0011 from `done — 11 done` to
+`done — 8 done · 3 revised (R1/R3/R9 by 0013)`. And `grep` confirms no assertion
+that step 01 renders `countryOptions(rows).length` option elements survives.
+
+### R6. [x] 0012 R4's dock survives, but its stale justification is corrected
 
 Spec 0012 R4 keeps the sticky dock on step 01 alone, under the rule *"a screen
 that does not fit the viewport keeps its dock"*, and justifies it with a
@@ -387,7 +485,23 @@ button's box is on screen at first paint. `specs/0012-desktop-layout.md` R4
 carries the corrected measurement naming spec 0013, and steps 02 and 03 still
 compute `position: static` above the breakpoint.
 
-### R7. [ ] The fold is measurable on demand, and `npm run verify` is green
+**Done (2026-09-01).** The dock stays, and 0012 R4's justification is corrected
+rather than reopened.
+
+Re-derived from measurement, not inherited: `scripts/desktop-measure.mjs` reports
+step 01 `position: sticky` with `wz-footer--anchored` and the CTA on screen at
+first paint at **all seven viewports**, while steps 02 and 03 still compute
+`static` above the breakpoint. 0012 R4's rule — *"a screen that does not fit the
+viewport keeps its dock"* — selects the same answer for the same reason: the
+listbox starts 341px down and twelve rows cost 832px, so a full result set is
+~1,250px against a 900px window.
+
+What changed is the size of the miss, from **12,739px** to **1,446px** at
+1440×900 — 13.8 viewport heights to 1.6. It did not change sides. The stale
+measurement is annotated in `specs/0012-desktop-layout.md` rather than left as
+the only place in the repo claiming step 01 is twelve thousand pixels tall.
+
+### R7. [x] The fold is measurable on demand, and `npm run verify` is green
 
 The height half of this spec cannot be asserted in jsdom, so it goes where 0012
 R6 put the same problem: `scripts/desktop-measure.mjs`, extended with the step 01
@@ -406,6 +520,42 @@ including every new case, `test:pipeline`, and the pilot (or its stated skip in
 a worktree with no `pipeline/raw/` cache). `node scripts/desktop-measure.mjs`
 reports the step 01 fold rows at all seven viewports with no failures, and
 `package.json` gains no dependency.
+
+**Done (2026-09-01).** `scripts/desktop-measure.mjs` gains a `fold` probe run at
+every one of its seven viewports, in the three states the reader meets in order:
+at rest, after a one-character query, and after a settled one. It asserts the
+resting option count is 0 or 1, the live region is empty at rest, the caps hold,
+the live region carries the count **and** the truncation, and
+`body.scrollHeight / innerHeight < 2` in all three states.
+
+The numbers are **printed as well as checked** — a bound that only ever prints
+"passed" says nothing about how close it came:
+
+```
+ 375  fold  rest 1opt   812px 1vp | "a" 12opt 3abs  1531px 1.89vp | "united" 3opt   812px 1vp
+ 480  fold  rest 1opt   900px 1vp | "a" 12opt 3abs  1514px 1.68vp | "united" 3opt   900px 1vp
+ 767  fold  rest 1opt   900px 1vp | "a" 12opt 3abs  1514px 1.68vp | "united" 3opt   900px 1vp
+ 768  fold  rest 1opt  1024px 1vp | "a" 12opt 3abs  1446px 1.41vp | "united" 3opt  1024px 1vp
+1024  fold  rest 1opt   768px 1vp | "a" 12opt 3abs  1446px 1.88vp | "united" 3opt   768px 1vp
+1440  fold  rest 1opt   900px 1vp | "a" 12opt 3abs  1446px 1.61vp | "united" 3opt   900px 1vp
+1920  fold  rest 1opt  1080px 1vp | "a" 12opt 3abs  1446px 1.34vp | "united" 3opt  1080px 1vp
+
+all checks passed
+```
+
+**One correction to this spec's own arithmetic, recorded rather than quietly
+absorbed.** *The cap, derived* claims twelve leaves "about 30% headroom". It was
+computed at 390×844; the narrowest viewport the script actually walks is
+**375×812**, where the worst case measures **1.89 viewports** — an 11% margin,
+not 30%. The bound holds at every width and the definition of done is met, but
+the headroom is thinner than the derivation said, and the honest number is 11%.
+That is precisely why R7 puts this in a script that runs at every viewport: copy
+growth would eat 11% long before anyone noticed by eye.
+
+`npm run verify` exits 0 — lint, typecheck, the schema-brand guard, build,
+**159 Vitest**, **159 pipeline tests** (unchanged, as an app-only change
+requires), the 0008 lint-config guard, and the pilot skipped with its stated
+worktree notice. `package.json` is unchanged; `playwright-core` stays unsaved.
 
 ## Implementation Plan
 

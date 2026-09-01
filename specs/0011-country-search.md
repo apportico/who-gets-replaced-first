@@ -1,8 +1,18 @@
 # 0011 — country search
 
-**Status:** draft
+**Status:** approved
 **Depends on:** 0009 (the payload is regenerated from `run.py` and guarded against drift — R2 here adds a column, so both guards must move with it) · 0010 (the wizard and its `countryTag` module exist; R7 here revises 0010's R6)
 **Issue:** [#66](https://github.com/apportico/who-gets-replaced-first/issues/66)
+
+**Review record.** draft → in-review → approved on 2026-09-01, on
+[PR #68](https://github.com/apportico/who-gets-replaced-first/pull/68). The
+automated reviewer did **not** run: `.github/workflows/claude-review.yml` checks
+for `ANTHROPIC_API_KEY`, finds none, and warns *"This job passing is not
+evidence of a review"* (issue #44 is open on exactly that). So the green `review`
+check on #68 means nothing, and the review it stands in for was done by hand
+against `REVIEW.md` — findings on R3's undefined ordering, R4's dead `USA`/`US`
+aliases and R10's stranded exports, all fixed in the commit before approval.
+Recorded here so nobody later reads the green check as the review it is not.
 
 ## Objective
 

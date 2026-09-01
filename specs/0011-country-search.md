@@ -603,7 +603,16 @@ than a source:
   `iso2` ships without a tier.
 - `test_app_payloads.py::test_every_cell_matches_the_dataset_csv` fails if the
   payload and the CSV disagree about it.
-- `test_columns.py` fails if `COLUMNS` and the written header drift.
+- `test_columns.py` fails if `COLUMNS` and the written header drift. Its width
+  guard asserts `len(run.COLUMNS)` rather than a literal, so it needs no edit.
+- `test_golden_master.py` diffs the pilot output byte for byte against
+  `pipeline/tests/fixtures/expected/pilot_labor_dataset.csv`, so **that fixture
+  must be regenerated in this change** — and only after the cell-by-cell diff
+  above comes back clean, since a master rewritten first would certify whatever
+  it was handed.
+- `test_tiers.py`'s `field_tiers` count is the one literal that moves by hand,
+  84 → 85. That is the assertion which fires when a column ships without a tier,
+  so it belongs in the change that adds one.
 - The four regression anchors and the Eurostat cross-check must still pass on the
   regenerated data — an identifier column must move no measured cell.
 

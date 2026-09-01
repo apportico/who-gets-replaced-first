@@ -1,6 +1,6 @@
 # 0016 — the wizard's state lives in the URL
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** 0010 (the wizard is the app), 0011 (the country search and its named absence), 0012 (the one breakpoint)
 **Issue:** [#79](https://github.com/apportico/who-gets-replaced-first/issues/79)
 **Approved:** Daniele Zanni, 2026-09-02 — **given directly, not as a GitHub
@@ -10,6 +10,8 @@ author, so `reviewDecision` stays `REVIEW_REQUIRED` on it permanently and is not
 evidence of anything either way. The approval covers the scheme decision in
 particular — a query string on the existing path, which is neither of the two
 options issue #79 offered ([review](https://github.com/apportico/who-gets-replaced-first/pull/83#pullrequestreview-5082314340)).
+**Evaluated:** 2026-09-02 — [per-requirement report on #83](https://github.com/apportico/who-gets-replaced-first/pull/83#issuecomment-5500153784),
+with the browser measurements and the snapshots in `.snapshots/0016/`.
 **Goal:** a result can be linked, and the link is honest, checked as:
 1. A URL copied from a result screen, pasted into a fresh browser on a cold load, reproduces that exact result — verified in a browser at 1440×900 and 390×844, not inferred from a green build.
 2. Browser Back walks the wizard steps backwards rather than leaving the site.

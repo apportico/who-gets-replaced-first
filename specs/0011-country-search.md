@@ -1,6 +1,6 @@
 # 0011 — country search
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** 0009 (the payload is regenerated from `run.py` and guarded against drift — R2 here adds a column, so both guards must move with it) · 0010 (the wizard and its `countryTag` module exist; R7 here revises 0010's R6)
 **Issue:** [#66](https://github.com/apportico/who-gets-replaced-first/issues/66)
 
@@ -77,7 +77,7 @@ rather than retype it**, and label the residue as ours.
 
 ## Requirements
 
-### R1. [ ] Step 01 lists only the countries that carry an official series
+### R1. [x] Step 01 lists only the countries that carry an official series
 
 `countryOptions` filters to rows where `hasAnyIscoGroup` is true — 177 at the
 probed vintage — and step 01 renders no others. No new coverage predicate is
@@ -93,7 +93,12 @@ returns 177 entries; every entry satisfies `hasAnyIscoGroup`; `CHN`, `SAU` and
 step 01 equals `countryOptions(rows).length` and that no element on the screen
 carries the `no series` tag.
 
-### R2. [ ] The payload carries `iso2`, from the World Bank, tiered as an identifier
+**Done (2026-09-01).** `countryOptions` filters on `hasAnyIscoGroup`.
+Vitest: 218 country rows, 177 options, every option's row reports a group,
+`CHN`/`SAU`/`NZL` absent, `excludedCountries` returns the 41 and contains `CHN`.
+Rendered: headless Chrome at `localhost:5174` reports
+`document.querySelectorAll('[role=option]').length === 177`.
+### R2. [x] The payload carries `iso2`, from the World Bank, tiered as an identifier
 
 `run.py` keeps the `iso2Code` already present in the cached World Bank country
 response and exports it as `iso2` on every country row. It is an identifier, not
@@ -121,7 +126,24 @@ confined to the `iso2` column, the payload, and `summary_report.md`'s date; the 
 its logic — specifically `test_field_tiers_covers_every_key_a_row_ships` and
 `test_every_cell_matches_the_dataset_csv` pass against the regenerated pair.
 
-### R3. [ ] The search predicate folds, and matches name, code and alternate
+**Done (2026-09-01).** `iso2` carried from `iso2Code` in `build_reference`,
+tiered `NOT_A_MEASUREMENT`, added to `run.COLUMNS` and `pipeline/README.md`.
+`npm run pipeline` exit 0, 4 anchors on target, 0 validation problems.
+
+The diff came back inside the bound this requirement set: a cell-by-cell
+comparison of the regenerated `global_labor_dataset.csv` against `HEAD` reports
+**header delta `{'iso2'}`, 229 rows unchanged, 0 cells moved outside `iso2`**.
+The same check gated the golden-master fixture, which was only rewritten after
+it reported 0 moved cells — a regenerated master that is not diffed first is a
+master that certifies whatever it was handed.
+
+Payload: `field_tiers.iso2 === 'NOT_A_MEASUREMENT'`, 176 of the 177 listed
+countries non-null, `TWN` null. Three committed guards moved with the column and
+are recorded rather than quietly edited: `test_columns` (the pilot CSV header),
+`test_golden_master` (the fixture), and `test_tiers`' literal `84 → 85`. That
+literal is the assertion that fails when a column ships without a tier, so it
+moves by hand, in the change that adds one. `npm run test:pipeline`: 137 OK.
+### R3. [x] The search predicate folds, and matches name, code and alternate
 
 A pure function in `src/utils/` takes a query and returns the matching subset of
 R1's options, **in `countryOptions`' own alphabetical order**. There is no
@@ -153,7 +175,13 @@ matching route it exercises, so a regression says which of the four broke. One
 further assertion covers the ordering: a query matching several rows returns
 them in the same relative order as `countryOptions(rows)`.
 
-### R4. [ ] The residual alias table is ours, small, and says so
+**Done (2026-09-01).** `src/utils/countrySearch.js`. Vitest covers each
+route separately so a regression names which broke: `korea`→`KOR` (name),
+`usa`/`gbr` (iso3 prefix), `south korea`/`vietnam`/`russia` (Intl),
+`turkey`/`uk` (alias), `cote d'ivoire`→`CIV` (the fold), `''`→177, `zzzz`→0,
+and the ordering assertion — a multi-hit query returns rows in
+`countryOptions`' order, not a ranked one.
+### R4. [x] The residual alias table is ours, small, and says so
 
 Whatever neither the payload nor `Intl` supplies is hand-authored in one
 exported constant in `src/utils/`, with a comment stating that it is authored by
@@ -175,7 +203,14 @@ routes with the alias table disabled and fails if any of them already resolved
 it. That is what stops the table quietly growing into work the standard already
 does, and it fails today for `usa`, `us` and `burma` by construction.
 
-### R5. [ ] Locale pre-fill on a dropped country says so by name
+**Done (2026-09-01).** Eight entries, not the ~30 a hand-written table
+would have needed — `Intl.DisplayNames` supplies the other 29 spellings once R2
+gives it an `iso2` to read. The guard that matters passes: every alias key is
+run through the name, `iso3` and `Intl` routes and must be missed by all three,
+so the table cannot grow into work already done. `usa`, `us` and `burma` are
+asserted to be reachable *without* an entry, and asserted absent from the
+table.
+### R5. [x] Locale pre-fill on a dropped country says so by name
 
 `localeCountry` already returns `null` rather than a guess. It must now also
 return `null` when the locale resolves to a country R1 excludes — `zh-CN`,
@@ -195,7 +230,21 @@ selection nor a country. A render test mounts step 01 with `navigator.language`
 stubbed to `zh-CN` and asserts the rendered text contains `China` and that no
 option is pre-selected.
 
-### R6. [ ] A query that matches a dropped country names it and states the absence
+**Done (2026-09-01).** `localeCountry` returns `{ iso3, excluded }`.
+Vitest: `zh-CN` selects nothing and reports `CHN`/`China`; `en-NZ` and `ar-SA`
+likewise; `xx`, `''`, `en` and `undefined` all return `{ iso3: null, excluded:
+null }`. Rendered: with `navigator.language` stubbed to `zh-CN`, step 01 carries
+"China reports no occupation breakdown to ILOSTAT", no option is
+`aria-selected`, and Continue is disabled.
+
+**One thing changed beyond what this requirement asked for, and it is worth
+recording.** The match now runs on `iso2` rather than on `Intl.DisplayNames`'
+name compared to `country_name`. The old reading failed silently for exactly the
+29 countries whose two spellings differ — `ko-KR` resolves to "South Korea" and
+the payload says "Korea, Rep." — so every one of those locales pre-filled
+nothing and looked like a reader with an unmatched locale. R2's identifier fixes
+that as a side effect of existing; `ko-KR`, `ru-RU` and `vi-VN` are asserted.
+### R6. [x] A query that matches a dropped country names it and states the absence
 
 The search runs over all 218 rows internally. A match among the 41 renders
 **below the pickable results, as text, not as a control** — it is not tappable,
@@ -213,7 +262,16 @@ stated-absent (`CHN`); `saudi` returns 0 pickable and 1 stated-absent (`SAU`);
 that for `china` the string `China` appears outside any `button`/`[role=option]`
 element, and that `document.querySelectorAll('[role=option]').length` is 3.
 
-### R7. [ ] 0010 R6 is re-marked `[~]`, and `CLAUDE.md` moves in the same change
+**Done (2026-09-01).** The search runs over all 218 internally and
+partitions. Vitest: `china` → 3 pickable (`HKG`, `MAC`, `TWN`) and 1 stated
+absent (`CHN`); `saudi` → 0 and 1; `new zea` → 0 and 1; `zzzz` → 0 and 0.
+
+Rendered in Chrome: typing `china` leaves exactly three `[role=option]` nodes,
+the page carries "China is in the dataset but reports no occupation breakdown,
+so there is no result to give you", and that text passes
+`!p.closest('button') && p.tabIndex < 0` — it is not a control, not focusable,
+and arrowing through the list never lands on it.
+### R7. [x] 0010 R6 is re-marked `[~]`, and `CLAUDE.md` moves in the same change
 
 Spec 0010's R6 currently says *"no country is hidden from the list for lacking
 data"* and its unit test asserts `countryOptions(rows).length === countries.length`.
@@ -233,7 +291,13 @@ no longer promises a `no series` tag per row and states the canvas divergence.
 The 0010 assertion `countryOptions(rows).length === countries.length` no longer
 exists in the suite.
 
-### R8. [ ] The control is a plain input over a filtered list, not shadcn `Command`
+**Done (2026-09-01).** `specs/0010-mobile-first-redesign.md` R6 is
+`[~]` with the reversal recorded, what did **not** change (the obligation, met
+by R5 and R6 here) and the predicate it still lends R1. `CLAUDE.md`'s step-01
+row now describes a search and states the canvas divergence explicitly; the
+result-screen rule keeps "`no series` is a first-class result" and adds where it
+is now said. 0010's tally moved 16/4/1 → 15/5/1 in the index.
+### R8. [x] The control is a plain input over a filtered list, not shadcn `Command`
 
 Probed and declined: `command` pulls `cmdk` as a runtime dependency and `dialog`
 as a registry dependency, and `dialog.jsx` would sit in `src/components/ui/`
@@ -253,7 +317,16 @@ not a silent install.
 holds exactly three files; `wizard.render.test.jsx`'s unused-component guard is
 unchanged, still exempting `toggle` alone, and passes.
 
-### R9. [ ] The search is operable by keyboard and meets the touch and focus tokens
+**Done (2026-09-01).** No dependency added and no fourth file in
+`src/components/ui/`, both asserted rather than claimed: the suite reads
+`package.json` and fails if `cmdk` or `@radix-ui/react-dialog` appears, and
+globs `ui/*.jsx` expecting exactly `accordion`, `toggle`, `toggle-group`. The
+unused-component guard is unchanged and still exempts `toggle` alone.
+
+R9's keyboard work did not turn out heavier than this trade assumed — the
+combobox is ~20 lines — so the `[~]` escape hatch back to `command` was not
+needed.
+### R9. [x] The search is operable by keyboard and meets the touch and focus tokens
 
 The input carries `role="combobox"`, `aria-expanded` and `aria-controls`
 pointing at the results list; the list carries `role="listbox"` and its rows
@@ -273,7 +346,15 @@ the live region's text contains the match count. `src/styles/contrast.test.js`
 still passes over any new colour. The computed `min-height` and the focus ring
 stay in *Verification* below, as 0010 R4/R5 do — jsdom does no layout.
 
-### R10. [ ] The provenance the row tag carried does not disappear with it
+**Done (2026-09-01).** `role=combobox` with `aria-expanded`,
+`aria-controls` and `aria-activedescendant` over a `role=listbox`; arrow keys
+move the active descendant rather than DOM focus, so typing keeps working while
+arrowing. `Enter` picks, `Escape` clears. Vitest covers all four plus the polite
+live region ("177 of 177" → "3 of 177").
+
+The computed half was closed in a real browser rather than left to *Verification*
+— see that section.
+### R10. [x] The provenance the row tag carried does not disappear with it
 
 Every row in R1's list carries an official series, so a per-row `official
 series` tag is now noise on 177 identical rows. The provenance moves to the
@@ -302,7 +383,20 @@ nothing outside deleted lines, while `hasAnyIscoGroup` still has non-test
 callers; 0010 R10's stated-absence test (`groupFigures.js`, a null group yields
 the stated-absence branch) still passes unmodified.
 
-### R11. [ ] `npm run verify` is green, and the new logic lives in `src/utils/`
+**Done (2026-09-01).** The screen states what the list is: "The 177
+countries that report an ISCO-08 occupation breakdown to ILOSTAT" — read back
+out of the rendered page, not the source. No `official series` or `no series`
+string renders. The unreachable footer branch is gone.
+
+The stranded exports went with it, and the module was **renamed
+`countryTag.js` → `countryList.js`**: it no longer tags anything, and leaving
+the old name would have been the same defect in the filename that 0010 R3
+recorded in `src/components/ui/`. `grep -rn "countryTag\|OFFICIAL_SERIES\|NO_SERIES" src`
+now matches only the note in that file explaining the rename. `hasAnyIscoGroup`
+stays — R1 and R6 both call it. 0010 R10's withdrawal test is unmodified in
+substance and passing; it now asserts *being listed* rather than *being tagged*,
+which is the same invariant in the surviving vocabulary.
+### R11. [x] `npm run verify` is green, and the new logic lives in `src/utils/`
 
 The predicate (R3), the alias table (R4), the pre-fill change (R5) and the
 absence partition (R6) are pure functions in `src/utils/`, tested by Vitest,
@@ -312,6 +406,11 @@ out of components so it can be asserted without jsdom.
 **Acceptance:** `npm run verify` exits 0 — lint, build, the Vitest suite
 including the new cases, `test:pipeline` including 0009's payload guards against
 the regenerated payload, `test:app`, and the pilot.
+
+**Done (2026-09-01).** `npm run verify` exits 0 — lint, build, 137
+Vitest, 137 pipeline tests OK, the 0008 lint-config guard, and the pilot with
+4 anchors on target and 0 validation problems. The new logic is four pure
+functions in `src/utils/`; the component renders their output.
 
 ## Verification the suite cannot do
 
@@ -326,8 +425,33 @@ checked in a browser and recorded here rather than asserted:
 - With `prefers-reduced-motion: reduce`, narrowing the list animates nothing.
 - **The page was loaded and the console read** — `REVIEW.md` Pass 7 is explicit
   that a passing `npm run build` is not evidence a page renders, and 0010 shipped
-  a silent font regression through a green build. The evidence recorded for this
-  spec is a run of the wizard through step 01 with the console clean.
+  a silent font regression through a green build.
+
+**Checked in a real browser, 2026-09-01.** Not left as an intention: headless
+Chrome was driven over the DevTools Protocol against `npm run dev` at
+`localhost:5174` — Node 24 has a global `WebSocket`, so this needed no
+dependency and none was added. Every item above came back measured rather than
+asserted:
+
+| Check | Measured |
+|---|---|
+| Options rendered | **177** |
+| The list's own sentence | "The 177 countries that report an ISCO-08 occupation breakdown to ILOSTAT" |
+| Option target | `min-height: 56px`, painting **62px** |
+| Search input target | `min-height: 56px`, painting **62px** |
+| Body scrolls sideways | **false** |
+| `china` | 3 options — Hong Kong SAR, Macao SAR, Taiwan — plus the stated absence |
+| The absence is not a control | `!closest('button') && tabIndex < 0` → **true** |
+| Arrow-key ring | `2px solid rgb(255, 90, 43)` at `offset 3px` — the `--accent` token exactly |
+| `aria-activedescendant` | set, and resolves to an element |
+| `prefers-reduced-motion: reduce` | animation duration `1e-06s` |
+| **Console** | `[vite] connecting…`, the React DevTools notice, `[vite] connected.` — **no errors, no warnings, no exceptions** |
+
+The arrow-key ring is the one worth naming. Because the combobox keeps DOM focus
+in the input and moves an *active descendant*, `:focus-visible` never matches the
+option a keyboard reader is on — there is nothing focused to style. Without
+`.wz-option[data-active='true']` the ring would have been silently absent for
+exactly the reader who needs it, and no jsdom test could have seen it.
 
 ## Implementation Plan
 

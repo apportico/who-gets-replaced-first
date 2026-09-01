@@ -68,7 +68,7 @@ padding `22px`. A four-step wizard, not a dashboard:
 | Step | Screen | What it must do |
 |---|---|---|
 | — | Intro | The claim — **what the statistics actually say about your occupation group, measured rather than forecast**. Not the canvas's "a year — not a probability": R14 means no year arrives, and an intro that promises one makes the result screen read as broken rather than finished. One CTA, and **no capability chips** — the canvas has three; spec 0010 R5's second revision note records why they are not here |
-| 01 | Country | Pre-filled from locale; every row tagged `official series` / `no series` |
+| 01 | Country | A **search**, not a list: the 177 countries with an official series, filtered as you type. Pre-filled from locale. **The canvas has no search field** — spec 0011 diverges from it deliberately, and R1/R6/R10 record why |
 | 02 | Occupation | Free-text title → one of the **nine ISCO-08 major groups**; the resolution is shown and overridable by chip, never silent |
 | 03 | Optional | Age band and education — both real cross-tabulated dimensions, landing on different published cells; skipping means the result is reported for the group as a whole. (No interval to widen — see below) |
 | 04 | Result | Two stat cards, the trend sparkline, and two accordions (method, back-test). **Not** the year, its interval or the scenario slider — see below |
@@ -164,7 +164,11 @@ screen is the one that states a number about the reader's own job:
 - **A stand-in says it is standing in.** The canvas already does this ("Clerical
   series shown as a stand-in") — keep that behaviour, do not quietly substitute.
 - **No country without a series gets a number.** `no series` is a first-class
-  result: nulls stay null, the row says so.
+  result: nulls stay null, and the screen says so. Spec 0011 moved *where* it
+  says so — the 41 countries with no series are no longer 41 unpickable rows in
+  a 218-row scroll; a search for one names it and states the absence (R6), and a
+  locale resolving to one names it on arrival (R5). Dropping the row is allowed.
+  Dropping the statement is not.
 - **Know which mockup figures are real.** Probed 2026-08-31: the canvas's UK
   numbers are the actual dataset — `isco4_clerical_pct` is 8.8633,
   `clerical_employed` is 2,989,466, and the clerical series really does run

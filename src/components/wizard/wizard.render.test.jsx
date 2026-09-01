@@ -26,6 +26,14 @@ function startWizard() {
   fireEvent.click(screen.getByRole('button', { name: /start/i }))
 }
 
+// 0011 R1/R9 — step 01 is a search now, so reaching a country means typing at
+// it. The options carry role="option" rather than the implicit button role,
+// which is why every call site below moved off getByRole('button').
+function pickCountry(name) {
+  fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: name } })
+  fireEvent.click(screen.getByRole('option', { name: new RegExp(name) }))
+}
+
 describe('R5 — the shell renders and walks all five screens', () => {
   it('opens on the intro without throwing', () => {
     render(<App />)
@@ -37,7 +45,7 @@ describe('R5 — the shell renders and walks all five screens', () => {
     startWizard()
     expect(screen.getByText('Where do you work?')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     expect(screen.getByText('What do you do?')).toBeTruthy()
 
@@ -92,7 +100,7 @@ describe('R14 — no year reaches the screen, in words or digits', () => {
 
   it('the result screen states that no displacement date is published', async () => {
     startWizard()
-    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
     fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
@@ -109,7 +117,7 @@ describe('R14 — no year reaches the screen, in words or digits', () => {
 
   it('renders the figures it does have, so the screen reads as finished', async () => {
     startWizard()
-    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
     fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
@@ -144,7 +152,7 @@ describe('R14 — no year reaches the screen, in words or digits', () => {
     // defaults to open, this fails for a reason with nothing to do with tier
     // badges — so read this note before debugging the number.
     startWizard()
-    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
     fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
@@ -184,7 +192,7 @@ describe('R20 — the cross-tabs are not fetched before a country is chosen', ()
       state: 'load_failed', data: null,
     })
     startWizard()
-    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
     fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
@@ -248,7 +256,7 @@ describe('R3 — every installed component is actually rendered', () => {
 describe('R7 — an unresolvable title is said out loud', () => {
   it('shows "not resolved" and pre-selects nothing', () => {
     startWizard()
-    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'zzzz' } })
     fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
@@ -257,5 +265,151 @@ describe('R7 — an unresolvable title is said out loud', () => {
     // queryAllByRole, not getAllByRole: the latter throws when nothing matches,
     // which is the case this test exists to assert.
     expect(screen.queryAllByRole('button', { pressed: true })).toHaveLength(0)
+  })
+})
+
+
+// ------------------------------------------------------------ spec 0011
+//
+// Step 01 as a search. The pure functions are covered in `wizard.test.js`;
+// what is here is what only a rendered tree can show — that the absence is
+// text rather than a control, that the keyboard reaches the list, and that the
+// screen no longer carries the vocabulary it stopped earning.
+describe('0011 R1 + R10 — the list is the 177, and says what it is', () => {
+  it('renders one option per listed country and no per-row tag', () => {
+    startWizard()
+    expect(document.querySelectorAll('[role=option]').length).toBe(177)
+    expect(document.body.textContent).not.toContain('official series')
+    expect(document.body.textContent).not.toContain('no series')
+  })
+
+  it('states what the list is, with its count and its source', () => {
+    startWizard()
+    const text = document.body.textContent
+    expect(text).toContain('177')
+    expect(text).toContain('ILOSTAT')
+  })
+})
+
+describe('0011 R6 — a dropped country is named, as text not as a control', () => {
+  it('china offers the three with a series and states the one without', () => {
+    startWizard()
+    fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'china' } })
+
+    const options = [...document.querySelectorAll('[role=option]')]
+    expect(options.length).toBe(3)
+    expect(options.map((o) => o.textContent)).toEqual([
+      'Hong Kong SAR, China', 'Macao SAR, China', 'Taiwan, China',
+    ])
+
+    // The statement is on the page...
+    expect(document.body.textContent).toContain(
+      'China is in the dataset but reports no occupation breakdown',
+    )
+    // ...and not inside anything a reader can pick or tab to.
+    for (const o of options) expect(o.textContent).not.toContain('is in the dataset')
+    expect(screen.queryByRole('option', { name: /^China$/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /is in the dataset/ })).toBeNull()
+  })
+
+  it('a query matching nothing at all names no country', () => {
+    startWizard()
+    fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'zzzz' } })
+    expect(document.querySelectorAll('[role=option]').length).toBe(0)
+    expect(document.body.textContent).toContain('No country matches that')
+    expect(document.body.textContent).not.toContain('is in the dataset')
+  })
+})
+
+describe('0011 R9 — the search is operable by keyboard', () => {
+  it('arrow down then enter selects the first match', () => {
+    startWizard()
+    const input = screen.getByLabelText('Search countries')
+    fireEvent.change(input, { target: { value: 'united kingdom' } })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(screen.getByRole('option', { name: /United Kingdom/ }).getAttribute('aria-selected'))
+      .toBe('true')
+    expect(screen.getByRole('button', { name: /continue/i }).disabled).toBe(false)
+  })
+
+  it('escape clears the query and restores the whole list', () => {
+    startWizard()
+    const input = screen.getByLabelText('Search countries')
+    fireEvent.change(input, { target: { value: 'zzzz' } })
+    expect(document.querySelectorAll('[role=option]').length).toBe(0)
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(document.querySelectorAll('[role=option]').length).toBe(177)
+  })
+
+  it('announces the match count politely', () => {
+    startWizard()
+    const live = document.querySelector('[aria-live=polite]')
+    expect(live.textContent).toContain('177 of 177')
+    fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'china' } })
+    expect(live.textContent).toContain('3 of 177')
+  })
+
+  it('carries combobox semantics that point at the list', () => {
+    startWizard()
+    const input = screen.getByRole('combobox')
+    const list = document.getElementById(input.getAttribute('aria-controls'))
+    expect(list.getAttribute('role')).toBe('listbox')
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(document.getElementById(input.getAttribute('aria-activedescendant')))
+      .toBeTruthy()
+  })
+})
+
+describe('0011 R5 — a locale we cannot serve is named on arrival', () => {
+  // `language` lives on Navigator.prototype, so there is no own descriptor to
+  // put back — deleting the own property re-exposes the prototype getter.
+  const stubLocale = (value) => {
+    Object.defineProperty(globalThis.navigator, 'language', { value, configurable: true })
+    return () => { delete globalThis.navigator.language }
+  }
+
+  it('names China and pre-selects nothing for zh-CN', () => {
+    const restore = stubLocale('zh-CN')
+    try {
+      startWizard()
+      expect(document.body.textContent).toContain(
+        'China reports no occupation breakdown to ILOSTAT',
+      )
+      expect(document.querySelector('[role=option][aria-selected=true]')).toBeNull()
+      expect(screen.getByRole('button', { name: /continue/i }).disabled).toBe(true)
+    } finally {
+      restore()
+    }
+  })
+
+  it('pre-selects the country when the locale resolves to one with a series', () => {
+    const restore = stubLocale('ko-KR')
+    try {
+      startWizard()
+      expect(screen.getByRole('option', { name: /Korea, Rep\./ }).getAttribute('aria-selected'))
+        .toBe('true')
+      expect(document.body.textContent).not.toContain('reports no occupation breakdown to ILOSTAT')
+    } finally {
+      restore()
+    }
+  })
+})
+
+describe('0011 R8 — the search cost no dependency and no fourth ui file', () => {
+  it('adds neither cmdk nor a dialog primitive', async () => {
+    const pkg = (await import('../../../package.json')).default
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies }
+    for (const name of ['cmdk', '@radix-ui/react-dialog']) {
+      expect(deps[name]).toBeUndefined()
+    }
+  })
+
+  it('leaves src/components/ui at the three files it already held', () => {
+    const files = Object.keys(import.meta.glob('@/components/ui/*.jsx'))
+      .map((p) => p.split('/').pop().replace('.jsx', ''))
+      .sort()
+    expect(files).toEqual(['accordion', 'toggle', 'toggle-group'])
   })
 })

@@ -45,6 +45,12 @@ def build_reference(scope=None):
         iso3 = c["id"]
         row = {
             "iso3": iso3,
+            # 0011 R2. The alpha-2 the Bank already ships beside the alpha-3.
+            # It is kept for the app's country search, where
+            # `Intl.DisplayNames` needs an alpha-2 to return the spelling a
+            # reader actually types ("South Korea", not "Korea, Rep."). An
+            # identifier, not a measurement -- see FIELD_TIERS.
+            "iso2": (c.get("iso2Code") or "").strip() or None,
             "country_name": c["name"],
             # the endpoint ships trailing whitespace on some region labels
             "region": c["region"]["value"].strip(),
@@ -59,7 +65,12 @@ def build_reference(scope=None):
             ref[iso3] = row
     for iso3, info in C.EXTRA_AREAS.items():
         if iso3 not in ref:
-            ref[iso3] = {"iso3": iso3, "country_name": info["name"],
+            # 0011 R2. `iso2` is explicitly None here, not omitted. These areas
+            # are outside the World Bank country list, so the Bank publishes no
+            # alpha-2 for them -- TWN is the live case. ISO 3166-1 does assign
+            # one, but transcribing it would be inventing a value to fill a gap;
+            # the null stands and Taiwan stays findable by name and by iso3.
+            ref[iso3] = {"iso3": iso3, "iso2": None, "country_name": info["name"],
                          "region": info["region"], "income_group": "Unclassified",
                          "capital": None, "lat": info.get("lat"),
                          "lon": info.get("lon")}
@@ -586,7 +597,8 @@ def make_aggregate(iso3, name, members, kind):
     rows = [r for r in members if r]
     agg = {"iso3": iso3, "country_name": name, "region": "AGGREGATE",
            "income_group": "Aggregate", "row_type": kind,
-           "member_count": len(rows), "lat": None, "lon": None, "capital": None}
+           "member_count": len(rows), "lat": None, "lon": None, "capital": None,
+           "iso2": None}
 
     total_pop = sum(r["population_total"] for r in rows if r.get("population_total"))
     total_emp = sum(r["employed_total"] for r in rows if r.get("employed_total"))

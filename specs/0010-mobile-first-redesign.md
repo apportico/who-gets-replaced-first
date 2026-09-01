@@ -217,7 +217,7 @@ the result screen without it, R3 `[~]` for the four unrendered components — an
 an override with no requirement behind it is the thing "no code without a
 requirement ID" exists to prevent, whether the code is being added or removed.
 
-### R6. [x] Step 01 — country, tagged by what the data actually carries
+### R6. [~] Step 01 — country, tagged by what the data actually carries
 
 List countries from the payload. Each row's `official series` / `no series` tag
 is **derived from the row's own nullity**, reading **"any of the nine ISCO
@@ -237,6 +237,28 @@ the withdrawal explicit rather than rendering a blank.
 fields null renders `no series`; the count of `official series` rows equals the
 count of countries with any of the nine non-null (177 at the probed vintage);
 no country is hidden from the list for lacking data.
+
+**Revised (2026-09-01), by [spec 0011](0011-country-search.md) R1 and R7.** The
+final clause above — *no country is hidden from the list for lacking data* — is
+reversed. Step 01 now lists only the 177 that carry a series, and is a search
+rather than a scan.
+
+What changed: 41 unpickable rows turned out to be a bad place to make the
+`no series` statement. On a 480px column, all 218 rows are ~40 screens of scroll
+to reach a name the reader already knew, and two thirds of it is either not
+their country or a country with no answer in them.
+
+What did **not** change is the obligation. 0011 R6 answers a search that matches
+one of the 41 by naming the country and stating the absence, and 0011 R5 names
+it on arrival when the reader's own locale resolves to one — so China, Saudi
+Arabia and New Zealand are still answered, in words, at the moment the reader
+asks. The reading itself is untouched: 0011 R1 filters on this requirement's own
+"any of the nine" predicate, and the seven-country consequence below is still
+owned by R10.
+
+The per-row tag also goes, and with it `countryTag`, `OFFICIAL_SERIES` and
+`NO_SERIES` — every row in the new list carries a series, so tagging all 177
+identically said nothing.
 
 ### R7. [x] Step 02 — a job title resolves to an ISCO-08 major group, visibly
 

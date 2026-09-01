@@ -22,7 +22,7 @@ APP_DATA = os.path.join(os.path.dirname(HERE), "src", "data")
 
 COLUMNS = [
     # identity
-    "iso3", "country_name", "region", "income_group", "row_type", "capital",
+    "iso3", "iso2", "country_name", "region", "income_group", "row_type", "capital",
     "lat", "lon", "member_count",
     # A. population structure
     "population_total", "pop_0_14_pct", "pop_15_64_pct", "pop_65plus_pct",

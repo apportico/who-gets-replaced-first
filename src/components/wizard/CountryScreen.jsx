@@ -70,8 +70,10 @@ export default function CountryScreen({ rows, iso3, excluded, onPick, onNext }) 
         </p>
 
         {/* R5. The reader's own country resolved, and has no series. Say so
-            before they go looking for it. */}
-        {excluded && (
+            before they go looking for it — and stop saying it once they have
+            picked somewhere else, since by then it explains an absence they
+            are no longer looking at. */}
+        {excluded && !iso3 && (
           <p className="wz-note" style={{ margin: '14px 0 0' }}>
             {excluded.name} reports no occupation breakdown to ILOSTAT, so it is
             not in this list.

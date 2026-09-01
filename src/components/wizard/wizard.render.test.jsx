@@ -379,6 +379,12 @@ describe('0011 R5 — a locale we cannot serve is named on arrival', () => {
       )
       expect(document.querySelector('[role=option][aria-selected=true]')).toBeNull()
       expect(screen.getByRole('button', { name: /continue/i }).disabled).toBe(true)
+
+      // And it stops explaining an absence the reader has moved past.
+      pickCountry('France')
+      expect(document.body.textContent).not.toContain(
+        'China reports no occupation breakdown to ILOSTAT',
+      )
     } finally {
       restore()
     }

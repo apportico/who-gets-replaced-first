@@ -89,10 +89,14 @@ const RING = { width: '2px', color: 'rgb(255, 90, 43)', offset: '3px' };
 // carries a series in the committed payload. Checked, not assumed.
 const SERIES_COUNTRY = 'United Kingdom';
 const NO_SERIES_COUNTRY = 'New Zealand';
-// The withdrawal in words, from absenceMessage(NOT_PUBLISHED) via groupShare.
-// Asserted so that "string-identical at both widths" cannot be satisfied by a
-// screen that renders nothing at all.
-const WITHDRAWAL = 'does not publish a figure';
+// The absence in words. Spec 0011 (#68) moved where this is said: a country
+// with no series is no longer *selectable* at step 01, so the step 04
+// withdrawal is unreachable for one, and the statement is now made on step 01
+// when a search matches it. Same rule, new location -- CLAUDE.md puts it as
+// "Spec 0011 moved *where* it says so ... Dropping the row is allowed.
+// Dropping the statement is not." Asserted so that "string-identical at both
+// widths" cannot be satisfied by a screen that says nothing at all.
+const WITHDRAWAL = 'reports no occupation breakdown';
 const R9_VIEWPORTS = ['375', '1440'];
 
 // Every screen mounts with `stepin` (0.4-0.5s) and `.wz-option` carries
@@ -273,7 +277,16 @@ const result = () => {
   };
 };
 
+// Step 01 became a search when spec 0011 landed (#68), so the row is reached by
+// typing rather than by scrolling to it. Exact text match on the row's own
+// label either way: "China" is a prefix of three other rows in the payload.
 async function pickCountry(page, name) {
+  const search = page.locator('input[role="combobox"]');
+  if (await search.count()) {
+    await search.fill(name);
+    await page.waitForFunction((wanted) => [...document.querySelectorAll('.wz-option')]
+      .some((b) => b.querySelector('span')?.textContent.trim() === wanted), name, { timeout: 10000 });
+  }
   const index = await page.evaluate((wanted) => [...document.querySelectorAll('.wz-option')]
     .findIndex((b) => b.querySelector('span')?.textContent.trim() === wanted), name);
   if (index === -1) throw new Error(`no country row named exactly "${name}"`);
@@ -360,16 +373,24 @@ for (const vp of VIEWPORTS) {
   Object.assign(row, await page.evaluate(result));
 
   if (R9_VIEWPORTS.includes(vp.name)) {
+    // R9's absence side, at step 01 rather than step 04 -- see WITHDRAWAL.
     await page.goto(URL_, { waitUntil: 'networkidle' });
-    await driveToResult(page, NO_SERIES_COUNTRY, { expectBadges: false });
+    await page.click('.wz-cta');
+    await page.waitForSelector('.wz-option');
     await page.waitForTimeout(MOUNT_SETTLE);
-    const withdrawn = await page.evaluate(result);
-    row.noSeries = {
-      headline: withdrawn.headline,
-      figures: withdrawn.figures,
-      badges: withdrawn.badges,
-      statesAbsence: withdrawn.text.includes(WITHDRAWAL),
-    };
+    await page.locator('input[role="combobox"]').fill(NO_SERIES_COUNTRY);
+    await page.waitForTimeout(TRANSITION_SETTLE);
+    row.noSeries = await page.evaluate((wanted) => {
+      const text = document.querySelector('main').innerText;
+      return {
+        // The country is named, and it is named as text rather than as a
+        // pickable row: 0011 R6 renders it as a <p>, not a control.
+        selectable: [...document.querySelectorAll('.wz-option')]
+          .some((b) => b.querySelector('span')?.textContent.trim() === wanted),
+        statement: (text.split('\n').find((l) => l.includes(wanted)) ?? '').trim(),
+      };
+    }, NO_SERIES_COUNTRY);
+    row.noSeries.statesAbsence = row.noSeries.statement.includes(WITHDRAWAL);
   }
 
   row.errors = errors;
@@ -438,10 +459,12 @@ const [a, b] = R9_VIEWPORTS.map((n) => report.viewports[n]);
 check('R9', a.figures.length > 0, `no stat figures rendered at ${R9_VIEWPORTS[0]} — nothing to compare`);
 check('R9', a.badges.length > 0, `no tier badges rendered at ${R9_VIEWPORTS[0]} — nothing to compare`);
 check('R9', a.noSeries.statesAbsence && b.noSeries.statesAbsence,
-  `the no-series result does not state the absence ("${WITHDRAWAL}") at both widths — "string-identical" could be satisfied by an empty screen`);
+  `${NO_SERIES_COUNTRY}'s absence is not stated ("${WITHDRAWAL}") at both widths — "string-identical" could be satisfied by a screen that says nothing`);
+check('R9', a.noSeries.selectable === false && b.noSeries.selectable === false,
+  `${NO_SERIES_COUNTRY} is offered as a pickable row — a country with no series must be named, not selectable (0011 R6)`);
 check('R9', eq(a.figures, b.figures), `figures differ across the breakpoint: ${JSON.stringify(a.figures)} vs ${JSON.stringify(b.figures)}`);
 check('R9', eq(a.badges, b.badges), `tier badges differ: ${JSON.stringify(a.badges)} vs ${JSON.stringify(b.badges)}`);
-check('R9', eq(a.noSeries, b.noSeries), `the no-series result differs: ${JSON.stringify(a.noSeries)} vs ${JSON.stringify(b.noSeries)}`);
+check('R9', eq(a.noSeries, b.noSeries), `the no-series statement differs across the breakpoint: ${JSON.stringify(a.noSeries)} vs ${JSON.stringify(b.noSeries)}`);
 
 // R5. The phone layout may not move -- at every viewport below the breakpoint,
 // which is 375, 480 and 767.

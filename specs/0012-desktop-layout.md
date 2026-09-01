@@ -120,12 +120,21 @@ a 640px slab pinned to the bottom of a 900px window. The intro is already inline
 
 **`[~]` revised 2026-09-01, after review — this applies to steps 02 and 03 only.**
 As first written it applied to all three, and that made step 01's primary action
-**unreachable**. Step 01 is the 218-country list: its page is **15,519px tall at
-1440**, `.wz-footer` renders after `options.map`, and with `position: static` the
-"Continue" button measured `top: 15433` in a 900px viewport — 15,433px below the
-fold, on the one step with no other way forward. Measured, not argued: the same
-run puts steps 02 and 03 at `top: 814` and `757`, both comfortably on screen,
-because those screens fit the viewport.
+**unreachable**. Step 01 lists every country with a series, `.wz-footer` renders
+after that list, and with `position: static` the "Continue" button measured
+`top: 15433` in a 900px viewport — 15,433px below the fold, on the one step with
+no other way forward. Measured, not argued: the same run puts steps 02 and 03 at
+`top: 814` and `757`, both comfortably on screen, because those screens fit the
+viewport.
+
+**Spec 0011's search (#68) landed mid-review and does not remove the need.**
+Non-goals originally offered "land #66 first and R4 applies uniformly" as the
+end state. It has landed, and step 01 is still **177 rows and 12,739px tall at
+1440** with an empty query, because the search filters a list that is fully
+rendered until someone types. Re-measured after merging `3b3f350`: the anchored
+dock keeps the CTA at `top: 840` in a 900px viewport. The modifier stays, and
+the end-state note is withdrawn rather than left as a promise the merge already
+falsified.
 
 Neither of this requirement's original criteria could see it. `position: static`
 and "the dock's box bottom is not `innerHeight`" are *exactly* what an
@@ -160,6 +169,14 @@ checkout of `main` at `91ec0f6` and committed. After the change, R6's script
 re-run at 375, 480 and 767 produces rows **deep-equal** to that file, and exits
 non-zero on any difference or on a row the baseline does not cover.
 
+**It also survived a merge, which is the schema's first real test.** `main`
+moved to `3b3f350` (spec 0011's country search) mid-review, and after merging it
+the 375/480/767 rows are still deep-equal to the `91ec0f6` baseline — a change
+that rewrote step 01 completely moved none of the eight keys. That is the
+narrowing working as intended: had `optionCount` still been in the schema, R5
+would have failed on 218 → 177, a change this spec did not make and is not
+about.
+
 **The compared schema is named, and it is deliberately narrow** (revised
 2026-09-01 after review). Exactly eight keys, all computed styles, booleans or
 counts:
@@ -193,14 +210,39 @@ prints a row per viewport and exits **0**; it exits **non-zero** on a title
 mismatch (verifiable by pointing `APP_URL` at any other page) and non-zero on any
 R2–R5 threshold breach. `playwright-core` does **not** appear in `package.json`.
 
-### R7. [x] The desktop layout is clean at every width
+### R7. [~] The desktop layout is clean at every width
 
 No horizontal scroll, no console errors, no overlapping or clipped elements at
 any of the seven viewports.
 
 **Acceptance:** at all seven, `documentElement.scrollWidth === innerWidth` and the
 script's collected `pageerror` + `console.error` list is **empty**. Screenshots
-at 375, 768, 1440 and 1920 are attached to the implementation PR.
+at 375, 768, 1440 and 1920 are taken for the intro, step 01 and the result, and
+reviewed before the requirement is marked.
+
+**`[~]` revised 2026-09-01, after review — "attached to the PR" did not happen,
+and the mark says so.** The original criterion said the four screenshots are
+*attached to the implementation PR*. They were taken and reviewed at every round
+— and they earned their place twice, first catching R12's clipped sparkline
+after the automated check had passed against it, and again confirming after the
+#68 merge that step 01's anchored dock keeps its CTA on screen. But they were
+never attached, because this environment drives `gh` from a terminal and GitHub
+accepts image uploads only through its web UI. Committing PNGs into a
+data-pipeline repo to work around that is a worse trade than saying what
+happened.
+
+So the criterion is split, honestly:
+
+- **Taken and reviewed** — done, every round, and the review notes are in this
+  spec's evaluation rather than in an image.
+- **Attached** — not done from here. Anyone with the browser can drag the four
+  onto the PR; the reviewer's point that a reviewer cannot see what the browser
+  painted stands, and this mark is what stops it being quietly buried.
+- **The one thing a screenshot would have caught is now a runnable check.** The
+  reviewer's own example — "a 1440 screenshot of step 01 would have shown it" —
+  is R4's reachability clause: at every viewport, on all three steps, the CTA's
+  `rect.top < innerHeight` with no scrolling. That is strictly better than a
+  screenshot, because it fails a build instead of needing a reader.
 
 ### R8. [x] The accessibility floors hold at every width
 
@@ -214,7 +256,7 @@ script additionally reports, at **all seven** viewports, `.wz-cta` height ≥60,
 every `.wz-option` height ≥56, and a focused CTA computing `outline-width: 2px`
 with `outline-color: rgb(255, 90, 43)`.
 
-### R9. [x] The data surface is identical at every width
+### R9. [~] The data surface is identical at every width
 
 This is the rule `CLAUDE.md` puts hardest on the result screen: a layout change
 must not alter a figure, a tier badge, a `no series` result or a stand-in
@@ -241,12 +283,23 @@ still reporting pass.
   payload settles which.
 
 **Both sides are asserted non-vacuous before they are compared.** The series
-country's figures and tier badges must be non-empty, and the no-series screen
-must actually render its withdrawal — the string `does not publish a figure`,
-from `absenceMessage(NOT_PUBLISHED)` — at **both** widths. Without that second
-assertion, "string-identical" is satisfied by a screen that renders nothing at
-all, which would make the weakest check in this spec the one guarding the rule
-`CLAUDE.md` puts hardest on the result screen.
+country's figures and tier badges must be non-empty, and the absence must
+actually be stated at **both** widths. Without that second assertion,
+"string-identical" is satisfied by a screen that renders nothing at all, which
+would make the weakest check in this spec the one guarding the rule `CLAUDE.md`
+puts hardest on the result screen.
+
+**`[~]` revised 2026-09-01 — the absence is checked at step 01, not step 04.**
+Spec 0011 (#68) landed mid-review and a country with no series is no longer
+selectable: the 41 are not rows any more, so the step 04 withdrawal is
+unreachable for one and driving to it hangs. The rule is unchanged and the
+statement still has to survive the breakpoint — `CLAUDE.md` now puts it as *"Spec
+0011 moved where it says so … Dropping the row is allowed. Dropping the
+statement is not."* So the script searches NZL at step 01 and asserts, at both
+widths, that it is **named** (`reports no occupation breakdown`), that the
+statement is **string-identical**, and that it is **not offered as a pickable
+row** — 0011 R6 renders it as text, and a country you can select but cannot get
+an answer for would be the failure this requirement exists to catch.
 
 ### R10. [x] The tests that pin 480px describe the new contract
 
@@ -411,10 +464,11 @@ between the two widths, the layout has touched the data surface and R9 fails.
 
 ## Evaluation
 
-**Round 2, 2026-09-01**, after review. `npm run dev -- --port 5273 --strictPort`,
-`node scripts/desktop-measure.mjs --baseline scripts/desktop-baseline.json`
-(`NN:stic`/`NN:stat` is each step's computed dock position; `!OFF` would mark a
-CTA off-screen at first paint):
+**Round 3, 2026-09-01**, after review round 2 and after merging `3b3f350`
+(spec 0011's country search). `npm run dev -- --port 5273 --strictPort`,
+`node scripts/desktop-measure.mjs --baseline scripts/desktop-baseline.json`.
+`NN:stic`/`NN:stat` is each step's computed dock position; `!OFF` would mark a
+CTA off-screen at first paint:
 
 ```
  375  column 375  h1 66  h2 46  stat 38  01:stic 02:stic 03:stic  cta 60  errors 0
@@ -430,44 +484,45 @@ all checks passed
 
 | Req | Verdict | Evidence |
 |---|---|---|
-| R1 | `[x]` | The `min-width` set is exactly `["(min-width: 768px)"]` at all seven; one sheet is unreadable (Google Fonts, cross-origin) and is *counted*, and the sheet declaring `--column-wide` is proven read |
-| R2 | `[x]` | Column 640 at 768/1024/1440/1920; 480 at 480/767; 375 at 375 (the wrapper is `width: 100%` under the cap). `scrollWidth === innerWidth` at all seven |
-| R3 | `[x]` | h1 66→78, h2 46→54, stat 38→44 across the breakpoint, with 768 measured. The h1 runs 3 lines at 1440 |
-| R4 | `[~]` | **Revised, not merely done.** Step 01 stays `sticky` and anchored at all seven; 02 and 03 go `static` at 768 and above. Every one of the three steps has its CTA on screen at first paint at every viewport — the clause added after review, which the first version failed at `top: 15433` |
-| R5 | `[x]` | Baseline captured from a pristine `91ec0f6` worktree with this same script, over the named eight-key schema; 375, 480 and 767 all deep-equal, and the script also asserts the committed key set is that schema |
-| R6 | `[x]` | Seven viewports; exits 0 here, 1 on a title mismatch and 1 on any threshold breach — both seen during development. `playwright-core` absent from `package.json` |
-| R7 | `[x]` | Zero console and page errors, no horizontal scroll, at all seven. Screenshots at 375, 768, 1440 and 1920 for intro, step 01 and the result |
+| R1 | `[x]` | The `min-width` set is exactly `["(min-width: 768px)"]` at all seven; the one unreadable sheet (Google Fonts, cross-origin) is counted, and the sheet declaring `--column-wide` is proven read |
+| R2 | `[x]` | Column 640 at 768/1024/1440/1920; capped below (480 at 480 and 767, 375 at 375). `scrollWidth === innerWidth` at all seven |
+| R3 | `[x]` | h1 66→78, h2 46→54, stat 38→44 across the breakpoint, 768 measured. The h1 runs 3 lines at 1440 |
+| R4 | `[~]` | Scoped to steps 02/03. Step 01 stays `sticky` and anchored at all seven; every step's CTA is on screen at first paint at every viewport. Re-measured after the #68 merge: step 01 is still 12,739px tall at 1440 and the anchor is still doing the work (`top: 840` in a 900px viewport) |
+| R5 | `[x]` | The `91ec0f6` baseline over the named eight keys passes at 375, 480 and 767 — **including after merging #68**, a change that rewrote step 01 and moved none of the eight |
+| R6 | `[x]` | Seven viewports; exits 0 here, 1 on a title mismatch and 1 on any threshold breach — both seen. `playwright-core` absent from `package.json`. Adapted to #68's search: the row is reached by typing, still matched on exact label text |
+| R7 | `[~]` | Clean at all seven — no horizontal scroll, no console or page errors. Screenshots taken and reviewed at 375/768/1440/1920; **not attached**, and the mark records that rather than hiding it |
 | R8 | `[x]` | CTA 60px, shortest option 62px, and a Tab-focused control computing `2px rgb(255, 90, 43)` at `3px` offset — at all seven |
-| R9 | `[x]` | GBR and NZL, both named. Figures `["8.9%", "2.99M"]` and badges `["DERIVED","2025","DERIVED","2025","DERIVED"]` identical at 375 and 1440; NZL renders "does not publish a figure" at both, so neither side can pass vacuously |
-| R10 | `[x]` | Both tests rewritten to the new contract; `npm run verify` green |
+| R9 | `[~]` | GBR's figures `["8.9%", "2.99M"]` and badges `["DERIVED","2025","DERIVED","2025","DERIVED"]` identical at 375 and 1440. NZL's absence now checked at **step 01**, where #68 moved it: named at both widths, string-identical, and not offered as a pickable row |
+| R10 | `[x]` | Both tests rewritten to the new contract, including the scoped `.wz-footer:not(.wz-footer--anchored)` selector and the absence of the unqualified one. `npm run verify` green |
 | R11 | `[x]` | `CLAUDE.md` carries both widths, the breakpoint, the desktop type scale, the un-dock and the canvas exception; spec 0010 R5 carries a third `[~]` note linking here |
-| R12 | `[x]` | `pathLength` with no `vector-effect`; the dash covers the rendered path at all seven. Found by a screenshot, and its first criterion and first fix both passed a check that could not see the defect |
+| R12 | `[x]` | `pathLength` with no `vector-effect`; the dash covers the rendered path at all seven |
 
-### What review caught, recorded rather than absorbed
+### What review caught
 
-Round 1 raised six threads and **all six were valid**; one was a shipped defect
-of exactly the kind this spec exists to prevent.
+**Round 1 raised six threads and all six were valid**; round 2 raised three more,
+two of which were the same findings restated against the shipped code.
 
-- **R4 made step 01 unreachable.** `position: static` under 218 rows put
-  "Continue" 15,433px below the fold at 1440. Both of R4's original criteria
-  described that state as success, and R7 could not see it either. The
-  measurable lesson is now in R4's acceptance: *a criterion that asserts a
-  property of the control must also assert the control is on screen.*
+- **R4 made step 01 unreachable** — `top: 15433` in a 900px viewport. Both of
+  R4's original criteria described that state as success, and R7 could not see it
+  either. The measurable lesson is now R4's own acceptance: *a criterion asserting
+  a property of a control must also assert the control is on screen.*
 - **R1 cited a precedent that says something else.** 0008's "768px is R1's
-  desktop baseline" is a map element's width, not a viewport breakpoint. The
-  real precedent — 0008 R1's Tailwind `md:` split, also 768 — was one
-  requirement away, and its code has since been deleted.
-- **768 was missing from the viewport list**, which is the one width the spec is
-  about and the exact place an off-by-one lives.
-- **R5's "deep-equal" had no named schema**, so it silently compared text box
-  geometry that a slow webfont fetch would move.
-- **R9 did not name its countries**, so a payload refresh could change what it
-  compared while still reporting pass. Naming them also caught that Armenia —
-  one of the three the review offered — carries a series and would have been the
-  wrong pick.
+  desktop baseline" is a map element's width. The real precedent — 0008 R1's
+  Tailwind `md:` split, also 768 — was one requirement away, and its code has
+  since been deleted. The misquote had spread to `index.css` and the PR body;
+  all three are corrected.
+- **768 was missing from the viewport list** — the one width the spec is about.
+- **R5's "deep-equal" had no named schema**, so it compared text-box geometry a
+  slow webfont fetch would move. Narrowing it is what let the baseline survive
+  the #68 merge unchanged.
+- **R9 did not name its countries.** Naming them also caught that Armenia — one
+  of the three `CLAUDE.md` lists as unfilled — carries a series and would have
+  been the wrong pick.
 - **"Exactly two media conditions" counted rules this spec does not own**, and
-  the enumeration could not distinguish a sheet with no media rules from one it
-  was refused permission to read.
+  could not tell a sheet with no media rules from one it was refused permission
+  to read.
+- **R7 was marked `[x]` with half its criterion unperformed.** Correct, and it is
+  now `[~]`.
 
 ### Two findings from implementation, worth carrying forward
 
@@ -499,6 +554,8 @@ what the browser paints will agree with you.
   R6's install line is `--no-save` because of it.
 - **No router, no routes, no Next.js.** Issues #24, #15 and #23 are untouched.
 - **Step 01 stays a list of 218.** The scroll height is 15,519px at 1440 and that
-  is genuinely bad, but it is issue #66's search, not a width problem. It is also
-  why R4 does not un-dock that one screen: see R4's revision note. When #66 lands,
-  `wz-footer--anchored` should come off and R4 should apply uniformly.
+  was genuinely bad, and #66 has since landed (#68) — step 01 is a search over
+  177 now. It is **still** 12,739px tall at 1440 with an empty query, because the
+  search filters a list that is fully rendered until someone types, so R4's
+  `wz-footer--anchored` stays. Making step 01 render only its matches is a
+  further change and belongs to whoever owns #66's follow-up, not here.

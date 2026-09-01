@@ -164,6 +164,7 @@ dropped from the payload, so it does not claim coverage it does not have.
 | Field | Source | Notes |
 |---|---|---|
 | `iso3` | World Bank country metadata | primary key; aggregates use `WLD`, `EU27`, `OECD`, `G20`, and World Bank region codes (`NAC`, `ECS`, `EAS`, `SAS`, `SSF`, `MEA`, `LCN`) |
+| `iso2` | World Bank country metadata (`iso2Code`) | ISO 3166-1 alpha-2, carried for the app's country search — `Intl.DisplayNames` needs an alpha-2 to return the name a reader types. **Null for `TWN` alone.** `HKG` and `MAC` are in the Bank's country list and keep `HK`/`MO`; only Taiwan takes the synthesised `EXTRA_AREAS` path, because the Bank's response carries no Taiwan entity at all. It is not filled by hand |
 | `country_name`, `region`, `income_group`, `capital` | World Bank country metadata | region labels are exactly as the Bank returns them today — note the Bank renamed MENA to "Middle East, North Africa, Afghanistan & Pakistan" and moved AFG/PAK out of South Asia |
 | `lat`, `lon` | World Bank capital-city coordinates | for map placement only; null for aggregate rows. Six areas missing from the endpoint are filled from `config.FALLBACK_COORDS` |
 | `row_type` | derived | `country` \| `world` \| `region` \| `group` |

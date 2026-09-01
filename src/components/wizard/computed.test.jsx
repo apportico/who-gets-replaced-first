@@ -39,6 +39,13 @@ beforeAll(() => {
   document.head.appendChild(style)
 })
 
+// 0011 R1/R9 — step 01 is a search, and its rows carry role="option" rather
+// than the implicit button role, so reaching a country means typing at it.
+function pickCountry(name) {
+  fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: name } })
+  fireEvent.click(screen.getByRole('option', { name: new RegExp(name) }))
+}
+
 /** Resolve a declaration that is written as `var(--token)`. */
 function resolved(el, prop) {
   const declared = getComputedStyle(el).getPropertyValue(prop).trim()
@@ -99,7 +106,9 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     cleanup()
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: /start/i }))
-    const option = screen.getByRole('button', { name: /United Kingdom/ })
+    fireEvent.change(screen.getByLabelText('Search countries'),
+                     { target: { value: 'United Kingdom' } })
+    const option = screen.getByRole('option', { name: /United Kingdom/ })
     expect(resolved(option, 'min-height')).toBe('56px')
   })
 
@@ -107,7 +116,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     cleanup()
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: /start/i }))
-    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
     fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
@@ -153,7 +162,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     sweep('intro')
     fireEvent.click(screen.getByRole('button', { name: /start/i }))
     sweep('country')
-    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     sweep('occupation')
     fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
@@ -174,7 +183,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     cleanup()
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: /start/i }))
-    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
     fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
@@ -227,7 +236,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     sweep('intro')
     fireEvent.click(screen.getByRole('button', { name: /start/i }))
     sweep('country')
-    fireEvent.click(screen.getByRole('button', { name: /United Kingdom/ }))
+    pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     sweep('occupation')
 

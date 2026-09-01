@@ -1,6 +1,6 @@
 # Global Labor Structure & AI Exposure — Summary Report
 
-Generated 2026-08-31 from `pipeline/data/global_labor_dataset.csv`.
+Generated 2026-09-01 from `pipeline/data/global_labor_dataset.csv`.
 
 **Read the confidence section at the bottom before quoting any number.** Sections A–C are official statistics. Section D is an official statistic used as a *proxy* for "white collar." Sections E and F are constructed proxies and a modeled overlay respectively — they are not measurements.
 

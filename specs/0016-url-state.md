@@ -1,6 +1,6 @@
 # 0016 — the wizard's state lives in the URL
 
-**Status:** draft
+**Status:** in-review
 **Depends on:** 0010 (the wizard is the app), 0011 (the country search and its named absence), 0012 (the one breakpoint)
 **Issue:** [#79](https://github.com/apportico/who-gets-replaced-first/issues/79)
 **Goal:** a result can be linked, and the link is honest, checked as:

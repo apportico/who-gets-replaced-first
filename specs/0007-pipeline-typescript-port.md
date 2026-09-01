@@ -1,6 +1,6 @@
 # 0007 — Port the data pipeline from Python to TypeScript
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** 0004 (the 107-test regression suite — the safety net this port
 requires); 0005 (CI runs `verify`, which must keep passing throughout)
 **Issue:** [#21](https://github.com/apportico/who-gets-replaced-first/issues/21)
@@ -56,7 +56,7 @@ Python 3.13.1. CI pins `node-version: 24` and `python-version: '3.13'`
 | Third-party Python deps | AST walk of all imports vs `sys.stdlib_module_names` | **None.** Stdlib only: `argparse`, `collections`, `csv`, `datetime`, `gzip`, `io`, `json`, `os`, `sqlite3`, `sys`, `time`, `urllib`. The issue's claim holds. |
 | `node:sqlite` on Node 24 | `new DatabaseSync(':memory:')`, create/insert/select | **Works unflagged**, no warning, exit 0. Confirms the issue's "no dependency" assumption. |
 | CSV dialect | `grep` + `head` of the committed CSVs | Default dialect, `newline=""` → **CRLF (`\r\n`) line endings in all 6 CSVs**. `csv.field_size_limit(10_000_000)` is set in `build.py:10`. |
-| Float repr, Python vs JS | Parsed **all 78,257 numeric values** from the 6 committed CSVs, compared `str()` to `String()` | **6,286 differ**: 6,256 integral floats (`79.0` → `79`) and **30 negative zeros** (`-0.0` → `0`). **Zero other disagreements** — shortest-round-trip repr agrees on the remaining 71,971. |
+| Float repr, Python vs JS | Parsed the numeric values in the 6 committed CSVs, compared `str()` to `String()` | **6,286 differ**: 6,256 integral floats (`79.0` → `79`) and **30 negative zeros** (`-0.0` → `0`). **Zero other disagreements** — shortest-round-trip repr agrees on the rest. **The population this was measured over was recorded as 78,257 and that figure was wrong** — see the correction below. |
 | `round()` semantics | 8 hand-picked cases in both languages | Python `round` matches **neither** `Math.round(x*10**n)/10**n` **nor** `toFixed(n)`. `round(2.675,2)=2.67` (naive JS: 2.68); `round(2.5)=2` (naive: 3); `round(-2.5)=-2` (`toFixed`: -3). **37 call sites: 33 in `build.py`, 4 in `crosscheck.py:69,71,73,134`** — the latter inside R6's scope. |
 | A Python-compatible `pyRound` in JS | Implemented via `toFixed(20)` + decimal-string half-to-even; **20,000 randomised differential cases against Python** | **0 mismatches.** The algorithm is proven before being specified. |
 | `sum()` over floats | 20,000 random 6-element sums drawn `uniform(0, 1e12)`, `sum()` vs naive left fold, Python 3.13.1 | **33.1% differ.** Python 3.12 moved `sum()` to **Neumaier compensated summation**; a JS `reduce((a,b) => a+b)` is a naive fold. The rate is distribution-dependent — a different sampling gives 23.8% — so the percentage is illustrative and the *existence* of the divergence is the finding. |
@@ -353,9 +353,13 @@ they can be regenerated if the pin moves.
   on integers under 2^53 is exact. So a fixture that stays below it cannot
   distinguish the integer branch from the thing that branch exists to replace.
   Dropping those cases would not shrink this criterion, it would empty it.
-- `pyStr` reproduces all **78,257** numeric strings in the committed CSVs from
-  their parsed doubles, including the **6,256** `.0` and **30** `-0.0` values,
-  0 mismatches. (Already fixture-backed: it reads the committed CSVs.)
+- `pyStr` reproduces every numeric string in the committed CSVs from its
+  parsed double, including the **6,256** `.0` and **30** `-0.0` values, 0
+  mismatches. (Already fixture-backed: it reads the committed CSVs.) The
+  population is **71,799** float-column cells; the **18,744** `Int`-column cells
+  are written by `String(value)` rather than by `pyStr`, so they are asserted
+  against `String()` instead. This criterion originally said "all 78,257", which
+  was wrong in both directions — see the correction below.
 - **The override loader types numbers from the raw JSON token text**, checked
   by a committed fixture overrides file rather than by inspection. The same
   field written `15000000` for one country and `15000000.0` for another yields
@@ -826,6 +830,38 @@ both removed). `package.json` gains **no runtime dependency**; `typescript` and
 pipeline/run.ts` runs the pipeline directly. `tsconfig.json` sets
 `erasableSyntaxOnly`, which refuses the constructs Node's stripper cannot erase
 — so nothing can type-check here and fail to start there.
+
+### A recorded figure that was wrong: 78,257
+
+Raised by @syymza on the approving review of `950751b`, and it is a real
+correction to this spec rather than to anything published.
+
+The Source verification row and R1's acceptance both said the six committed
+CSVs carry **78,257** numeric values. They carry **90,543**. Re-derived on
+`4c51b3b` with the repo's own `readCsv` and `isIntColumn`:
+
+| File | float cells | `Int` cells |
+|---|---:|---:|
+| `global_labor_dataset.csv` | 18,612 | 6,468 |
+| `global_labor_panel.csv` | 52,030 | 11,328 |
+| `ai_exposure_sensitivity.csv` | 531 | 708 |
+| `crosscheck_eurostat.csv` | 81 | 54 |
+| `outliers_for_review.csv` | 12 | 4 |
+| `pilot_labor_dataset.csv` | 533 | 182 |
+| **total** | **71,799** | **18,744** |
+
+The gap is 12,286, and the `Int`-column cells of the five non-dataset CSVs
+total 12,276 — so `78,257 + 12,276 = 90,533`, ten short of 90,543. The original
+probe appears to have counted `Int` columns in `global_labor_dataset.csv` only.
+
+**Nothing published moves, and the probe's finding is untouched.** The 6,256
+integral floats and 30 negative zeros are all float-column cells, and they are
+the whole point of the row. What changed is that the criterion now names the
+right population and the suite asserts *both* classes — 71,799 through `pyStr`
+and 18,744 through `String()`, 0 mismatches — which is strictly more than "all
+78,257" ever asked for. The in-tree test superseded the recorded figure before
+anyone noticed the figure was wrong, which is the argument for in-tree
+assertions over numbers in prose.
 
 ### Findings, recorded rather than fixed
 

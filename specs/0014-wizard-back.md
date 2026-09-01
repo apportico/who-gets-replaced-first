@@ -1,6 +1,6 @@
 # 0014 — the wizard can go back
 
-**Status:** draft
+**Status:** in-review
 **Depends on:** 0010, 0011, 0012
 **Issue:** [#77](https://github.com/apportico/who-gets-replaced-first/issues/77)
 **Goal:** the wizard is navigable backwards without losing an answer, and step 02

@@ -80,7 +80,7 @@ committed working tree at `4895def`.
 
 ## Requirements
 
-### R1. [ ] Retrodict 2025 from 2013–2019, per country and per ISCO major group
+### R1. [x] Retrodict 2025 from 2013–2019, per country and per ISCO major group
 
 A new `pipeline/backtest.ts` exports a pure function over panel rows: for each
 country and each of the nine ISCO-08 major-group share fields, fit OLS on the
@@ -109,7 +109,13 @@ and no row exists for `JPN` or `IND`. `npm run pipeline` writes the same content
 to `pipeline/data/backtest.csv` as its integration path — that run is how the
 artefact ships, not how the requirement is evidenced.
 
-### R2. [ ] Every back-test field carries a tier, and `MODELED` never blurs into `DERIVED`
+**Done (2026-09-02):** run against the committed panel — `574` rows, `64` distinct
+`iso3`, `9` groups, per-group `[64,64,64,64,64,62,64,64,64]` (`62 + 64x8 = 574`),
+zero rows for `JPN` or `IND`, and no row with a null `retrodicted_2025_pct`,
+`observed_2025_pct` or `error_pp`. `AGO`/`BFA`/`GMB`/`VUT` are absent rather than
+zero-filled, and the gapped-fit test confirms a hole is skipped, not interpolated.
+
+### R2. [x] Every back-test field carries a tier, and `MODELED` never blurs into `DERIVED`
 
 The retrodiction is an analyst-assigned model output and is `MODELED`. The
 values it is scored against come from the panel's ISCO shares and are `DERIVED`.
@@ -135,7 +141,14 @@ back-test CSV header, that every value is in `TIERS ∪ {NOT_A_MEASUREMENT}`, th
 emits, and agree with `BACKTEST_FIELD_TIERS` on every shared key.
 `npm run test:pipeline` green.
 
-### R3. [ ] Publish the error distribution, not a headline mean
+**Done (2026-09-02):** `BACKTEST_FIELD_TIERS` keys equal the union of both CSV
+headers; every value is in `TIERS ∪ {NOT_A_MEASUREMENT}`; `retrodicted_2025_pct`,
+`error_pp` and `persistence_error_pp` are `MODELED` and `observed_2025_pct` /
+`last_fit_pct` are `DERIVED`. `src/data/backtest.json`'s `field_tiers` agrees with
+the registry on every key. `exportBacktest` throws on an untiered column before
+writing anything.
+
+### R3. [x] Publish the error distribution, not a headline mean
 
 `npm run pipeline` prints a `[backtest]` block, and the artefact is summarised in
 `pipeline/data/backtest_summary.csv`, carrying **per group and pooled**: n, mean
@@ -160,7 +173,15 @@ probe figures are the 2026-09-01 measurement the fixture has to agree with. A
 figure that moves beyond the tolerance is a real change and must be explained,
 never re-baselined silently.
 
-### R4. [ ] Name every country whose direction is wrong, individually
+**Done (2026-09-02):** `[backtest]` prints nine group rows plus `POOLED`, and
+`backtest_summary.csv` carries all seven statistics per row. Measured pooled
+MAE `1.806438`, RMSE `3.866665`, n `574`; clerical MAE `0.940160`, RMSE
+`1.295288`, max `5.056471` (`GEO`) — every one inside the ±0.005pp tolerance
+against the 2026-09-01 probe, and byte-equal to the committed fixture. The
+clerical mean signed error is `-0.054759`, which is the case for publishing the
+distribution rather than the mean.
+
+### R4. [x] Name every country whose direction is wrong, individually
 
 A model that gets the *sign* wrong has failed in a way no error magnitude
 reports. Each row carries `direction_correct`, comparing the sign of
@@ -177,7 +198,13 @@ PSE RWA SRB SVN SWE`. A test asserts the count of `direction_correct == false`
 rows for `isco4_clerical_pct` in the artefact is 31, and **241** pooled across
 all nine groups, so the README and the data cannot drift apart.
 
-### R5. [ ] Score a no-trend baseline alongside, because it wins
+**Done (2026-09-02):** `direction_correct == false` on `31` clerical rows and
+`241` pooled, matching `direction_wrong_n` in the summary. `pipeline/README.md`
+names all 31 by country and ISO3, asserted per-code by the test so the prose and
+the data cannot drift. No pair in the real data has a zero observed change, so
+the null branch is unit-tested directly instead.
+
+### R5. [x] Score a no-trend baseline alongside, because it wins
 
 Each row also carries `persistence_error_pp` — the error of carrying the last
 fit-window observation forward unchanged — and the summary carries its MAE and
@@ -201,7 +228,13 @@ if the trend genuinely started winning. Re-baselining the test to green would
 leave the result screen still asserting a finding the data no longer supports,
 which is the exact failure this requirement exists to prevent.
 
-### R6. [ ] Regression-test it offline, with a committed expected fixture
+**Done (2026-09-02):** pooled persistence MAE `1.291857` / RMSE `2.045843`
+against the trend's `1.806438` / `3.866665` — **the no-trend baseline wins** — and
+the trend improves on it for only `234/574` (40.8%) of pairs. Asserted as
+`persistence_mae_pp < mae_pp`, so a future reversal fails the build. Every row's
+`persistence_error_pp` is checked against `last_fit_pct - observed_2025_pct`.
+
+### R6. [x] Regression-test it offline, with a committed expected fixture
 
 The back-test joins spec 0004's suite: `pipeline/tests/backtest.test.ts` against
 `pipeline/tests/fixtures/expected/backtest.csv`, driven from a committed panel
@@ -214,7 +247,13 @@ tests are named in the output. Deleting a row from
 `pipeline/tests/fixtures/expected/backtest.csv` makes it fail (checked, then
 reverted).
 
-### R7. [ ] The reader reaches the finding from the result screen
+**Done (2026-09-02):** `pipeline/tests/backtest.test.ts`, 21 tests, driven from
+the committed panel with `pipeline/raw/` absent — no network. Suite went
+**159 → 180**. Proved the fixture actually binds rather than merely existing:
+deleting one row from `fixtures/expected/backtest.csv` failed the run (20 pass /
+1 fail), and restoring it returned 21/21.
+
+### R7. [x] The reader reaches the finding from the result screen
 
 The existing `backtest` accordion currently reads *"No back-test is claimed here,
 because no displacement model ships."* That sentence becomes false with this
@@ -237,7 +276,21 @@ pair (`JPN` clerical). `src/utils/wizard.test.js`'s assertion on
 `/No back-test is claimed/` is replaced by assertions on the new text.
 `grep -c "No back-test is claimed" src/` returns 0.
 
-### R8. [ ] Nothing here ships a year, and a test holds that line
+**Done (2026-09-02):** verified in Chrome at both viewports, not from a green
+build. `GBR` clerical renders "predicted **9.6%** for 2025" `MODELED` against
+"published figure is **8.9%**" `DERIVED`, "Out by +0.71pp" — matching the probe's
+`pred=9.57 obs=8.86 err=0.71`. `JPN` renders the absence: it names Japan, says it
+cannot be back-tested, states 64 of 177, and shows **no retrodicted number** —
+the pooled figure is labelled as pooled rather than borrowed. `grep -c "No
+back-test is claimed" src/` returns 0 and the app suite asserts its absence.
+Snapshots in `.snapshots/0017/`.
+
+**Fixed during verification:** at 375px the `MODELED` badge clipped to "MODEL" —
+`.wz-meta` is `nowrap`, so the eyebrow pushed it past the card edge. Added
+`flexWrap` and `whiteSpace: normal`; re-measured `badge.right = 133 < 375`. This
+is exactly the class of defect a passing build does not catch.
+
+### R8. [x] Nothing here ships a year, and a test holds that line
 
 The likeliest way this spec goes wrong is that a back-test with a published error
 reads as a licence to publish the year it was back-testing toward. It is not —
@@ -252,7 +305,13 @@ added to** is a guard; a prose exemption for "fit-window and target-year
 metadata" is a suggestion, and any column ending `_year` could be argued into it.
 The accordion states the conclusion in words and offers no date.
 
-### R9. [ ] Say which countries the back-test cannot score, and name the two that motivated it
+**Done (2026-09-02):** the test walks every key of both CSV headers and every key
+of `backtest.json` (including its top level) against
+`/replacement|displacement|halv|_year$/` and requires each match to be in the
+allowlist, which is asserted to be exactly `['fit_start_year', 'fit_end_year',
+'target_year']`. No date is offered anywhere in the accordion.
+
+### R9. [x] Say which countries the back-test cannot score, and name the two that motivated it
 
 **108** of the 177 countries with a clerical series have no 2025 observation, and
 5 more have one but too short a fit window. Publishing a 64-country error without
@@ -268,6 +327,12 @@ back-test can score.
 coverage sentence and names Japan and India with their reasons. A test asserts
 `JPN` and `IND` are absent from the artefact, so the README's claim and the data
 agree.
+
+**Done (2026-09-02):** `coverage()` measures `177` countries with a series, `64`
+eligible, `113` unscorable. `JPN` and `IND` carry zero rows and
+`pipeline/README.md` names both with their reasons — Japan's series ends 2023 so
+there is no 2025 value to score against; India has two fit-window observations.
+The accordion states 64 of 177 to the reader as well.
 
 ## Implementation Plan
 

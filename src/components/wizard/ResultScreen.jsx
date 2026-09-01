@@ -211,8 +211,14 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart })
             {/* 0017 R7. The measurement behind the refusal, and R14 still
                 holds: there is no year in here either. */}
             <div className="wz-card" style={{ marginTop: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                <span className="wz-meta" style={{ color: 'var(--muted)' }}>
+              {/* wrap, not nowrap: `.wz-meta` does not wrap by default, and this
+                  eyebrow is long enough to push the badge past the card edge at
+                  375px — it clipped to "MODEL" before this. */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                gap: 10, flexWrap: 'wrap',
+              }}>
+                <span className="wz-meta" style={{ color: 'var(--muted)', whiteSpace: 'normal' }}>
                   Fit {FIT_START_YEAR}–{FIT_END_YEAR}, predict {TARGET_YEAR}
                 </span>
                 <span className="wz-badge">{tierFor('retrodicted_2025_pct')}</span>

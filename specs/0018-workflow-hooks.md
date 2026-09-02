@@ -298,9 +298,19 @@ never a hard-coded count, which goes stale the moment a spec is added — and
 direct evidence that staged-only scoping is load-bearing rather than
 incidental — neither is ever staged, so neither is ever checked in anger.
 
-### R4. [x] `pre-merge-verify` denies `gh pr merge` while `verify` is not green
+### R4. [~] `pre-merge-verify` denies `gh pr merge` while `verify` is not green
 
-**Done (2026-09-02).** `.claude/hooks/pre-merge-verify.mjs`.
+**Done, revised (2026-09-02).** `.claude/hooks/pre-merge-verify.mjs`.
+
+**Revised: the wrong-cwd case was missing, so this `[x]` was briefly wrong.**
+*Common to all four hooks* requires all four to carry it; R1, R2 and R3 had it
+and R4 did not — all six of its cases took the default `cwd`, and `ghStub` logged
+only the arguments, never the directory `gh` was spawned in. So the hook whose
+wrong-cwd failure this spec calls *worse* than the skipped-review trap was the
+one hook where the anchor was never exercised. The stub now logs `$PWD` and the
+case asserts it. Caught in implementation review, not by the suite — which is
+the point: an `[x]` resting on a check nobody ran is exactly what the mark is
+supposed to exclude.
 
 **Acceptance — run:** `npm run test:hooks` → `R4: denies when verify is FAILURE
 even though review is SUCCESS`, `R4: silent when verify is SUCCESS`, `R4: denies
@@ -358,6 +368,7 @@ is side-effect free. Without that, R5's own assertion could not be written.
 - Passing: `npm run verify` prints
   `==> hook wiring (0018 R5 ...)` → `check-settings: 4 hooks wired, all paths and deadlines OK`.
 - Missing script: `check-settings FAILED: - PreToolUse: .claude/hooks/no-main.mjs does not exist on disk`, non-zero. Restored → green.
+- **Unwired hook** (the other direction, added after implementation review found the guard blind to it): removing the `no-main` entry from `settings.json` gives `check-settings FAILED: - .claude/hooks/no-main.mjs exists but is not registered in .claude/settings.json — an unwired hook guards nothing`. Before that check, this state printed `3 hooks wired, all paths and deadlines OK` and `verify` stayed green — a guard reporting success on precisely the state it exists to detect. Restored → green.
 - Equal deadlines: `check-settings FAILED: - pre-push-verify: timeout (120s) must be strictly greater than DEADLINE_MS (120s). Equal values race, and a lost race is a silently allowed push.` Restored → green.
 - Off-shape command (`bash -c "node .claude/hooks/no-main.mjs"`): `check-settings FAILED: - PreToolUse: command is not the required shape`. Restored → green.
 
@@ -441,7 +452,12 @@ so a broken hook would deny a push while blaming the lint-config guard.
 code they cover (`pipeline/tests/`), and keeps `test:hooks` a single step.
 
 `test:hooks` is added to `scripts/verify.sh` in the same change, per `CLAUDE.md`:
-a check added to CI is added to `verify`. It must be **unconditional** — no
+a check added to CI is added to `verify`. **`eslint.config.js`'s `files` list
+gains `.claude/hooks/**/*.mjs` in the same change** — without it `verify`'s lint
+step passed over all ~1,100 new lines in silence (`npx eslint --print-config
+.claude/hooks/lib.mjs` reported **0 rules** before, **61** after), and moving the
+suite out of `test/` for the glob reason above also moved it out of the only
+pattern that would have covered it. It must be **unconditional** — no
 network, no `pipeline/raw/`, no live `gh` — so it runs in a fresh clone. `gh`,
 `git` and `npm run verify` are stubbed via `PATH` injection, never called for
 real.
@@ -536,6 +552,23 @@ entirely. `commandSegments` is now exported and is the only splitter, and the
 import guard gained a case that fails any hook containing a private split on
 `&&`, `;` or a newline. R8 says one definition; two that agree today is not the
 same thing.
+
+**Third revision: `repoRoot` follows a worktree of the same repository.**
+`$CLAUDE_PROJECT_DIR` alone is the right anchor for three of these four hooks and
+the wrong one for `no-main`, whose whole subject is *which branch is checked out
+here*. Worktrees are supported in this repo — `.claude/worktrees` is in
+`additionalDirectories` — and in one, `$CLAUDE_PROJECT_DIR` reads the main
+checkout's branch and gets both directions wrong: main on `main` + worktree on a
+feature branch denies every commit in the worktree, and main on a feature branch
++ worktree on `main` lets a commit land on `main`. The second is the fail-open R1
+exists to prevent, arriving from a direction no case covered.
+
+`repoRoot` now prefers the payload's `cwd` when `git rev-parse --git-common-dir`
+there matches `$CLAUDE_PROJECT_DIR`'s — which every worktree of a repo shares and
+no other repo matches — and falls back otherwise. So the probed scratchpad `cwd`
+(not a repository) still falls back, an unrelated repository still falls back,
+and the three existing wrong-cwd cases pass unchanged. Both worktree directions
+now have cases.
 
 
 `.claude/hooks/lib.mjs` carries the four things every hook needs, and each hook

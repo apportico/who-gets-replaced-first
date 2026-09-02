@@ -458,8 +458,12 @@ differential cases frozen from CPython 3.13 sit in `pipeline/tests/fixtures/pynu
 and are the only remaining proof the arithmetic is Python's.
 
 **`main` enforces this.** `verify` is a required status check and
-`enforce_admins` is `true`, so nobody merges red CI — administrators included
-(spec 0005 R3/R4). Branches do not have to be up to date with `main` to merge
+`enforce_admins` was set `true`, so nobody merges red CI — administrators
+included
+(spec 0005 R3/R4). **Probed 2026-09-02: `enforce_admins` now reads `false`** —
+a regression against 0005 R4's recorded acceptance, tracked as
+[#93](https://github.com/apportico/who-gets-replaced-first/issues/93). Until
+that is resolved, an administrator *can* merge red CI. Branches do not have to be up to date with `main` to merge
 (`strict: false`), so an unrelated merge does not force a rebase.
 
 ## Gotchas

@@ -5,7 +5,7 @@
 // hand ("python3 -m json.tool parses it; no hooks path points at a missing
 // file") and which had no `hooks` block to check until 0018.
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
@@ -16,6 +16,9 @@ const SETTINGS = join(ROOT, ".claude/settings.json");
 // parser, R5 REQUIRES the fixed shape and asserts it before existence — the
 // same willingness to be specific about a pattern that R3's check 2 shows.
 const COMMAND_SHAPE = /^node "\$\{CLAUDE_PROJECT_DIR\}\/(\.claude\/hooks\/[a-z0-9-]+\.mjs)"$/;
+
+// lib.mjs is imported by the hooks, never registered as one.
+const NOT_A_HOOK = new Set(["lib.mjs"]);
 
 const problems = [];
 const fail = (m) => problems.push(m);
@@ -35,9 +38,12 @@ for (const [event, groups] of Object.entries(settings.hooks ?? {})) {
   }
 }
 
+const registered = new Set();
+
 for (const { event, hook } of entries) {
   const cmd = hook.command ?? "";
   const match = COMMAND_SHAPE.exec(cmd);
+  if (match) registered.add(match[1].split("/").pop());
 
   if (!match) {
     fail(
@@ -54,6 +60,26 @@ for (const { event, hook } of entries) {
 
   if (typeof hook.timeout !== "number") {
     fail(`${event}: ${match[1]} has no numeric timeout`);
+  }
+}
+
+// Every hook script on disk must actually be registered. `existsSync` above
+// catches a script deleted out from under a settings entry; this catches the
+// other direction — a hook entry deleted from settings.json, which otherwise
+// left `verify` green while printing "3 hooks wired, all paths and deadlines
+// OK". A guard reporting success on precisely the state it exists to detect is
+// the silent-guard shape this spec keeps finding. It also means the next hook
+// cannot be added and left unwired.
+const onDisk = readdirSync(join(ROOT, ".claude/hooks"))
+  .filter((f) => f.endsWith(".mjs") && !NOT_A_HOOK.has(f))
+  .sort();
+
+for (const file of onDisk) {
+  if (!registered.has(file)) {
+    fail(
+      `.claude/hooks/${file} exists but is not registered in .claude/settings.json — ` +
+        `an unwired hook guards nothing`,
+    );
   }
 }
 
@@ -93,4 +119,7 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log(`check-settings: ${entries.length} hooks wired, all paths and deadlines OK`);
+console.log(
+  `check-settings: ${entries.length} hooks wired (${onDisk.length} on disk, all registered), ` +
+    `paths and deadlines OK`,
+);

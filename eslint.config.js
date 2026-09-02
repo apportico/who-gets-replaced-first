@@ -60,7 +60,14 @@ export default defineConfig([
     // rules. Kept through 0010's merge — 0010 deletes the map those suites
     // partly targeted, but this block is about where the files run, not what
     // they assert.
-    files: ['scripts/**/*.mjs', 'test/**/*.mjs'],
+    // `.claude/hooks/**` is here for spec 0018: the hooks are ~1,100 lines of
+    // tracked, lintable project code, and without this pattern `verify`'s lint
+    // step passed over all of it in silence — green on a surface it never read.
+    // That is exactly what globalIgnores below is scoped to `.claude/worktrees`
+    // rather than `.claude` to avoid. Note 0018 R6 moved its suite OUT of
+    // `test/` (to dodge `test:app`'s recursive glob), which also moved it out of
+    // the only pattern that would have covered it.
+    files: ['scripts/**/*.mjs', 'test/**/*.mjs', '.claude/hooks/**/*.mjs'],
     extends: [js.configs.recommended],
     languageOptions: {
       globals: globals.node,

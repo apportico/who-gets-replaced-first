@@ -184,14 +184,6 @@ function stripAssignments(words) {
 const VALUED_GLOBAL_FLAGS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"]);
 
 /**
- * Does `command` invoke `target` ("git commit", "git push", "gh pr merge")?
- *
- * True across `&&`, `||`, `;`, `|`, newlines, `$( )`, back-ticks, leading
- * environment assignments, and git's valued global flags. False for a quoted
- * mention, and false for a longer command that merely starts with the same
- * letters (`git commit-tree` is not `git commit`).
- */
-/**
  * The invocable segments of a shell command, heredoc bodies removed.
  *
  * Exported so a hook that needs to look *inside* the matching segment — R4
@@ -205,6 +197,14 @@ export function commandSegments(command) {
   return segments(stripHeredocs(command));
 }
 
+/**
+ * Does `command` invoke `target` ("git commit", "git push", "gh pr merge")?
+ *
+ * True across `&&`, `||`, `;`, `|`, newlines, `$( )`, back-ticks, leading
+ * environment assignments, and git's valued global flags. False for a quoted
+ * mention, and false for a longer command that merely starts with the same
+ * letters (`git commit-tree` is not `git commit`).
+ */
 export function runsCommand(command, target) {
   if (typeof command !== "string" || !command) return false;
   const want = target.trim().split(/\s+/);
@@ -239,19 +239,59 @@ export function runsCommand(command, target) {
 /**
  * The repository the hooks guard.
  *
- * $CLAUDE_PROJECT_DIR, falling back to the payload's cwd only when unset.
- * Probed 2026-09-02: cwd came back as a scratchpad directory *outside* this
- * repository, and the hooks reference records that ${CLAUDE_PROJECT_DIR}
- * "stays put even when Claude enters a worktree". Anchored on cwd, each hook
- * fails open in its own way — git diff --cached returns an empty index, a bare
- * `gh pr view` resolves an unrelated repository's PR.
+ * `$CLAUDE_PROJECT_DIR`, **except** when the payload's `cwd` is a worktree of
+ * that same repository — then `cwd` wins.
+ *
+ * Both halves are load-bearing, and each was a review finding:
+ *
+ * - Anchored on `cwd` alone, every hook fails open in its own way. Probed
+ *   2026-09-02: `cwd` came back as a scratchpad directory *outside* this
+ *   repository, where `git diff --cached` returns an empty index and a bare
+ *   `gh pr view` resolves an unrelated repository's PR.
+ * - Anchored on `$CLAUDE_PROJECT_DIR` alone, `no-main` reads the *main
+ *   checkout's* branch while you commit in a worktree — and gets it wrong in
+ *   both directions. Main on `main` + worktree on `feat/x` denies every commit
+ *   in the worktree; main on a feature branch + worktree on `main` lets a
+ *   commit land on `main`. Worktrees are a supported mode here
+ *   (`.claude/worktrees` is in `additionalDirectories`).
+ *
+ * "A worktree of the same repository" is decided by `git rev-parse
+ * --git-common-dir`, which every worktree of a repo shares and no other repo
+ * matches. So an unrelated repository as `cwd` still falls back, and a
+ * non-repository `cwd` — the probed scratchpad case — still falls back.
  */
 export function repoRoot(payloadCwd = "") {
   const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-  const dir = fromEnv && fromEnv.trim() ? fromEnv : payloadCwd;
+  const projectDir = fromEnv && fromEnv.trim() ? resolve(fromEnv) : null;
+
+  if (projectDir && payloadCwd) {
+    const here = commonGitDir(resolve(payloadCwd));
+    if (here && here === commonGitDir(projectDir)) {
+      // Same repository, possibly a different worktree. The checkout you are
+      // actually working in is the one the hooks must inspect.
+      const top = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+        cwd: resolve(payloadCwd),
+        encoding: "utf8",
+      });
+      if (top.status === 0 && top.stdout.trim()) return top.stdout.trim();
+    }
+  }
+
+  const dir = projectDir ?? payloadCwd;
   if (!dir) return null;
   const abs = resolve(dir);
   return existsSync(abs) ? abs : null;
+}
+
+// Absolute path of the shared .git directory, or null when `dir` is not inside
+// a git repository. Every worktree of a repo reports the same value.
+function commonGitDir(dir) {
+  if (!existsSync(dir)) return null;
+  const r = spawnSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
+    cwd: dir,
+    encoding: "utf8",
+  });
+  return r.status === 0 && r.stdout.trim() ? r.stdout.trim() : null;
 }
 
 /** Run a command in the repository root. Never inherits the hook's own cwd. */

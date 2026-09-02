@@ -15,7 +15,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync, execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync, readFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  chmodSync,
+  rmSync,
+  readFileSync,
+  realpathSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -75,7 +83,11 @@ function assertSilent(result) {
 
 const temps = [];
 function tempDir(prefix) {
-  const d = mkdtempSync(join(tmpdir(), prefix));
+  // realpath, because on macOS tmpdir() is /var/... which is a symlink to
+  // /private/var/... Any assertion comparing a path the hook reports against a
+  // path the test built would otherwise fail on the symlink rather than on the
+  // behaviour, and would look exactly like a wrong-cwd bug.
+  const d = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
   temps.push(d);
   return d;
 }
@@ -177,6 +189,54 @@ test("R8: repoRoot prefers CLAUDE_PROJECT_DIR over the payload cwd", () => {
   assert.equal(repoRoot(ROOT), ROOT);
   assert.equal(repoRoot(""), null);
   if (before !== undefined) process.env.CLAUDE_PROJECT_DIR = before;
+});
+
+test("R8: repoRoot follows a worktree of the SAME repo, and nothing else", () => {
+  // $CLAUDE_PROJECT_DIR alone gets no-main wrong in both directions inside a
+  // worktree — it reads the MAIN checkout's branch while you commit in the
+  // worktree. Worktrees are a supported mode here (.claude/worktrees is in
+  // additionalDirectories). "Same repository" is decided by --git-common-dir,
+  // which every worktree of a repo shares and no other repo matches.
+  const main = stubRepo("main");
+  const wt = join(tempDir("hooks-wt-"), "feat");
+  execFileSync("git", ["worktree", "add", "-q", "-b", "feat/x", wt], { cwd: main, stdio: "pipe" });
+
+  const before = process.env.CLAUDE_PROJECT_DIR;
+  process.env.CLAUDE_PROJECT_DIR = main;
+  try {
+    // cwd inside a worktree of this repo → that worktree wins.
+    assert.equal(repoRoot(wt), wt);
+    // cwd not a repository at all (the probed scratchpad case) → fall back.
+    assert.equal(repoRoot(tempDir("hooks-notrepo-")), main);
+    // cwd inside an UNRELATED repository → fall back, never follow it.
+    assert.equal(repoRoot(stubRepo("main")), main);
+  } finally {
+    if (before === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+    else process.env.CLAUDE_PROJECT_DIR = before;
+  }
+});
+
+test("R1: in a worktree, the branch read is the worktree's, both directions", () => {
+  // Main checkout on `main`, worktree on feat/x: must be SILENT. Anchored on
+  // $CLAUDE_PROJECT_DIR this denies every commit made in the worktree — the
+  // cry-wolf direction, on the hook that fires most often.
+  const main = stubRepo("main");
+  const wt = join(tempDir("hooks-wt-"), "feat");
+  execFileSync("git", ["worktree", "add", "-q", "-b", "feat/x", wt], { cwd: main, stdio: "pipe" });
+  assertSilent(
+    runHook("no-main.mjs", payload("git commit -m x", { cwd: wt }), { projectDir: main }),
+  );
+
+  // Main checkout on a feature branch, worktree on `main`: must DENY. Anchored
+  // on $CLAUDE_PROJECT_DIR this is silent and the commit lands on main — the
+  // fail-open R1 exists to prevent, from a direction no other case covers.
+  const main2 = stubRepo("feat/y");
+  const wt2 = join(tempDir("hooks-wt2-"), "mainwt");
+  execFileSync("git", ["worktree", "add", "-q", "-b", "main", wt2], { cwd: main2, stdio: "pipe" });
+  assertDenied(
+    runHook("no-main.mjs", payload("git commit -m x", { cwd: wt2 }), { projectDir: main2 }),
+    /Refusing to commit on 'main'/,
+  );
 });
 
 test("R8: each hook imports the shared module rather than re-implementing it", () => {
@@ -491,7 +551,10 @@ function ghStub(rollup, { exit = 0, stderr = "" } = {}) {
   const calls = join(tempDir("hooks-calls-"), "calls");
   const script =
     `#!/bin/sh\n` +
-    `echo "$@" >> "${calls}"\n` +
+    // $PWD too, so the wrong-cwd case can assert WHERE gh was spawned and not
+    // merely what it was passed. Without it R4's wrong-cwd acceptance case
+    // cannot be written, and R4's [x] rested on a check nobody ran.
+    `echo "$@ [pwd=$PWD]" >> "${calls}"\n` +
     (exit !== 0
       ? `echo "${stderr}" >&2\nexit ${exit}\n`
       : `cat <<'EOF'\n${JSON.stringify({ statusCheckRollup: rollup })}\nEOF\n`);
@@ -556,10 +619,34 @@ test("R4: a bare `gh pr merge --squash --delete-branch` is guarded, with no PR a
     /'verify' is FAILURE/,
   );
   const logged = readFileSync(calls, "utf8").trim();
-  assert.equal(
+  assert.match(
     logged,
-    "pr view --json statusCheckRollup",
+    /^pr view --json statusCheckRollup \[pwd=/,
     "gh pr view must be called with no PR argument so gh infers from the branch",
+  );
+});
+
+test("R4: wrong-cwd — gh is spawned in the project dir, not the payload cwd", () => {
+  // The acceptance case *Common to all four hooks* requires and R4 was missing.
+  // It matters most here: anchored on cwd, a bare `gh pr view` infers the PR
+  // from whatever repository that directory belongs to, and could read an
+  // UNRELATED repository's green `verify` — worse than the skipped-review trap
+  // R4 exists to avoid.
+  const { bin, calls } = ghStub([{ name: "verify", conclusion: "FAILURE" }]);
+  const repo = stubRepo("feat/x");
+  const elsewhere = tempDir("hooks-elsewhere-");
+  assertDenied(
+    runHook("pre-merge-verify.mjs", payload("gh pr merge --squash", { cwd: elsewhere }), {
+      env: { PATH: `${bin}:${process.env.PATH}` },
+      projectDir: repo,
+    }),
+    /'verify' is FAILURE/,
+  );
+  const logged = readFileSync(calls, "utf8").trim();
+  assert.match(
+    logged,
+    new RegExp(`\\[pwd=${repo}`),
+    `gh must be spawned in CLAUDE_PROJECT_DIR (${repo}), not the payload cwd — got: ${logged}`,
   );
 });
 

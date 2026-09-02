@@ -21,5 +21,38 @@
     "additionalDirectories": [
       ".claude/worktrees"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/no-main.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Checking the branch..."
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/spec-format.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Checking staged specs..."
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-push-verify.mjs\"",
+            "timeout": 300,
+            "statusMessage": "Running npm run verify before the push..."
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-merge-verify.mjs\"",
+            "timeout": 30,
+            "statusMessage": "Checking the PR's verify check..."
+          }
+        ]
+      }
+    ]
   }
 }

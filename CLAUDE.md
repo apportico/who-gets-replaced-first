@@ -361,6 +361,19 @@ It relaxes nothing else above: unprobed sources, unmarked requirements, an
 untiered number or a red `npm run verify` each stop the run rather than being
 worked around.
 
+### Workflow hooks
+
+Four `PreToolUse` hooks in `.claude/hooks/`, wired through
+`.claude/settings.json`, refuse the four things this file already forbids: a
+commit on `main`, a commit staging a malformed spec, a push while `npm run
+verify` is red, and `gh pr merge` while the check named `verify` is not green.
+Spec 0018, issue #4.
+
+**They govern Bash commands from a Claude Code session in this repository — not
+a terminal, an editor's UI, the GitHub merge button, or CI.** That boundary is
+the point of `.claude/hooks/README.md`; read it before treating a hook as a
+guarantee. They *do* still fire under `bypassPermissions` (probed 2026-09-02).
+
 ### Intent lives in GitHub Issues
 
 Issues are the source of truth for **why** a change exists — they carry the
@@ -465,8 +478,12 @@ differential cases frozen from CPython 3.13 sit in `pipeline/tests/fixtures/pynu
 and are the only remaining proof the arithmetic is Python's.
 
 **`main` enforces this.** `verify` is a required status check and
-`enforce_admins` is `true`, so nobody merges red CI — administrators included
-(spec 0005 R3/R4). Branches do not have to be up to date with `main` to merge
+`enforce_admins` was set `true`, so nobody merges red CI — administrators
+included
+(spec 0005 R3/R4). **Probed 2026-09-02: `enforce_admins` now reads `false`** —
+a regression against 0005 R4's recorded acceptance, tracked as
+[#93](https://github.com/apportico/who-gets-replaced-first/issues/93). Until
+that is resolved, an administrator *can* merge red CI. Branches do not have to be up to date with `main` to merge
 (`strict: false`), so an unrelated merge does not force a rebase.
 
 ## Gotchas

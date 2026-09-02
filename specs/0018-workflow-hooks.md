@@ -1,11 +1,12 @@
 # 0018 — workflow enforcement hooks
 
-**Status:** in-progress
+**Status:** done
 **Depends on:** 0003 (wrote `.claude/settings.json` in the verified shape and
 deliberately left the `hooks` block out until this spec — see its R4 and its
 "Practices deliberately declined"), 0005 (made `verify` a required check, which
 is what R2 and R4 enforce locally)
 **Issue:** [#4](https://github.com/apportico/who-gets-replaced-first/issues/4)
+**Merged:** PR [#92](https://github.com/apportico/who-gets-replaced-first/pull/92), 2026-09-02 — 5 done · 3 revised.
 **Approved:** Dani (@syymza), 2026-09-02, as a GitHub review on PR
 [#92](https://github.com/apportico/who-gets-replaced-first/pull/92) —
 [round 3](https://github.com/apportico/who-gets-replaced-first/pull/92#pullrequestreview-5086784465),

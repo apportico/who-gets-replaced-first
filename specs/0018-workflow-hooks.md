@@ -8,13 +8,19 @@ is what R2 and R4 enforce locally)
 **Issue:** [#4](https://github.com/apportico/who-gets-replaced-first/issues/4)
 **Goal:** The workflow rules stop being advisory. Checked as:
 
+Clauses 2–5 are scoped to **a Bash command issued by a Claude Code session in
+this repository** — that is what a `PreToolUse` hook governs, and R7 exists to
+say so. Writing the scope into the goal rather than only into R7 keeps a resumed
+run from ratifying clause 2 on evidence that never covered the terminal.
+
 1. Four hooks live in `.claude/hooks/`, wired through `.claude/settings.json`.
 2. A commit on the default branch is refused; a commit on a feature branch is not.
 3. Committing a spec that is missing its *Source verification* table — or its
    `**Status:**`, or a well-formed requirement heading — is refused; a
    conforming spec is not.
 4. A push is refused while `npm run verify` is red, and silent when it is green.
-5. `gh pr merge` is refused while the PR's `verify` check is not `SUCCESS`.
+5. `gh pr merge` is refused while the PR's `verify` check is not `SUCCESS`,
+   including the bare form that carries no PR number.
 6. Every hook demonstrably stays silent on its non-triggering case, proved by a
    suite that runs inside `npm run verify`.
 7. What the hooks do **not** cover is written down rather than implied.
@@ -80,17 +86,26 @@ Anything else: exit 0, no stdout.
 
 It must see `git commit` inside a compound command — `git add -A && git commit
 -m x`, `cd foo; git commit`, and a leading env assignment — because that is how
-commits are actually issued. It resolves the branch by running `git` in the
-repository containing `cwd` from the payload, not by trusting the session's
-process directory, and it must not shell out to `gh` (probed: network call on
-every commit) or depend on `origin/HEAD` (probed: unset in this clone).
+commits are actually issued.
+
+**It resolves the branch inside `$CLAUDE_PROJECT_DIR`, falling back to the
+payload's `cwd` only when that is unset.** The probe recorded in the table above
+is the reason: `cwd` came back as `/private/tmp/.../scratchpad/hookprobe`, which
+is not this repository — `cwd` is wherever the session happens to be, and the
+docs row notes `${CLAUDE_PROJECT_DIR}` "stays put even when Claude enters a
+worktree". Anchoring on `cwd` would resolve to no repository, or to a *different*
+one, and the hook would then stay silent on a real `main` commit — failing open
+in exactly the case R1 exists to catch. It must not shell out to `gh` (a network
+call on every commit) or depend on `origin/HEAD` (probed: unset in this clone).
 
 **Acceptance:** `npm run test:hooks` includes cases proving all of:
 `{"tool_name":"Bash","tool_input":{"command":"git commit -m x"}}` with a stubbed
 branch of `main` → stdout parses and `permissionDecision === "deny"`; the same
 with branch `feat/x` → empty stdout, exit 0; `git add -A && git commit -m x` on
 `main` → deny; `git commit` on `master` → deny; `git log --oneline` on `main` →
-empty stdout, exit 0.
+empty stdout, exit 0. Plus the case the probe exposed: a payload whose `cwd` is a
+directory **outside the repository**, with `CLAUDE_PROJECT_DIR` set to a stub
+repo on `main` → deny, proving the anchor is `CLAUDE_PROJECT_DIR` and not `cwd`.
 
 ### R2. [ ] `pre-push-verify` denies a push while the gate is red
 
@@ -107,16 +122,27 @@ gating on anything narrower would let a contributor be green locally and land re
 on the check that protects `main`, which is the exact failure `CLAUDE.md` says
 `verify` exists to prevent. Probed cost: 9.589s.
 
-The hook's configured `timeout` must exceed the measured runtime with margin, and
-a `verify` that times out must **deny**, not silently allow — a gate that fails
-open is not a gate.
+**The hook owns its own deadline; the `timeout` field cannot deliver this one.**
+A gate that fails open is not a gate, but the hooks reference probed above says
+that on timeout a command hook's "output is discarded; no decision is made" —
+which *is* failing open, and raising `timeout` only widens the window before it
+happens. So the hook spawns `npm run verify` under an internal deadline and, on
+expiry, emits `deny` itself while still comfortably inside the configured
+`timeout`. Two numbers, the inner one strictly smaller: internal deadline `120s`
+against a configured `timeout` of `300s`, both far above the probed 9.589s so a
+cold clone installing nothing is not mistaken for a hang.
 
 **Acceptance:** `npm run test:hooks` proves: a push command with a stubbed
 `verify` exiting 1 → `permissionDecision === "deny"` and the reason contains the
 stub's failing-step text; the same with `verify` exiting 0 → empty stdout, exit
 0; a non-push git command → `verify` is **not invoked** (asserted by the stub
-recording no call). Separately, the `timeout` in `.claude/settings.json` for this
-hook is `>= 120`, asserted by R5's settings test.
+recording no call); and a stubbed `verify` that **hangs** → the hook exits 0
+having printed `permissionDecision === "deny"`, within a test-injected deadline
+of a second or two. That last case is the requirement — without it the
+fail-closed claim is an assertion, and it is the failure nobody would notice,
+because a gate that fails open looks exactly like a gate that passed. Separately,
+`.claude/settings.json` gives this hook `timeout >= 120` and strictly greater
+than the hook's internal deadline, asserted by R5's settings test.
 
 ### R3. [ ] `spec-format` denies a commit staging a malformed spec
 
@@ -131,6 +157,16 @@ not `README.md` or `TEMPLATE.md`, it requires:
 3. A `## Source verification` heading.
 4. At least one requirement, and **every** requirement heading well-formed:
    `### R<n>. [<mark>] <text>` with `<mark>` one of ` `, `x`, `!`, `~`.
+
+**Check 4 is scoped by section, not by pattern.** A requirement heading is any
+`### R…` between the `## Requirements` heading and the next `##`-level heading;
+every one inside that window must be well-formed, and `### R…` outside it is not
+a requirement heading at all. The probed lookalikes (`### R8 \`[~]\` — the
+count…`, `### R3 / R4 / R5 — the cmp transcript`) live in Implementation Plan
+sections and are therefore silent by construction. Scoping by pattern instead —
+matching only `^### R\d+\.` and ignoring the rest — would *skip* a malformed
+`### R2 [x]` rather than reject it, so the check would pass on the exact defect
+it exists to catch.
 
 Anything failing is denied with the path and the specific failure. Nothing
 staged under `specs/` → exit 0, no stdout.
@@ -148,7 +184,10 @@ cry wolf until someone disables it.
 missing `## Source verification` → deny naming that section; a spec with
 `**Status:** finished` → deny naming the valid set; a spec with `### R2. [X] …`
 (capital X) → deny naming the heading; a filename `spec-nine.md` → deny; a
-conforming fixture → empty stdout, exit 0. Plus a **corpus** case: run the
+conforming fixture → empty stdout, exit 0. Plus the two scoping cases: a
+malformed `### R2 [x]` (no dot) **inside** the Requirements section → deny, and
+an `### R8 \`[~]\` — …` heading inside an Implementation Plan section → silent.
+Plus a **corpus** case: run the
 validator over all 15 conforming committed specs and assert every one passes,
 and assert `0001` and `0002` are excluded-by-design rather than passing by
 accident (they are only ever reached if staged).
@@ -159,6 +198,13 @@ On a command that would run `gh pr merge`, the hook reads
 `gh pr view --json statusCheckRollup` for the target PR and denies unless the
 check **named `verify`** has `conclusion === "SUCCESS"`. A missing `verify` entry
 denies. A `gh` call that fails denies, with the error quoted.
+
+**The target PR is resolved the way `gh` itself resolves it.** If the command
+carries a PR number or URL, pass it through; otherwise call `gh pr view` with no
+argument and let `gh` infer the PR from the current branch. The bare form is not
+an edge case — `gh pr merge --squash --delete-branch`, with no number, is what
+`/sdlc` Step 9 runs and what `/babysit` reaches for, so a hook that only guarded
+the numbered form would miss every merge this project's own workflow performs.
 
 It keys on `verify` by name rather than on "every check is green" because probed
 on PR #91: `review` reports `SUCCESS` while the repo has zero Actions secrets and
@@ -171,7 +217,9 @@ fell for it would launder a skipped review into a merge condition.
 → deny; rollup with `verify` `SUCCESS` → empty stdout, exit 0; rollup containing
 only `review: SUCCESS` → deny (no `verify` entry); `gh` exiting non-zero → deny
 with the stderr quoted; a non-merge `gh` command (`gh pr view 91`) → `gh` is not
-invoked and stdout is empty.
+invoked and stdout is empty; and **a bare `gh pr merge --squash --delete-branch`
+with no PR number**, red `verify` → deny, with the stub recording that `gh pr
+view` was called without a PR argument.
 
 ### R5. [ ] The hooks are wired, and the wiring is guarded
 

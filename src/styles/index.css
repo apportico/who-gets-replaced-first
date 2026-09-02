@@ -63,9 +63,16 @@
   --tap-tertiary:  48px;
 
   /* -- type -------------------------------------------------------------- */
-  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  --font-body:    'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono:    'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* 0019 R3. The families come from next/font/google (app/layout.tsx), which
+     self-hosts them into _next/static/media/ and exposes each as a CSS
+     variable. The literal family names are gone deliberately: they were how
+     0010 R2's dropped @import stayed invisible, since a literal name silently
+     falls through to the next entry in the stack. A missing --font-geist now
+     falls back the same way, but R3's acceptance greps the built @font-face
+     blocks so an absent family fails a check rather than a glance. */
+  --font-display: var(--font-instrument-serif), Georgia, 'Times New Roman', serif;
+  --font-body:    var(--font-geist), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* -- type scale --------------------------------------------------------
      R2 names four things to define as custom properties: the palette, the

@@ -1,6 +1,6 @@
 # 0019 — nextjs-typescript-migration
 
-**Status:** approved
+**Status:** in-progress
 **Depends on:** 0007 (the pipeline's schema types, which the app adopts), 0010,
 0012, 0015, 0016 (the wizard, the desktop layout, the meta contract and the URL
 contract this migration must carry across unchanged)
@@ -627,6 +627,88 @@ which is the rule R3 already applies to the fonts:
    reading `01/04` on a `?step=result` URL means the seam was cut above the
    step-derived chrome and the mismatch in (2) is only being masked by
    hydration finishing quickly.
+
+## Implementation Plan
+
+**Planned:** 2026-09-02
+
+### Files to create
+
+| Path | Purpose | Req |
+|---|---|---|
+| `next.config.ts` | `output: 'export'`, `basePath` from `PAGES_BASE_PATH`, `trailingSlash: false` | R1, R2 |
+| `postcss.config.mjs` | `@tailwindcss/postcss` | R3 |
+| `tsconfig.json` | `strict: true`, `@/*` → `./src/*` | R5, R7 |
+| `app/layout.tsx` | What `index.html`'s `<head>` carried; `next/font/google` for the three families | R2, R3 |
+| `app/page.tsx` | Server route; `<Suspense fallback={<WizardChrome/>}>` around the one client island | R2, R4, R17 |
+| `app/methodology/page.tsx` | The second entry point, with its own `metadata` | R2, R8 |
+| `src/components/wizard/WizardFrame.tsx` | The static frame both the chrome and the real header render — dot, title, `<header>`, four track elements | R17 |
+| `src/components/wizard/WizardChrome.tsx` | The Suspense fallback: `WizardFrame` alone | R17 |
+| `test/types/app.types.ts` | `@ts-expect-error` cases that must fail if the schema types stop rejecting | R6 |
+| `scripts/data-surface.mjs` | The 218-country snapshot through the tier/absence-emitting functions | R11 |
+
+### Files to modify
+
+`package.json` (scripts, deps) · `eslint.config.js` (four edits) · `scripts/verify.sh` (build, typecheck) ·
+`scripts/check-meta.mjs` (three assumptions) · `scripts/desktop-measure.mjs` (port) ·
+`.github/workflows/deploy.yml` (artifact path, base-path wiring, step reorder) · `vitest.config.js` ·
+`CLAUDE.md` · all 38 `src/**` files → `.ts`/`.tsx`
+
+### Files to delete
+
+`vite.config.js`, `index.html`, `methodology.html`, `src/main.jsx`, `jsconfig.json`
+
+### Sequence
+
+1. **Scaffold** — `next.config.ts`, `postcss.config.mjs`, `tsconfig.json`, `app/`. (R1, R2, R3)
+2. **The boundary** — `WizardFrame`, `WizardChrome`, the Suspense wiring, `WizardShell` reading `useSearchParams` once at mount. (R4, R17)
+3. **Convert** — all 38 files to `.ts`/`.tsx`, adopting `pipeline/schema.ts`. (R5, R6)
+4. **The gates** — `typecheck`, eslint's four edits, `check-meta`, `verify.sh`. (R7, R8, R13)
+5. **The evidence** — `data-surface.mjs` on `main` and here; the vitest name sets. (R10, R11)
+6. **Deploy and docs** — `deploy.yml`, `CLAUDE.md`, issue #23. (R14, R15)
+7. **The browser** — `out/` under a static server, both viewports. (R12) · **R16 after merge.**
+
+### Requirement mapping
+
+Every requirement's acceptance is stated in the requirement itself; this maps each to where the work lands.
+
+| Req | Where |
+|---|---|
+| R1, R2 | `next.config.ts`, `app/`, deletions |
+| R3 | `postcss.config.mjs`, `app/layout.tsx` |
+| R4, R17 | `app/page.tsx`, `WizardFrame.tsx`, `WizardChrome.tsx`, `WizardShell.tsx` |
+| R5, R6 | all of `src/`, `tsconfig.json`, `test/types/app.types.ts` |
+| R7, R8, R13 | `package.json`, `eslint.config.js`, `scripts/check-meta.mjs`, `scripts/verify.sh` |
+| R9, R10 | `src/utils/urlState.ts`, `vitest.config.js`, `scripts/desktop-measure.mjs` |
+| R11 | `scripts/data-surface.mjs` |
+| R12, R16 | the browser walk; R16 is post-merge |
+| R14, R15 | `CLAUDE.md`, `.github/workflows/deploy.yml`, issue #23 |
+
+### Tier and vintage handling
+
+**This spec produces no new numbers, so it assigns no tiers.** Tiers continue to
+come from the payload's `field_tiers` block via `termsFor`; R6 makes that block's
+shape checked at compile time and invents nothing, and there is still no default
+tier. R11 is the guard that the migration moves no figure, tier string, per-field
+year, absence sentence or stand-in notice — string equality over all 218
+countries.
+
+### Validation
+
+The pipeline is untouched, so `[validate]`, `[crosscheck]` and `[outliers]` are
+unaffected and the four anchors cannot move. The new checks are R11's snapshot
+diff, R10's test-name subset, and R8's demonstrated `check:meta` failure.
+
+### Risks
+
+- **R17's composition is the one that could still surprise**, because the
+  fallback's exact static output is only observable from a real build. If the
+  chrome does not survive into `out/index.html`, R17 goes `[~]` with what was
+  found rather than `[x]`.
+- **R5 under `strict: true` across 38 files** is the largest single step; if a
+  type is genuinely unmodellable it gets a documented `eslint-disable-next-line`
+  rather than a silent `any`.
+- **R12 and R16 are the only browser checks**, and R16 cannot run before merge.
 
 ## Non-goals
 

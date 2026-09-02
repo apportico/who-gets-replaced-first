@@ -109,13 +109,21 @@ if (!pushHook) {
   // exits before the collected problems print, turning this guard's failure
   // into a stack trace.
   let DEADLINE_MS;
+  let imported = false;
   try {
     ({ DEADLINE_MS } = await import(join(ROOT, ".claude/hooks/pre-push-verify.mjs")));
+    imported = true;
   } catch (err) {
     fail(`could not import .claude/hooks/pre-push-verify.mjs — ${err.code ?? err.message}`);
   }
 
-  if (DEADLINE_MS === undefined) {
+  // Track whether the import succeeded; do NOT infer it from DEADLINE_MS being
+  // undefined. `import()` resolves to a namespace object, so destructuring a
+  // name the module does not carry yields undefined *without throwing* — and
+  // inferring from the value would then skip the assertions below and print the
+  // success line on exactly the state this guard exists to detect. Removing or
+  // renaming the export has to fail here, not pass quietly.
+  if (!imported) {
     // Already reported by the catch above; nothing further to assert.
   } else if (typeof DEADLINE_MS !== "number") {
     fail("pre-push-verify.mjs does not export a numeric DEADLINE_MS");

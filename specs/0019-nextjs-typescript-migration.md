@@ -166,16 +166,28 @@ one that actually separates *self-hosted* from *not*, which is the whole reason
 R3 moves to `next/font`. Plus the `--font-*` variables `app/layout.tsx`
 declares.
 
-**The family match is exact, not a substring, and the distinct count is
-asserted.** `__Geist_<hash>` is a substring of `__Geist_Mono_<hash>`, so a
+**The family match is anchored, not a substring, and the count is scoped to
+`@font-face`.** `__Geist_<hash>` is a substring of `__Geist_Mono_<hash>`, so a
 "Geist" match would be satisfied by Geist Mono's real face — and a build where
 Geist Mono self-hosted and Geist did not would pass every clause above, for both
 families. The two families whose names collide are exactly the two with no
-end-to-end backstop, so this is where it matters most. Two clauses close it, and
-both cost nothing the requirement does not already have: the per-family match
-uses the **exact** generated string from the confirm-from-a-real-build step, and
-the count of **distinct non-fallback `font-family` values in the built CSS is
-`3`** — which no partial build satisfies. **Both generated strings — the real face and the fallback face — are
+end-to-end backstop, so this is where it matters most. Two clauses close it:
+
+1. **Anchored, rather than a frozen hash.** `__Geist_` followed by hash
+   characters **to the end of the value** does not match `__Geist_Mono_<hash>`,
+   which separates the two without pinning one build's hash — so the check
+   survives a version bump. A literal string copied from the build would also
+   separate them, but it goes stale the first time the hash changes, which
+   matters once this is a committed check rather than a one-off.
+2. **The count is of the `font-family` descriptor inside `@font-face` blocks**,
+   excluding fallback faces, and it must be **`3`**. Counting "distinct
+   `font-family` values in the built CSS" is not a property that can hold:
+   `src/styles/index.css` carries **fourteen** `font-family` declarations of its
+   own (`:193`, `:264`, `:304`, `:308`, `:313`, `:317`, `:321`, `:332`, `:342`,
+   `:366`, `:377`, `:406`, `:418`, `:427`) resolving to the three tokens at
+   `:66`–`:68`, and all fourteen survive this migration, because R3 changes how
+   the families are **loaded**, not how they are **applied**. Scoped to
+   `@font-face`, no partial build satisfies a count of 3. **Both generated strings — the real face and the fallback face — are
 confirmed from one real build before the pattern is frozen**, rather than
 guessed.
 

@@ -67,8 +67,10 @@ table below.
 **Option A — static export on GitHub Pages.** Every capability the open backlog
 actually asks for is in the *Supported* column above: build-time Server
 Components (#26), `generateStaticParams` (#24), the Metadata API (#25). Hosting
-stays free and the deploy workflow changes by one line (`path: dist` → `path:
-./out`) plus the `basePath` env.
+stays free and the deploy workflow changes in **two** places, not one — the
+artifact path (`path: dist` → `path: ./out`) *and* the base-path wiring, which
+this repo's `deploy.yml` does not currently carry at all. R15 owns both; the
+second is the one whose absence would ship a green build and a 404ing site.
 
 **Option B — server-hosted.** Buys request-time rendering, dynamic OG images and
 ISR. Nothing in M1–M4 needs any of it. M5's #31 (payments) would, but payments
@@ -112,17 +114,26 @@ is empty; `out/index.html` and `out/methodology/index.html` (or
 ### R3. [ ] Tailwind v4 moves to PostCSS, and the three font families still reach the browser
 
 The `@tailwindcss/vite` plugin is replaced by `@tailwindcss/postcss` +
-`postcss.config.mjs`. **The font trap from 0010 R2 must not regress**: Geist,
-Geist Mono and Instrument Serif are requested from the document head — now
-`app/layout.tsx` — and never from a CSS `@import`, because Tailwind v4's
-processing drops a bare `@import url(...)` silently, with a clean build and a
-green suite.
+`postcss.config.mjs`. **The font trap from 0010 R2 must not regress**: Tailwind
+v4's processing drops a bare `@import url(...)` silently, so the page shipped in
+fallback stacks for two rounds with a clean build and a green suite.
+
+**The fonts move to `next/font/google`.** Decided rather than inherited: the
+`<link>` in the document head is what 0010 R2 fell back to when the `@import`
+failed, but `next/font` self-hosts the three families at build time, so the
+files are emitted into `_next/static/media/` and there is **no cross-origin
+request to drop in the first place**. That eliminates the failure class instead
+of re-checking it, and removes the two `preconnect`s and a render-blocking
+request from the critical path. Instrument Serif needs
+`style: ['normal', 'italic']` — italic is the emphasis device in the headline.
 
 **Acceptance:** `postcss.config.mjs` names `@tailwindcss/postcss`; a built CSS
 file under `out/_next/` contains the palette (`grep -rl -- '--accent' out/_next/`
-is non-empty); and the **built** `out/index.html` carries a
-`fonts.googleapis.com` stylesheet link — checked against the built file, not the
-source, per the rule that a test reading `index.css` cannot see this defect.
+is non-empty); `ls out/_next/static/media/` lists font files for all **three**
+families; the built `out/index.html` contains **no** `fonts.googleapis.com`
+reference; and the R12 browser walk confirms the rendered `h1` computes to
+Instrument Serif rather than a fallback — measured on the page, since that is
+the only place this defect has ever been visible.
 
 ### R4. [ ] The `'use client'` boundary is drawn as tightly as the wizard allows
 
@@ -142,11 +153,18 @@ a root `tsconfig.json` at `strict: true`. Where a type is genuinely unclear it
 is modelled honestly; a conversion that lands on `any` buys nothing. `jsconfig.json`
 is deleted, its `@/*` alias moving to `tsconfig.json`.
 
+**The `any` check is mechanical, not a hand review.** `@typescript-eslint/no-explicit-any`
+is configured as an **error**, so every escape must carry an
+`eslint-disable-next-line` with its reason on the line above — which also leaves
+the escapes greppable later, as a prose count does not. A hand-reviewed grep is
+the criterion shape 0010 R14 and R15 both had to abandon, because it does not
+survive a re-run.
+
 **Acceptance:** `git ls-files 'src/**/*.js' 'src/**/*.jsx' 'app/**/*.js' 'app/**/*.jsx'`
 returns **empty**; `tsconfig.json` has `"strict": true`; `npx tsc --noEmit -p tsconfig.json`
-exits 0; and `grep -rn ": any\b\|as any\b" src/ app/ --include='*.ts' --include='*.tsx'`
-returns only lines carrying an explanatory comment (reviewed by hand and the
-count recorded here).
+exits 0; `npx eslint .` exits 0 with `no-explicit-any` at `error`; and
+`grep -rn "eslint-disable.*no-explicit-any" src/ app/` lists every escape, each
+with a reason, and the list is reproduced here.
 
 ### R6. [ ] The app consumes the pipeline's schema types, so a tier cannot go missing at compile time
 
@@ -215,10 +233,17 @@ stylesheet and `tokens.test.js` reads it, so both follow the CSS to its new
 path; `scripts/desktop-measure.mjs` (0012 R6) defaults to `localhost:5173` and
 must take Next's dev port. Vitest is configured per the probed guide.
 
-**Acceptance:** `npm test` runs the same **number** of test files as on `main`
-(counted before and after, both numbers recorded here) with 0 failures; and
-`npm run test:app`, `npm run test:pipeline`, `npm run test:hooks` are untouched
-and green.
+**The count is of test *cases*, by name — not of files.** A file that converts
+but silently loses assertions still counts as one file, so a file count cannot
+see the defect it is there to catch. This is the same shape as the null-mask
+problem CLAUDE.md records for the pipeline: a count invariant to the thing being
+counted for.
+
+**Acceptance:** `npx vitest run --reporter=json` is captured on `main` and on
+this branch; the **set of full test names** is equal across the two — set
+equality, not size — and the diff is published in the evaluation comment. 0
+failures. `npm run test:app`, `npm run test:pipeline` and `npm run test:hooks`
+are untouched and green.
 
 ### R11. [ ] The data surface is identical before and after — same figures, same tiers, same vintages
 
@@ -227,24 +252,49 @@ first rule and it outranks the migration: nothing is imputed, no country gains a
 value it did not have, and `no series` still renders as an absence rather than a
 number.
 
-**Acceptance:** the result screen is captured for **GBR** (a country with a
-series) and **NZL** (one without) before and after the migration, and the
-extracted figures, tier badge strings and the absence sentence are **string-equal**
-across the two builds. A diff of zero, published in the evaluation comment. Not
-"the numbers look right" — the same strings.
+**The sweep is every country, not two.** The source table establishes why that
+is nearly free: the payloads are byte-identical across the migration *by
+construction*, and the figures are produced by pure functions in `src/utils/`.
+So the full comparison is a unit-level snapshot, not 177 browser walks.
 
-### R12. [ ] The deployed page renders, at both viewports, with a clean console
+**Acceptance, in two layers:**
+
+1. **All of them.** A snapshot runs `groupFigures` and `laborPanel` over all
+   **177** countries with a series and the **41** without, on `main` and on this
+   branch, emitting figure strings, tier badge strings, per-field years and the
+   absence sentence. The two outputs are **string-equal** — a diff of zero,
+   published in the evaluation comment.
+2. **Two of them, end to end.** The rendered result screen for **GBR** (has a
+   series) and **NZL** (has none) is captured in a real browser before and
+   after, confirming that what layer 1 proves about the functions also holds
+   through the rendered DOM.
+
+Not "the numbers look right" — the same strings.
+
+### R12. [ ] The built output renders under the real base path, at both viewports
 
 CLAUDE.md: a green build is not evidence the page renders, and that applies with
-full force to a whole-framework migration. The check is the **deployed** site,
-not `next dev` — the base path, the `_next/` asset paths and the Pages artifact
-shape are exactly what a local dev server does not exercise.
+full force to a whole-framework migration. `next dev` is not the check either —
+it serves from the root, so it exercises neither the base path nor the `_next/`
+asset paths, which are the two things most likely to break.
 
-**Acceptance:** the deployed `https://apportico.github.io/who-gets-replaced-first/`
-loads at **375×812** and **1440×900** with **zero console errors**; all four
+**This is the pre-merge half, and it is deliberately not the deployed site.**
+`deploy.yml` triggers on `push: branches: [main]`, so nothing reaches
+`apportico.github.io` until this PR merges — a requirement whose acceptance
+could only run after the merge it gates would sit `[ ]` at evaluation time and
+block `/update-spec`. `workflow_dispatch` exists but would publish a feature
+branch to the live production site, which is worse. So the pre-merge check
+serves `out/` with a plain static server under the `/who-gets-replaced-first/`
+prefix — which is what CLAUDE.md's gotcha section already prescribes for
+debugging a production build, and what 0016 used for the same reason.
+
+**Acceptance:** `out/` is served by a plain static server under the
+`/who-gets-replaced-first/` prefix (**not** `next dev`, and not `vite preview`)
+and loads at **375×812** and **1440×900** with **zero console errors**; all four
 wizard steps plus the result screen are walked at both widths; the methodology
-page loads; and screenshots are committed to `.snapshots/0019/` and embedded in
-the evaluation comment.
+page loads; `/?c=GBR&g=3` cold-loads onto the result screen (R9); and
+screenshots are committed to `.snapshots/0019/` and embedded in the evaluation
+comment.
 
 ### R13. [ ] `npm run verify` is green
 
@@ -266,6 +316,51 @@ is corrected on the issue with a comment pointing at this spec's probe table.
 returns nothing that is not an explicit historical note; the *Commands* block
 lists the Next.js commands; and issue #23 carries a comment recording what its
 body got wrong and why.
+
+### R15. [ ] The deploy workflow publishes `out/`, with the base path actually wired
+
+`.github/workflows/deploy.yml` uploads `path: dist`, and — the part that would
+have shipped broken — it sets **no base path at all**. It has no `id:` on its
+`configure-pages` step and no `env:` block, so R1's
+`basePath: process.env.PAGES_BASE_PATH` would resolve to `undefined` in CI:
+`basePath` unset, every `_next/` asset requested from the domain root, and a
+project site that 404s its own JavaScript. The build stays green and the failure
+appears only on the deployed page — the exact class of defect 0015 R4 and 0010
+R2 were both written to catch.
+
+The wiring is the official template's:
+
+```yaml
+- name: Setup Pages
+  id: setup_pages
+  uses: actions/configure-pages@v5
+- run: npm run build
+  env:
+    PAGES_BASE_PATH: ${{ steps.setup_pages.outputs.base_path }}
+```
+
+**Acceptance:** `deploy.yml` uploads `./out`; its build step carries the
+`PAGES_BASE_PATH` env taken from a `configure-pages` step that has an `id`; and
+`grep -n "PAGES_BASE_PATH" .github/workflows/deploy.yml` returns **two** lines
+(the step output and the env binding). Confirmed end to end by R16.
+
+### R16. [ ] The deployed site renders — checked after the merge
+
+The post-merge half of R12, and the last requirement to be marked. The Pages artifact shape and the base path
+`configure-pages` actually emits are only observable once `deploy.yml` has run
+on `main`, and that cannot happen before the merge.
+
+**This requirement is marked after merge, not before it.** It is recorded here
+so the check is owed rather than assumed, and so a failure reopens the spec
+instead of going unnoticed. If it fails, the fix is a follow-up PR, not a
+revert — the alternative is holding a merged migration open indefinitely.
+
+**Acceptance:** after `deploy.yml` runs on `main`,
+`https://apportico.github.io/who-gets-replaced-first/` loads at both viewports
+with zero console errors, serves its `_next/` assets with **200**s (checked in
+the network panel, since a stripped or misrouted asset is the failure mode this
+exists for), and the methodology page resolves. The run URL and the result are
+recorded on this requirement.
 
 ## Non-goals
 

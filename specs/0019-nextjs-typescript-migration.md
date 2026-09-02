@@ -54,7 +54,9 @@ table below.
 | Tailwind v4 Next.js guide | `WebFetch` 2026-09-02 | Next.js uses **`@tailwindcss/postcss` + `postcss`**, wired through `postcss.config.mjs` (`plugins: { "@tailwindcss/postcss": {} }`), not the `@tailwindcss/vite` plugin this repo installs. `@tailwindcss/postcss` latest **4.3.3**; installed `tailwindcss` is 4.2.2 |
 | Next.js Vitest guide | `WebFetch` 2026-09-02, docs version 16.3.4 | Vitest runs standalone against Next: `vitest` + `@vitejs/plugin-react` + `jsdom` + `@testing-library/react`, config `defineConfig({ plugins: [react()], test: { environment: 'jsdom' } })`, plus **`vite-tsconfig-paths`** for the `@/*` alias under TypeScript. Stated limitation: **async Server Components are not supported by Vitest** — sync Server and Client Components are |
 | The app's actual surface | `git ls-files` + `wc -l` 2026-09-02 | **38** `.js`/`.jsx` files, **6,635** lines — not #23's 13. `src/components/wizard/` ×8, `src/components/ui/` ×3, `src/utils/` ×17, `src/styles/` ×3, `App.jsx`, `main.jsx`, `Sparkline.jsx`, `lib/utils.js`. **Zero** matches for `leaflet\|LaborMap\|LaborSidebar\|LaborDetailPanel\|LaborTimeline\|ScenarioPanel\|LaborPage` in `src/` outside three comments recording their deletion |
-| Browser globals in the app | `grep` over `src/` 2026-09-02 | Six non-test files touch `window`/`document`/`navigator`, and **every one is already guarded or inside a handler**: `globalThis.navigator?.clipboard?`, `globalThis.document?.fonts?`, `document.createElement` inside a function body. Only `main.jsx` dereferences `document` at module scope — and `main.jsx` is the file the App Router replaces. **Nothing blocks build-time prerender** |
+| Browser globals in the app | `grep` over `src/` 2026-09-02 | Six non-test files touch `window`/`document`/`navigator`, and every one is guarded or inside a handler: `globalThis.navigator?.clipboard?`, `globalThis.document?.fonts?`, `document.createElement` inside a function body. Only `main.jsx` dereferences `document` at module scope, and the App Router replaces `main.jsx`. **Conclusion, corrected:** this means prerender does not *crash*. It does **not** mean the prerendered HTML matches the client render — see the next row, which is the case that matters |
+| `WizardShell.jsx` boot state — the hydration case | `grep` + read 2026-09-02 | `WizardShell.jsx:56` computes `boot` in a **render-time `useMemo`** calling `decode(search(), rows)` (`search()` = `globalThis.location?.search`, `:41`) and `localeCountry(rows, globalThis.navigator?.language)` (`:62`), feeding `useState(boot.state)` at `:76`. Under `output: 'export'` the build has neither `location` nor `navigator`, so the prerendered HTML is **always the intro with the locale pre-fill unresolved**, while the first client render reads the real query string and language and produces different state. That is a hydration mismatch on every stateful URL. The `useMemo` is deliberate: 0016 R3 rejected restoring in an effect because it paints the intro and then corrects it. **R17 owns this**; it is invisible to R9's acceptance, because `urlState.js`'s header states the module is pure — "no DOM, no React, no `location`" |
+| `useSearchParams` under static export | `WebFetch` 2026-09-02, docs v16.3.4 | Two behaviours, both load-bearing for R17. **(a)** "During production builds, a static page that calls `useSearchParams` from a Client Component **must** be wrapped in a `Suspense` boundary, otherwise the build fails with the *Missing Suspense boundary with useSearchParams* error" — so the boundary is not optional plumbing, it is a build gate. **(b)** "If a route is prerendered, calling `useSearchParams` will cause the Client Component tree **up to the closest `Suspense` boundary** to be client-side rendered" — so the prerendered HTML for that subtree is the *fallback*, and the boundary's placement decides how much of the page survives into the static HTML. Also: in `next dev` routes render on demand, so **this does not reproduce in development** |
 | Build entry points | `cat vite.config.js` 2026-09-02 | **Two** HTML inputs, not one: `index.html` and `methodology.html` (0015 R2, a real page with a real URL). Both become App Router routes |
 | The `verify` gate | `cat scripts/verify.sh` 2026-09-02 | **Ten** steps. Three carry build-shape assumptions the migration breaks: `build` is `vite build`; `check:meta` hardcodes `const DIST = 'dist'` and asserts over **built** files; `lint` runs `eslint.config.js` whose `globalIgnores(['**/dist', …])` and `files: ['**/*.{js,jsx}']` name neither `out/`, `.next/`, nor `.ts`/`.tsx` |
 | `pipeline/schema.ts` | `grep '^export'` 2026-09-02 | Exports `Tier`, `FieldTier`, `Measured<T>`, `Vintage<T>`, the `Int` brand, `DatasetRow`, `TIERS`, `NOT_A_MEASUREMENT`, `isIntColumn`. These are the types #22 asks the app to adopt, and they already exist |
@@ -105,11 +107,26 @@ deleted; `@vitejs/plugin-react`, `vite` and `@tailwindcss/vite` leave
 `package.json`. `npm run dev` becomes `next dev`, `npm run build` becomes
 `next build`.
 
+**`trailingSlash` is settled here as `false`, explicitly rather than by
+default**, because R8 cannot be written until it is. At `false`, Next emits
+`out/methodology.html` and GitHub Pages resolves both `/methodology` and
+`/methodology.html` to it — so **0015's published `og:url` value,
+`…/who-gets-replaced-first/methodology.html`, stays valid and unchanged**. At
+`true` the file becomes `out/methodology/index.html`, the public URL becomes
+`/methodology/`, and that `og:url` would point at a path the build no longer
+emits — the exact defect 0015 R4 exists to catch, passing a check whose job is
+to catch it.
+
+**Metadata stays per-route**, not hoisted into the layout: the two pages carry
+distinct `og:title`, `og:description` and `og:url` blocks today, so each keeps
+its own `export const metadata`, with only the shared `og:type`/`og:site_name`
+and the fonts in `app/layout.tsx`.
+
 **Acceptance:** `git ls-files` returns nothing for `vite.config.js`,
 `index.html`, `methodology.html`, `src/main.jsx`; `grep -rn "\"vite\"\|@vitejs/plugin-react\|@tailwindcss/vite" package.json`
-is empty; `out/index.html` and `out/methodology/index.html` (or
-`out/methodology.html`) both exist after a build and both contain a rendered
-`<h1>`.
+is empty; `next.config.ts` sets `trailingSlash: false`; and **`out/index.html`
+and `out/methodology.html`** both exist after a build and both contain a
+rendered `<h1>`.
 
 ### R3. [ ] Tailwind v4 moves to PostCSS, and the three font families still reach the browser
 
@@ -130,8 +147,11 @@ request from the critical path. Instrument Serif needs
 **Acceptance:** `postcss.config.mjs` names `@tailwindcss/postcss`; a built CSS
 file under `out/_next/` contains the palette (`grep -rl -- '--accent' out/_next/`
 is non-empty); `ls out/_next/static/media/` lists font files for all **three**
-families; the built `out/index.html` contains **no** `fonts.googleapis.com`
-reference; and the R12 browser walk confirms the rendered `h1` computes to
+families; **both** `out/index.html` **and** `out/methodology.html` contain **no**
+`fonts.googleapis.com` reference — the methodology page carries its own
+`preconnect` pair and its own font `<link>` today, so checking only the index
+would pass while the cross-origin request this change exists to remove was still
+being made; and the R12 browser walk confirms the rendered `h1` computes to
 Instrument Serif rather than a fallback — measured on the page, since that is
 the only place this defect has ever been visible.
 
@@ -199,20 +219,46 @@ app file (demonstrated and the output pasted), and still fails on the four
 
 ### R8. [ ] The built-output checks follow the output directory, and 0015's meta contract survives
 
-`scripts/check-meta.mjs` hardcodes `const DIST = 'dist'` and asserts over built
-files — deliberately, because the defect it guards (a relative `og:image` that
-is correct in source and a 404 in production) exists only after a build. It must
-now read Next's output directory, and the og/twitter tags must still be absolute
-and still point at files that exist. `eslint.config.js` gains `out` and `.next`
-in `globalIgnores` and `.ts`/`.tsx` in `files`.
+`scripts/check-meta.mjs` asserts over built files deliberately — the defect it
+guards (a relative `og:image`, correct in source and a 404 in production) exists
+only after a build. It carries **three** build-shape assumptions, not one:
 
-**Acceptance:** `npm run check:meta` passes against the new output directory and
-**fails** when an `og:image` is made relative (demonstrated, output pasted);
-`npx eslint .` reports 0 errors and lints zero files under `out/` or `.next/`.
+1. `:19` `const DIST = 'dist'` — the output directory.
+2. `:20` `const BASE = 'https://apportico.github.io/who-gets-replaced-first/'`,
+   which every URL-valued `content` is prefix-checked against.
+3. `:51` and `:87` a hardcoded page list, `['index.html', 'methodology.html']`,
+   read by literal filename.
+
+R2 settles `trailingSlash: false`, so the page list stays `index.html` and
+`methodology.html` and **both `og:url` values are unchanged**. That is what makes
+this a path edit rather than a contract change. (`readDist` already fails loudly
+with `not emitted by the build` on a missing file, so a page silently dropping
+out of the list is not a hole.)
+
+`eslint.config.js` needs **three** edits, not two — the middle one is the one
+that turns `verify` red without warning:
+
+1. `:19` `globalIgnores(['**/dist', …])` gains `out` and `.next`.
+2. `:21` `files: ['**/*.{js,jsx}']` gains `ts` and `tsx`.
+3. `:52` `files: ['src/components/ui/**/*.jsx']` — the 0010 R3/R4 block that
+   switches `react-refresh/only-export-components` **off** for the generated
+   shadcn files. After R5 those three files are `.tsx`, the glob matches
+   nothing, the rule comes back on, and lint **errors** on `toggle.tsx`,
+   `toggle-group.tsx` and `accordion.tsx` for exporting `toggleVariants` beside
+   the component. `CLAUDE.md` records that export as the seam R4 tells you to
+   use, so re-enabling the rule is not the fix — the glob is.
+4. `:25` `reactRefresh.configs.vite` → the plugin's `next` config.
+
+**Acceptance:** `npm run check:meta` passes against `out/` and **fails** when an
+`og:image` is made relative (demonstrated, output pasted); it asserts the exact
+`og:url` per page — `…/who-gets-replaced-first/` for `index.html` and
+`…/who-gets-replaced-first/methodology.html` for the methodology page; and
+`npx eslint .` reports **0 errors** with all three `src/components/ui/*.tsx`
+files present, and lints zero files under `out/` or `.next/`.
 
 ### R9. [ ] The 0016 URL contract is carried across byte-identically
 
-The wizard's state stays a query string on the existing path — `?c=GBR&g=3` —
+The wizard's state stays a query string on the existing path — `?step=result&country=GBR&group=3` —
 exactly as 0016 R1 defines it. Next's App Router owns the URL, so the migration
 must not quietly change the serialisation, the cold-load restore, or Back
 walking the steps.
@@ -222,7 +268,7 @@ constraint that forced the query string in the first place. Turning that into
 real paths is **#24's** work, not this spec's.
 
 **Acceptance:** `src/utils/urlState.test.ts` passes unchanged except for its
-import extension; and a manual walk confirms `/?c=GBR&g=3` cold-loads onto the
+import extension; and a manual walk confirms `/?step=result&country=GBR&group=3` cold-loads onto the
 result screen and browser Back returns to step 03, at the deployed base path.
 
 ### R10. [ ] Every existing test still runs, and the ones that read build paths are repointed
@@ -259,11 +305,27 @@ So the full comparison is a unit-level snapshot, not 177 browser walks.
 
 **Acceptance, in two layers:**
 
-1. **All of them.** A snapshot runs `groupFigures` and `laborPanel` over all
-   **177** countries with a series and the **41** without, on `main` and on this
-   branch, emitting figure strings, tier badge strings, per-field years and the
-   absence sentence. The two outputs are **string-equal** — a diff of zero,
-   published in the evaluation comment.
+1. **All of them, through the functions that actually emit each thing.**
+   Naming modules is not enough: `groupShare`/`groupHeadcount` return a state, a
+   figure and a year and **no tier at all**. The tier, the absence sentence and
+   the withholding sentence come from `termsFor` (`terms.js`), and the stand-in
+   notice from `trendFor(...).standIn` (`trend.js`) — which is the one
+   result-screen behaviour `CLAUDE.md` names outright, so a stand-in that stopped
+   saying it is standing in would otherwise pass this acceptance. The snapshot
+   therefore runs, over all **177** countries with a series and the **41**
+   without, on `main` and on this branch:
+
+   | Function | Module | What it contributes |
+   |---|---|---|
+   | `groupShare`, `groupHeadcount` | `groupFigures.js` | the figures and their years |
+   | `termsFor` | `terms.js` | **the tier strings**, the absence sentence, the withholding sentence |
+   | `trendFor` | `trend.js` | the series and **the stand-in flag and its wording** |
+   | `seriesFor` | `laborPanel.js` | the sparkline series and its per-field years |
+   | `classificationNotice` | `classification.js` | the ISCO-88 notice |
+   | `noticeFor` | `urlState.js` | the dropped-parameter notice |
+
+   The two outputs are **string-equal** — a diff of zero, published in the
+   evaluation comment.
 2. **Two of them, end to end.** The rendered result screen for **GBR** (has a
    series) and **NZL** (has none) is captured in a real browser before and
    after, confirming that what layer 1 proves about the functions also holds
@@ -292,7 +354,7 @@ debugging a production build, and what 0016 used for the same reason.
 `/who-gets-replaced-first/` prefix (**not** `next dev`, and not `vite preview`)
 and loads at **375×812** and **1440×900** with **zero console errors**; all four
 wizard steps plus the result screen are walked at both widths; the methodology
-page loads; `/?c=GBR&g=3` cold-loads onto the result screen (R9); and
+page loads; `/?step=result&country=GBR&group=3` cold-loads onto the result screen (R9); and
 screenshots are committed to `.snapshots/0019/` and embedded in the evaluation
 comment.
 
@@ -339,10 +401,21 @@ The wiring is the official template's:
     PAGES_BASE_PATH: ${{ steps.setup_pages.outputs.base_path }}
 ```
 
-**Acceptance:** `deploy.yml` uploads `./out`; its build step carries the
-`PAGES_BASE_PATH` env taken from a `configure-pages` step that has an `id`; and
-`grep -n "PAGES_BASE_PATH" .github/workflows/deploy.yml` returns **two** lines
-(the step output and the env binding). Confirmed end to end by R16.
+**The `configure-pages` step must move above `npm run build`.** Today it runs
+*after* it (`deploy.yml`: build at `:32`, `configure-pages` at `:34`). Adding an
+`id` and an `env:` without reordering satisfies every naming clause while
+`steps.setup_pages.outputs.base_path` — referenced before that step has run —
+expands to the **empty string**. `basePath: ''` is Next's default, so the build
+is green and the site 404s exactly as described above. A grep for a variable name
+cannot tell a wired base path from an empty one, and an empty one is the failure
+mode.
+
+**Acceptance is on the outcome, not the variable name:** `deploy.yml` uploads
+`./out`, and its `configure-pages` step appears **before** the build step
+(asserted by line number, not by presence); and the built
+`out/index.html` references **`/who-gets-replaced-first/_next/`**, not `/_next/`
+— `grep -c 'href="/who-gets-replaced-first/_next/' out/index.html` is non-zero
+and `grep -c '"/_next/' out/index.html` is **0**. Confirmed end to end by R16.
 
 ### R16. [ ] The deployed site renders — checked after the merge
 
@@ -361,6 +434,53 @@ with zero console errors, serves its `_next/` assets with **200**s (checked in
 the network panel, since a stripped or misrouted asset is the failure mode this
 exists for), and the methodology page resolves. The run URL and the result are
 recorded on this requirement.
+
+### R17. [ ] The wizard's boot state survives prerendering, and the boundary is chosen rather than discovered
+
+`WizardShell` reads `location.search` and `navigator.language` in a render-time
+`useMemo` that feeds `useState`. Under static export the build has neither, so
+the prerendered HTML is always the intro and the first client render disagrees
+with it — a hydration mismatch on every URL that carries state, which React
+reports as an error and recovers from by discarding the server HTML for that
+subtree.
+
+**This is the same shape as the two defects the repo already records** — the
+`@import` Tailwind dropped, and the relative `og:image`. Correct in source,
+green in the suite, wrong only in the built artifact. It is also invisible in
+`next dev`, where routes render on demand (probed above), so only a check
+against `out/` can see it.
+
+**The chosen option is `useSearchParams()` under a `Suspense` boundary**, of the
+three the review raised. The other two were rejected on recorded grounds:
+
+| Option | Rejected because |
+|---|---|
+| Restore in `useEffect` | Paints the intro and then corrects it. **0016 R3 explicitly rejected this** — "a visible flash on every shared link". Taking it would need a `[~]` on 0016 R3, not a silent change |
+| `next/dynamic` with `ssr: false` on the wizard | Gives up the prerendered HTML on `/` entirely, which is most of why this migration exists |
+
+**The cost of the chosen option is recorded, not hidden:** the probe says the
+client tree *up to the boundary* is client-rendered, so the boundary's placement
+decides how much static HTML survives. It goes **below** the sticky header and
+progress bar, so the wizard chrome still prerenders and the fallback is the step
+body alone — not a blank page, and not the wrong step painted and corrected.
+There is no option that prerenders the correct stateful screen, because the
+query string does not exist at build time. **#24's real per-country paths are
+what remove the problem** rather than trade against it, which is a further
+argument for this migration and not against it.
+
+**Acceptance, against the built output** — a source-level test cannot see this,
+which is the rule R3 already applies to the fonts:
+
+1. `npm run build` succeeds — proving the Suspense boundary exists, since the
+   probe shows its absence is a **build failure**, not a warning.
+2. `out/index.html` is served by a plain static server under the
+   `/who-gets-replaced-first/` prefix and loaded at
+   `/?step=result&country=GBR&group=3`. The **result screen for GBR** renders,
+   and the console carries **zero** errors and **zero** hydration warnings
+   (`grep`-ed for `hydrat` case-insensitively, since React's wording varies).
+3. The same load with JavaScript disabled shows the prerendered chrome — header,
+   progress bar — confirming the boundary sits below them rather than at the
+   route root.
 
 ## Non-goals
 

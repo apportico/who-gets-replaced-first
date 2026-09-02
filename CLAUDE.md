@@ -333,13 +333,33 @@ from the issue's `## Definition of done` or from `/sdlc 27 /goal <text>`, writte
 to the spec's `**Goal:**` field and tracked with the `/goal` built-in — rather
 than on the merge.
 
-**It still waits on you twice.** Both review phases exit on an `APPROVED`
-decision, and nothing here can produce one: `claude-review.yml` is inert until
-#44, and its prompt reviews without approving. That is the design — the approval
-is the human in this loop — not a limitation to be engineered around. And it
-relaxes nothing above: unprobed sources, unmarked requirements, an untiered
-number or a red `npm run verify` each stop the run rather than being worked
-around.
+**Both review phases exit on an `APPROVED` decision**, and `/sdlc`'s *Whose
+approval counts* is the authority on what produces one. The short version, and
+the two halves pull opposite ways on purpose:
+
+- **A standing review routine's `APPROVED` closes the gate.** For a while this
+  said the approval could only come from a person. That was unworkable rather
+  than strict: `claude-review.yml` is inert until #44, and the routine that does
+  review states in every round that it is not a person — so the only producer of
+  the only signal disclaimed it, and a run could only stall or over-read it. It
+  stalled, three ticks running, on spec 0018. The routine's self-description is
+  **provenance to record** on the spec's `**Reviewed:**` line, not a veto.
+- **An approval covers only the commit it was given on.** `dismiss_stale_reviews`
+  is `false`, so GitHub carries one forward over every later push without anyone
+  reading the new code — on PR #92 that carried two spec-stage approvals over
+  1,717 lines of implementation while reading `APPROVED` / `CLEAN`. `/sdlc` now
+  checks this with `git diff --name-only <approved-sha>..HEAD`, and re-requests
+  rather than merging. This is the half with teeth.
+
+**The consequence, recorded deliberately rather than left emergent:** `main`
+requires one approving review and `enforce_admins` reads `false` (#93), so a
+`/sdlc` run can now merge to `main` with no person having read the diff after the
+invocation. That is the accepted cost of the alternative being a permanent stall.
+Revisit it if #44 lands, or if #93 restores admin enforcement.
+
+It relaxes nothing else above: unprobed sources, unmarked requirements, an
+untiered number or a red `npm run verify` each stop the run rather than being
+worked around.
 
 ### Intent lives in GitHub Issues
 

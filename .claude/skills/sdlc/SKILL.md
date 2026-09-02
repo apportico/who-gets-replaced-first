@@ -213,14 +213,17 @@ suppress its re-schedule, and schedule the `/sdlc` re-entry yourself (Step 11).
 Phase B exits when `gh pr view <pr> --json reviewDecision` is `APPROVED`.
 `CHANGES_REQUESTED` keeps the loop running through `/address-reviews`.
 
-**That approval can only come from a human.** `claude-review.yml` is inert until
-the Claude GitHub App is installed (#44) — its own header says so, and it *passes
-when it skips*, so a green `review` check is not evidence a review ran. Even once
-#44 lands, the workflow's prompt ends "you review; you do not approve". So phase B
-always ends in a wait on a person, and the loop should say which person it is
-waiting on rather than implying it can clear the gate itself. While the App is
-uninstalled, `/review-pr <pr>` is what actually puts findings on the PR — run it
-once on entering phase B so the human has something to react to.
+**Read *Whose approval counts* (Step 9) before deciding what clears this.** It
+governs phase B exactly as it governs phase G — same signal, and phase B is the
+*first* place a run meets a routine's approval, so a loop that stalls here never
+reaches the section that resolves it.
+
+`claude-review.yml` is inert until the Claude GitHub App is installed (#44) — its
+own header says so, and it *passes when it skips*, so a green `review` check is
+not evidence a review ran. Even once #44 lands, the workflow's prompt ends "you
+review; you do not approve". While the App is uninstalled, `/review-pr <pr>` is
+what actually puts findings on the PR — run it once on entering phase B so there
+is something to react to.
 
 ## Step 5 (Phase C) — Approve the spec
 
@@ -369,10 +372,20 @@ Merge only when **all** of these hold — check them, do not assume:
 
 ```bash
 gh pr view <pr> --json reviewDecision,mergeable,statusCheckRollup
+
+# ...and, for condition 1, the commit the approval was actually given on —
+# `--json reviewDecision` does not carry it.
+gh api repos/<owner>/<repo>/pulls/<pr>/reviews \
+  --jq 'map(select(.state == "APPROVED")) | last | {commit_id, user: .user.login}'
 ```
 
-1. `reviewDecision` is `APPROVED`, **on a review whose `commit_id` is at or
-   after the last substantive commit** — see *Whose approval counts* below.
+`gh pr view <pr> --json reviews` also carries it, as `.commit.oid` rather than
+`commit_id` — probed 2026-09-02, both forms return the same SHA. Either is fine;
+the REST one is written out because its field name matches condition 1.
+
+1. `reviewDecision` is `APPROVED`, **on a review whose commit covers the code
+   being merged** — see *Whose approval counts* below for the command that
+   checks it.
 2. Every check in `statusCheckRollup` is green (`verify` is a required check).
 3. No requirement in the spec is still `[ ]`.
 4. Every clause of the goal contract is met, with the evidence named.
@@ -397,9 +410,23 @@ Two things follow, and they pull in opposite directions on purpose:
   is `false` on `main`, so GitHub carries an approval forward over every
   subsequent push, mechanically and without anyone reading the new code. An
   approval given on a spec-only commit does **not** authorise merging the
-  implementation that landed after it. Check `commit_id` on the approving review
-  against the diff since: if code the approval never saw is in the merge, push a
-  re-review request and keep looping rather than merging on it.
+  implementation that landed after it.
+
+  **Check it with a command, not a judgment.** "Substantive" left to the loop is
+  worthless: this skill *manufactures* the ambiguous case, since Step 7 pushes
+  `.snapshots/<NNNN>/*.png` after the evaluation, so a PNG commit routinely lands
+  after the review that approved the code.
+
+  ```bash
+  # code the approving review never saw, ignoring evaluation snapshots
+  git diff --name-only <commit_id>..HEAD -- . ':(exclude).snapshots/'
+  ```
+
+  Empty output → the approval covers `HEAD` and condition 1 holds. Any path →
+  request a re-review (`POST repos/<owner>/<repo>/pulls/<pr>/requested_reviewers`)
+  and keep looping. **`.snapshots/` is the only exception**, because it is the
+  only thing the loop itself commits after a review; adding to that list is a
+  change to this file, not a call made per PR.
 
 The second rule is the one with teeth. It is also the one a green
 `reviewDecision: APPROVED` will happily hide from you, so check it explicitly.

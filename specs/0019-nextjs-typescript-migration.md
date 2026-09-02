@@ -154,12 +154,23 @@ built CSS is where the family names actually are.
 
 **Acceptance:** `postcss.config.mjs` names `@tailwindcss/postcss`; a built CSS
 file under `out/_next/` contains the palette (`grep -rl -- '--accent' out/_next/`
-is non-empty); the built CSS carries an `@font-face` block whose `font-family`
-matches **each of the three families** and a non-zero count of `src:` entries,
-plus the `--font-*` variables `app/layout.tsx` declares — so a family that
-silently failed to load fails a grep rather than a headcount of hashes
-(**the exact generated `font-family` string is confirmed from one real build
-before the pattern is frozen**, rather than guessed); **both** `out/index.html` **and** `out/methodology.html` contain **no**
+is non-empty); for **each of the three families**, the built CSS carries an
+`@font-face` block whose `font-family` matches the family **and is not the
+adjusted metric fallback** — `next/font/google` emits *two* faces per family,
+the real one and a `__<Family>_Fallback_<hash>` whose `src` is `local("Arial")`
+with `ascent-override`/`size-adjust`, and that fallback block matches a naive
+family-name grep and carries a `src:` all by itself. So the match must **exclude
+names containing `_Fallback_`**, and its `src:` must reference an emitted
+`/_next/static/media/` URL rather than `local(...)`. The second clause is the
+one that actually separates *self-hosted* from *not*, which is the whole reason
+R3 moves to `next/font`. Plus the `--font-*` variables `app/layout.tsx`
+declares. **Both generated strings — the real face and the fallback face — are
+confirmed from one real build before the pattern is frozen**, rather than
+guessed.
+
+This grep is load-bearing beyond its size: R12's computed-style check backstops
+**Instrument Serif only**, so Geist and Geist Mono have no end-to-end check
+anywhere else in this spec and rest on this clause alone. Acceptance continues: **both** `out/index.html` **and** `out/methodology.html` contain **no**
 `fonts.googleapis.com` reference — the methodology page carries its own
 `preconnect` pair and its own font `<link>` today, so checking only the index
 would pass while the cross-origin request this change exists to remove was still
@@ -261,14 +272,24 @@ acceptance:
    `toggle-group.tsx` and `accordion.tsx` for exporting `toggleVariants` beside
    the component. `CLAUDE.md` records that export as the seam R4 tells you to
    use, so re-enabling the rule is not the fix — the glob is.
-4. `:25` `reactRefresh.configs.vite` → the plugin's `next` config.
+4. `:25` `reactRefresh.configs.vite` → the plugin's `next` config. **This one
+   needs its own clause, because the gate cannot catch it.** Verified in
+   `node_modules/eslint-plugin-react-refresh/index.js`: the `vite` config sets
+   `baseOptions: { allowConstantExport: true }`, which permits `export const
+   metadata` and `export const dynamic`. So R2's per-route metadata exports
+   would **not** trip `only-export-components` under the wrong config — leaving
+   `.vite` in place is *silent*, not red, and `npx eslint .` passing proves
+   nothing about it. It also currently falls between R8 and R14 rather than
+   inside either: R14's acceptance greps `CLAUDE.md` only.
 
 **Acceptance:** `npm run check:meta` passes against `out/` and **fails** when an
 `og:image` is made relative (demonstrated, output pasted); it asserts the exact
 `og:url` per page — `…/who-gets-replaced-first/` for `index.html` and
 `…/who-gets-replaced-first/methodology.html` for the methodology page; and
 `npx eslint .` reports **0 errors** with all three `src/components/ui/*.tsx`
-files present, and lints zero files under `out/` or `.next/`.
+files present, and lints zero files under `out/` or `.next/`; and
+**`grep -c "configs.vite" eslint.config.js` returns `0`** — the same grep shape
+R14 uses for `@tailwindcss/vite`, and the only thing that can catch edit 4.
 
 ### R9. [ ] The 0016 URL contract is carried across byte-identically
 
@@ -502,6 +523,42 @@ So `WizardShell` splits on what depends on the URL:
 | The pulsing live dot | The `NN/04` counter (`:304`) |
 | "The Replacement Date" | The segment **fills** (`:316`, `i <= shown`) |
 | The `<header>` frame and the four segment **tracks** | The step body |
+
+**The composition that delivers that table is one island with a static
+fallback, not three sibling islands.** The table states an outcome, and two
+shapes produce it:
+
+| Shape | Verdict |
+|---|---|
+| **Three client islands as siblings** — `<Suspense><StepCounter/></Suspense>` and `<Suspense><SegmentFills/></Suspense>` inside a server `<header>`, `<Suspense><WizardBody/></Suspense>` outside it | **Rejected.** Three separate URL readers, and it breaks the single navigation seam `WizardShell`'s own header comment records for 0016 R10. It also walks into the `pushState` problem below |
+| **One island, static fallback** — `<Suspense fallback={<WizardChrome/>}><WizardShell/></Suspense>` | **Chosen.** The probed row already says the prerendered HTML for the subtree *is the fallback*, so `WizardChrome` — dot, title, header frame, four tracks — is what lands in `out/index.html`. One seam, unchanged from 0016 R10 |
+
+Passing the chrome as `children` into the client component is **not** a third
+option: on a prerender the boundary emits its fallback for the whole subtree,
+and server-rendered children in slots inside that subtree go with it.
+
+**Why the chosen shape also disposes of the `pushState` question.** `WizardShell`
+writes history itself — `:107` `pushState`, `:108` `replaceState`, with a
+`popstate` listener at `:145` — rather than navigating through the router, and
+`useSearchParams` tracks router state, not raw `history` calls. Under three
+islands that is fatal: three readers that never see the wizard's own writes.
+Under one island it is **moot**, because `useSearchParams` is read *once, at
+mount, for `boot` only*; every later transition stays on today's `useState` +
+`history` + `popstate` path, untouched. That is the argument for this shape over
+the sibling one, and it is why no new probe is needed to choose it.
+
+**The cost of the chosen shape, recorded:** `WizardChrome` renders the static
+header a second time, so it can drift from the real header. Closed by a test
+asserting the two produce the same static markup, rather than by care.
+
+**And the residue of the prerendered frame, recorded because it is real:**
+`shown` is `Math.max(step, 1)` (`:248`), so at step 0 segment 1 is *already*
+filled and the running app **never paints four unfilled tracks**. Acceptance 3's
+prerendered state is therefore a frame the app itself never shows, corrected on
+hydration. That is much milder than the wrong step painted and corrected — it is
+one segment's worth of fill appearing, not a whole screen changing — and it is
+the accepted price of a prerendered shell. It is written down here rather than
+left to be discovered.
 
 The tracks render unfilled above the seam; only their `background` is
 step-derived, so the layout is static and the fill is not. There is no option

@@ -1,6 +1,6 @@
 # 0019 — nextjs-typescript-migration
 
-**Status:** draft
+**Status:** in-review
 **Depends on:** 0007 (the pipeline's schema types, which the app adopts), 0010,
 0012, 0015, 0016 (the wizard, the desktop layout, the meta contract and the URL
 contract this migration must carry across unchanged)
@@ -58,6 +58,9 @@ table below.
 | Build entry points | `cat vite.config.js` 2026-09-02 | **Two** HTML inputs, not one: `index.html` and `methodology.html` (0015 R2, a real page with a real URL). Both become App Router routes |
 | The `verify` gate | `cat scripts/verify.sh` 2026-09-02 | **Ten** steps. Three carry build-shape assumptions the migration breaks: `build` is `vite build`; `check:meta` hardcodes `const DIST = 'dist'` and asserts over **built** files; `lint` runs `eslint.config.js` whose `globalIgnores(['**/dist', …])` and `files: ['**/*.{js,jsx}']` name neither `out/`, `.next/`, nor `.ts`/`.tsx` |
 | `pipeline/schema.ts` | `grep '^export'` 2026-09-02 | Exports `Tier`, `FieldTier`, `Measured<T>`, `Vintage<T>`, the `Int` brand, `DatasetRow`, `TIERS`, `NOT_A_MEASUREMENT`, `isIntColumn`. These are the types #22 asks the app to adopt, and they already exist |
+| `scripts/desktop-measure.mjs` (0012 R6) | `grep` 2026-09-02 | Line 38: `const URL_ = process.env.APP_URL \|\| 'http://localhost:5173/'` — a **Vite** default port, and the file's header comment tells the operator to pass `APP_URL` explicitly because Vite falls through to the next free port. R10 must repoint the default; the `APP_URL` override already exists, so nothing else in 0012's measurement contract moves. Requires `playwright-core` installed `--no-save` |
+| Repo-wide `vite` / `dist` / `5173` references | `grep` over `*.md *.mjs *.yml *.js *.json *.sh`, excluding `node_modules`, `specs/`, `.snapshots/` 2026-09-02 | **Nine live references outside the specs**, all of which R14 or R8 must move: `package.json` ×5 (`dev`, `build`, `preview`, `@tailwindcss/vite`, `vite`), `eslint.config.js` ×2 (`globalIgnores(['**/dist', …])`, `reactRefresh.configs.vite`), `CLAUDE.md` ×3 (`@tailwindcss/vite` at :215, `localhost:5173` at :417, `vite preview` at :491). Historical mentions inside `specs/0006`, `0008`, `0011` and `0016` are **records of past probes and stay as they are** |
+| The committed payloads R11 compares | `du -sh` + `git ls-files` 2026-09-02 | `src/data/global_labor.json` 600K, `global_labor_timeseries.json` 320K, `backtest.json` 76K, and `src/data/crosstabs/` — **218** per-country files, 1.7M. All are static JSON imported by the app; none is generated at app-build time. This is what makes R11's before/after string-equality check meaningful: the inputs are byte-identical across the migration by construction, so any moved figure is the migration's doing |
 
 ### The decision this spec had to settle first
 

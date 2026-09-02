@@ -1,6 +1,6 @@
 # 0018 — workflow enforcement hooks
 
-**Status:** draft
+**Status:** in-review
 **Depends on:** 0003 (wrote `.claude/settings.json` in the verified shape and
 deliberately left the `hooks` block out until this spec — see its R4 and its
 "Practices deliberately declined"), 0005 (made `verify` a required check, which

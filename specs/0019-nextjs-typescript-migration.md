@@ -317,7 +317,7 @@ converted files were never read by the compiler — the half of R5 with teeth.
 They now have their own project, `tsconfig.test.json`, run by `npm run typecheck`
 alongside the app and the pipeline. It found **196 errors**, now 0.
 
-**Two of them were real bugs in production signatures**, not test noise:
+**Three of them were real defects**, not test noise:
 
 - `encode(state: WizardState)` — the body is `{ ...EMPTY, ...state }`, so a
   caller passing `{ step: 0 }` is doing exactly what the function is for. The
@@ -325,6 +325,28 @@ alongside the app and the pipeline. It found **196 errors**, now 0.
   `Partial<WizardState>`.
 - `renderedCountries(rows, query, selectedIso3, opts?)` — `selectedIso3` is
   optional, as the suite's own two-argument call shows.
+- **`g.number` in `shareCard.test.ts`, and this is the largest of the three.**
+  It reads as a rename; it is not. `GROUPS` has never had a `number` field —
+  `isco.ts` maps to `{n, key, label, short}`, checked at `4821383` — so since
+  0015 merged, every one of the 1,962 entries in `everyCell` was
+  `[row, undefined]`. What that cost lands on **Pass 1**, not on the harness:
+  `groupShare(row, undefined)` and `groupHeadcount(row, undefined)` both resolve
+  `groupByNumber(undefined)` to null, return `NOT_PUBLISHED` and are **dropped**
+  by `figure()`. So *"no figure on any card is drawn without a tier"* only ever
+  saw the **trend** figure — the share and the headcount, the two the rule is
+  actually about, were never in the sweep. Same for the tier-vocabulary check
+  and both R7 year-token sweeps. And `trendFor(iso3, undefined)` returns
+  `standIn: true` because `undefined !== CLERICAL_GROUP`, so every cell was a
+  nominal stand-in and the `group === 4` skip never fired once.
+
+  The suite was green throughout. A non-vacuity assertion now stands where it
+  would have failed for the whole life of the typo: the cells must carry real
+  ISCO numbers, and the sweep must produce all three figure kinds rather than
+  the trend alone.
+
+  **This defect is 0015's, not this spec's.** 0015 R6 and R7 are marked `[x]` on
+  those sweeps, and correcting that mark belongs on 0015 —
+  [#97](https://github.com/apportico/who-gets-replaced-first/issues/97).
 
 **Done (2026-09-02).** `git ls-files 'src/**/*.js' 'src/**/*.jsx' 'app/**/*.js'
 'app/**/*.jsx'` → **empty**. `tsconfig.json` has `"strict": true`.

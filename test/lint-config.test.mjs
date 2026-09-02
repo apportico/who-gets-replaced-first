@@ -18,7 +18,6 @@ import assert from 'node:assert/strict';
 
 import config from '../eslint.config.js';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 
 test('R9 — the .mjs scripts and suite are inside a lint config block', () => {
   // `defineConfig` expands each `extends` into its own block but carries
@@ -68,40 +67,46 @@ test('R9 — that block gives the .mjs files their Node globals', () => {
 test('0019 R5 — no tracked test file escapes every tsconfig project', () => {
   const tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
     .split('\n')
-    .filter((f) => /\.test\.(ts|tsx)$/.test(f))
+    .filter((f) => /\.test\.(ts|tsx)$/.test(f));
 
-  assert.ok(tracked.length > 0, 'found no tracked .test.ts/.tsx files at all')
+  assert.ok(tracked.length > 0, 'found no tracked .test.ts/.tsx files at all');
 
-  // `pipeline/tsconfig.json` owns its own tests; everything else must be
-  // reachable from tsconfig.test.json's include globs.
-  const app = tracked.filter((f) => !f.startsWith('pipeline/'))
-  const cfg = JSON.parse(
-    readFileSync('tsconfig.test.json', 'utf8').replace(/^\s*\/\/.*$/gm, ''),
-  )
-  // Translate each include glob to a regex. The `**/` substitution has to be
-  // parked behind a sentinel first: replacing it with `(?:.*/)?` and THEN
-  // replacing every `*` rewrites the `*` inside that very output, which
-  // silently turns `**/*.test.ts` into a pattern matching nothing. Found by
-  // this assertion failing on all seven files it was written to accept —
-  // which is the assertion doing its job on its own implementation.
-  const SENTINEL = '\u0000'
-  const globs = cfg.include.map((g) =>
-    new RegExp(
-      '^' +
-        g
-          .replace(/\*\*\//g, SENTINEL)
-          .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-          .replace(/\*/g, '[^/]*')
-          .split(SENTINEL)
-          .join('(?:.*/)?') +
-        '$',
-    ),
-  )
+  // Ask the COMPILER which files each project resolves to, rather than
+  // reimplementing include/exclude here.
+  //
+  // The first version matched the `include` globs by hand and ignored
+  // `exclude`, so a file that matched an include and was then knocked out by an
+  // exclude counted as covered when it was covered by nothing. That is live
+  // rather than hypothetical: `tsconfig.test.json` excludes `scripts` and the
+  // root config excludes every `*.test.ts{,x}`, so `scripts/x.test.ts` would
+  // type-check in neither project and still pass — reproducing the exact
+  // failure this test exists to prevent, through the field it did not read.
+  //
+  // `--listFilesOnly` prints the resolved file set without running a check, so
+  // it cannot drift from what `npm run typecheck` actually reads.
+  // (`--showConfig` was the first attempt and does not work here: it echoes
+  // `files` only when a config sets it explicitly, and all three use `include`.)
+  const root = process.cwd() + '/';
+  const resolved = (project) =>
+    execFileSync('npx', ['tsc', '-p', project, '--listFilesOnly'], {
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
+    })
+      .split('\n')
+      .map((f) => f.trim())
+      .filter(Boolean)
+      .map((f) => (f.startsWith(root) ? f.slice(root.length) : f));
 
-  const orphans = app.filter((f) => !globs.some((re) => re.test(f)))
+  const covered = new Set([
+    ...resolved('tsconfig.json'),
+    ...resolved('tsconfig.test.json'),
+    ...resolved('pipeline/tsconfig.json'),
+  ]);
+
+  const orphans = tracked.filter((f) => !covered.has(f));
   assert.deepEqual(
     orphans,
     [],
-    `these test files type-check in no project:\n  ${orphans.join('\n  ')}`,
-  )
-})
+    `these test files type-check in no tsconfig project:\n  ${orphans.join('\n  ')}`,
+  );
+});

@@ -14,10 +14,24 @@
 // `readonly` because nothing downstream mutates the dataset; the tests that
 // wanted a mutable array were describing their own convenience, not a need.
 import raw from './global_labor.json'
-import type { LaborRow, FieldTiers } from '@/types'
+import type { LaborPayload } from '@/types'
+
+// ONE assertion, against the type that already models the whole payload.
+//
+// An earlier version asserted twice — once for `rows`, once for `field_tiers` —
+// which is two double casts in the module written to have one, and left
+// `LaborPayload` referenced by nothing. Asserting the whole object once gives a
+// single cast, states the shape in exactly one place, and makes that type
+// load-bearing rather than decorative.
+//
+// There is deliberately NO default export. Re-exporting `raw` would hand a
+// fifth call site the unasserted JSON from the module whose whole purpose is
+// that the assertion happens here — a way back around the boundary, which is
+// what consolidating was for.
+const payload = raw as unknown as LaborPayload
 
 /** Every row the pipeline emitted — countries, aggregates and groups. */
-export const rows = raw.rows as unknown as readonly LaborRow[]
+export const rows = payload.rows
 
 /**
  * The payload's tier registry.
@@ -26,6 +40,4 @@ export const rows = raw.rows as unknown as readonly LaborRow[]
  * is no default tier and there never can be: a field with no entry has no tier
  * (CLAUDE.md's first rule, and 0019 R6's).
  */
-export const fieldTiers = raw.field_tiers as unknown as FieldTiers
-
-export default raw
+export const fieldTiers = payload.field_tiers

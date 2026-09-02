@@ -144,10 +144,22 @@ of re-checking it, and removes the two `preconnect`s and a render-blocking
 request from the critical path. Instrument Serif needs
 `style: ['normal', 'italic']` — italic is the emphasis device in the headline.
 
+**The font check is on the emitted CSS, not on a directory listing.**
+`ls out/_next/static/media/` has no pass condition: `next/font` specifies its
+contract as `className`, `style.fontFamily` and `variable` and promises nothing
+about filenames, which are build-generated hashes rather than family-named. Nor
+is the expected count three — Instrument Serif at `style: ['normal', 'italic']`
+is more than one file by itself, and subsetting moves the number again. The
+built CSS is where the family names actually are.
+
 **Acceptance:** `postcss.config.mjs` names `@tailwindcss/postcss`; a built CSS
 file under `out/_next/` contains the palette (`grep -rl -- '--accent' out/_next/`
-is non-empty); `ls out/_next/static/media/` lists font files for all **three**
-families; **both** `out/index.html` **and** `out/methodology.html` contain **no**
+is non-empty); the built CSS carries an `@font-face` block whose `font-family`
+matches **each of the three families** and a non-zero count of `src:` entries,
+plus the `--font-*` variables `app/layout.tsx` declares — so a family that
+silently failed to load fails a grep rather than a headcount of hashes
+(**the exact generated `font-family` string is confirmed from one real build
+before the pattern is frozen**, rather than guessed); **both** `out/index.html` **and** `out/methodology.html` contain **no**
 `fonts.googleapis.com` reference — the methodology page carries its own
 `preconnect` pair and its own font `<link>` today, so checking only the index
 would pass while the cross-origin request this change exists to remove was still
@@ -235,8 +247,10 @@ this a path edit rather than a contract change. (`readDist` already fails loudly
 with `not emitted by the build` on a missing file, so a page silently dropping
 out of the list is not a hole.)
 
-`eslint.config.js` needs **three** edits, not two — the middle one is the one
-that turns `verify` red without warning:
+`eslint.config.js` needs **four** edits, not two. The third is the one that turns
+`verify` red without warning, and the fourth is the one a "three edits, all done"
+reading drops — it is the only item here with no clause of its own in the
+acceptance:
 
 1. `:19` `globalIgnores(['**/dist', …])` gains `out` and `.next`.
 2. `:21` `files: ['**/*.{js,jsx}']` gains `ts` and `tsx`.
@@ -285,11 +299,19 @@ see the defect it is there to catch. This is the same shape as the null-mask
 problem CLAUDE.md records for the pipeline: a count invariant to the thing being
 counted for.
 
+**Subset, not equality — deliberately.** Strict set equality would forbid this
+PR from adding a single test case, and it should not: R11 layer 1 may well land
+as a committed snapshot test rather than a throwaway script, and R17's hydration
+check may reasonably leave one behind. Both would then fail this criterion on
+the spec's own evidence. Subset keeps what R10 exists for, because a converted
+file that silently drops assertions still **removes** a name from the set.
+
 **Acceptance:** `npx vitest run --reporter=json` is captured on `main` and on
-this branch; the **set of full test names** is equal across the two — set
-equality, not size — and the diff is published in the evaluation comment. 0
-failures. `npm run test:app`, `npm run test:pipeline` and `npm run test:hooks`
-are untouched and green.
+this branch; **`main`'s set of full test names is a subset of this branch's** —
+no name may disappear — and **every addition is named and justified** in the
+evaluation comment. Both sets and the diff are published there. 0 failures.
+`npm run test:app`, `npm run test:pipeline` and `npm run test:hooks` are
+untouched and green.
 
 ### R11. [ ] The data surface is identical before and after — same figures, same tiers, same vintages
 
@@ -460,13 +482,33 @@ three the review raised. The other two were rejected on recorded grounds:
 
 **The cost of the chosen option is recorded, not hidden:** the probe says the
 client tree *up to the boundary* is client-rendered, so the boundary's placement
-decides how much static HTML survives. It goes **below** the sticky header and
-progress bar, so the wizard chrome still prerenders and the fallback is the step
-body alone — not a blank page, and not the wrong step painted and corrected.
-There is no option that prerenders the correct stateful screen, because the
-query string does not exist at build time. **#24's real per-country paths are
-what remove the problem** rather than trade against it, which is a further
-argument for this migration and not against it.
+decides how much static HTML survives.
+
+**The seam is the data seam, not the visual one.** "Below the sticky header" is
+the wrong instruction, because the header is itself URL-derived:
+`WizardShell.jsx:248` computes `const shown = Math.max(step, 1)` from
+`state.step`, and both uses are **inside** the `<header>` (`:272`–`:322`) — the
+`NN/04` counter at `:304` and the segment fill at `:316`. Placing the boundary
+below the whole header therefore gives an impossible pair: either
+`useSearchParams` is called above it, the closest boundary is effectively the
+route root and *nothing* prerenders; or the chrome prerenders `01/04` with one
+segment filled for **every** URL and hydration corrects it — the wrong step
+painted and corrected, which is what this option was chosen to avoid.
+
+So `WizardShell` splits on what depends on the URL:
+
+| Above the boundary — prerendered | Below the boundary — client-rendered |
+|---|---|
+| The pulsing live dot | The `NN/04` counter (`:304`) |
+| "The Replacement Date" | The segment **fills** (`:316`, `i <= shown`) |
+| The `<header>` frame and the four segment **tracks** | The step body |
+
+The tracks render unfilled above the seam; only their `background` is
+step-derived, so the layout is static and the fill is not. There is no option
+that prerenders the correct stateful screen, because the query string does not
+exist at build time. **#24's real per-country paths are what remove the problem**
+rather than trade against it, which is a further argument for this migration and
+not against it.
 
 **Acceptance, against the built output** — a source-level test cannot see this,
 which is the rule R3 already applies to the fonts:
@@ -478,9 +520,12 @@ which is the rule R3 already applies to the fonts:
    `/?step=result&country=GBR&group=3`. The **result screen for GBR** renders,
    and the console carries **zero** errors and **zero** hydration warnings
    (`grep`-ed for `hydrat` case-insensitively, since React's wording varies).
-3. The same load with JavaScript disabled shows the prerendered chrome — header,
-   progress bar — confirming the boundary sits below them rather than at the
-   route root.
+3. The same URL loaded **with JavaScript disabled** shows the live dot, "The
+   Replacement Date" and **four unfilled segment tracks** — proving the seam is
+   not at the route root. It must show **no `NN/04` counter at all**; a counter
+   reading `01/04` on a `?step=result` URL means the seam was cut above the
+   step-derived chrome and the mismatch in (2) is only being masked by
+   hydration finishing quickly.
 
 ## Non-goals
 

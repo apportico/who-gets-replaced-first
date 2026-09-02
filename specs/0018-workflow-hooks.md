@@ -1,11 +1,17 @@
 # 0018 — workflow enforcement hooks
 
-**Status:** in-review
+**Status:** in-progress
 **Depends on:** 0003 (wrote `.claude/settings.json` in the verified shape and
 deliberately left the `hooks` block out until this spec — see its R4 and its
 "Practices deliberately declined"), 0005 (made `verify` a required check, which
 is what R2 and R4 enforce locally)
 **Issue:** [#4](https://github.com/apportico/who-gets-replaced-first/issues/4)
+**Approved:** Dani (@syymza), 2026-09-02, as a GitHub review on PR
+[#92](https://github.com/apportico/who-gets-replaced-first/pull/92) —
+[round 3](https://github.com/apportico/who-gets-replaced-first/pull/92#pullrequestreview-5086784465),
+after two rounds that found the same defect class both times: a requirement
+disagreeing with a probe recorded in the same file. Four non-blocking FYIs from
+that review are folded in below rather than deferred.
 **Goal:** The workflow rules stop being advisory. Checked as:
 
 Clauses 2–5 are scoped to **a Bash command issued by a Claude Code session in
@@ -190,11 +196,17 @@ not `README.md` or `TEMPLATE.md`, it requires:
    `### R<n>. [<mark>] <text>` with `<mark>` one of ` `, `x`, `!`, `~`.
 
 **Check 4 is scoped by section, not by pattern.** A requirement heading is any
-`### R…` between the `## Requirements` heading and the next `##`-level heading;
+`### R` **followed by a digit** between the `## Requirements` heading and the
+next `##`-level heading;
 every one inside that window must be well-formed, and `### R…` outside it is not
 a requirement heading at all. The probed lookalikes (`### R8 \`[~]\` — the
 count…`, `### R3 / R4 / R5 — the cmp transcript`) live in Implementation Plan
-sections and are therefore silent by construction. Scoping by pattern instead —
+sections and are therefore silent by construction. The digit is what keeps an
+R-word subsection — `### Rationale`, `### Rollback`, or this spec's own
+`### Common to all four hooks`'s neighbours — from being denied as a malformed
+requirement heading; that is the false-positive direction this requirement is
+otherwise careful about, and it would be the one that gets the hook disabled.
+Scoping by pattern instead —
 matching only `^### R\d+\.` and ignoring the rest — would *skip* a malformed
 `### R2 [x]` rather than reject it, so the check would pass on the exact defect
 it exists to catch.
@@ -222,8 +234,10 @@ Plus the wrong-cwd case: a payload whose `cwd` is outside the repository, with
 `CLAUDE_PROJECT_DIR` pointing at a stub repo that has a malformed spec staged →
 deny. Anchored on `cwd` this case returns an empty index and is byte-identical
 to the conforming case, so it is the one that proves the anchor.
-Plus a **corpus** case in both directions: the validator **passes** all 15
-conforming committed specs, and **rejects** `0001` (status `complete`) and
+Plus a **corpus** case in both directions: the validator **passes** every
+committed spec under `specs/` except `0001` and `0002` — enumerated at run time,
+never a hard-coded count, which goes stale the moment a spec is added — and
+**rejects** `0001` (status `complete`) and
 `0002` (no `**Status:**`, no *Source verification*). Rejecting them is the
 direct evidence that staged-only scoping is load-bearing rather than
 incidental — neither is ever staged, so neither is ever checked in anger.
@@ -275,7 +289,7 @@ asserts: the file parses as JSON; every hook `command` resolves to a file that
 exists on disk; every hook carries a `timeout`; and R2's hook has `timeout >= 120`
 **and strictly greater than that hook's own internal deadline**.
 
-Two things this requirement has to pin down, because neither assertion is
+Three things this requirement has to pin down, because the assertions are not
 implementable until it does:
 
 - **The relationship, not a floor.** R2's fail-closed behaviour depends on the
@@ -368,7 +382,7 @@ which is the same defect as a tier badge that renders whatever it is handed.
 
 ### R8. [ ] One shared module, not four copies of the same parser
 
-`.claude/hooks/lib.mjs` carries the three things every hook needs, and each hook
+`.claude/hooks/lib.mjs` carries the four things every hook needs, and each hook
 imports rather than re-implements:
 
 1. **Reading the payload** — parse stdin, return `tool_input.command` and
@@ -395,8 +409,40 @@ its own re-implementation of command splitting and fails if one appears, the sam
 shape as `wizard.render.test.jsx`'s import guard. `runsCommand` cases:
 `git commit -m x` → true; `git add -A && git commit -m x` → true;
 `cd foo; git commit` → true; `FOO=bar git commit` → true;
-`echo "git commit"` → **false** (a quoted mention is not an invocation);
-`git commit-tree` → **false**; `git log --oneline` → false.
+`git -C some/path commit -m x` → **true** — a substring match on `git commit`
+returns false here, which is exactly the silent under-match R8 exists to
+prevent; `echo "git commit"` → **false** (a quoted mention is not an
+invocation); `git commit-tree` → **false**; `git log --oneline` → false.
+
+
+## Implementation Plan
+
+Sequence order. R8 is first because R1–R4 import it — building a hook before the
+shared module means writing the parser twice, which is the defect R8 exists to
+prevent.
+
+| Step | Requirement | Files |
+|---|---|---|
+| 1 | R8 | `.claude/hooks/lib.mjs` — `readPayload`, `runsCommand`, `repoRoot`, `deny` |
+| 2 | R1 | `.claude/hooks/no-main.mjs` |
+| 3 | R3 | `.claude/hooks/spec-format.mjs` |
+| 4 | R2 | `.claude/hooks/pre-push-verify.mjs` (exports `DEADLINE_MS`) |
+| 5 | R4 | `.claude/hooks/pre-merge-verify.mjs` |
+| 6 | R5 | `.claude/settings.json` hooks block; `scripts/check-settings.mjs` |
+| 7 | R6 | `.claude/hooks/tests/hooks.test.mjs`; `package.json` `test:hooks`; `scripts/verify.sh` |
+| 8 | R7 | `.claude/hooks/README.md`; `CLAUDE.md` *Workflow hooks* |
+
+Notes that bind the build:
+
+- Every hook is `node` with **zero dependencies**, reading stdin, writing at most
+  one JSON object to stdout, always exiting 0. Exit 2 is available but unused —
+  one deny path is easier to test than two.
+- Silence is the default. Any unexpected state (unparseable payload, `git` not
+  found, a repo root that does not resolve) exits silently rather than denying,
+  **except** where a requirement says otherwise: R2 on timeout and R4 on a failed
+  `gh` call both deny, because there the absence of an answer is the risk.
+- The test suite stubs `git`, `gh` and `npm` by prepending a fixture directory to
+  `PATH`. Nothing in it touches the network, `pipeline/raw/`, or the real repo.
 
 ## Non-goals
 

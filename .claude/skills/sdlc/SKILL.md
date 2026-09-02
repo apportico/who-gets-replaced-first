@@ -356,6 +356,12 @@ Two things to watch that phase B does not have:
 - **A review finding that contradicts the spec.** REVIEW.md puts re-litigating a
   decision the spec already records out of scope. Reply with the spec reference
   and the requirement ID; do not silently rebuild to match the comment.
+- **A standing `CHANGES_REQUESTED` with every thread resolved.** GitHub keeps
+  `reviewDecision: CHANGES_REQUESTED` until a *new* approving review lands, so a
+  PR whose findings are all answered still reads as blocked. Push the fixes,
+  reply on each thread, resolve them, then `POST
+  repos/<owner>/<repo>/pulls/<pr>/requested_reviewers` and let the next tick pick
+  the re-review up. Do not read the stale decision as a reason to stop.
 
 ## Step 9 (Phase G) — Merge and close out
 
@@ -365,11 +371,38 @@ Merge only when **all** of these hold — check them, do not assume:
 gh pr view <pr> --json reviewDecision,mergeable,statusCheckRollup
 ```
 
-1. `reviewDecision` is `APPROVED`.
-2. Every check in `statusCheckRollup` is green (`verify` is a required check and
-   `enforce_admins` is true — there is no merging around it).
+1. `reviewDecision` is `APPROVED`, **on a review whose `commit_id` is at or
+   after the last substantive commit** — see *Whose approval counts* below.
+2. Every check in `statusCheckRollup` is green (`verify` is a required check).
 3. No requirement in the spec is still `[ ]`.
 4. Every clause of the goal contract is met, with the evidence named.
+
+### Whose approval counts
+
+**Do not wait for the user to say "merge".** They typed `/sdlc <ticket>`; that
+*is* the human authorising this run to reach its end. Stopping at a green,
+complete, approved PR to ask permission is the one thing this skill exists to
+avoid, and it is not made acceptable by phrasing it as an unblocker.
+
+Two things follow, and they pull in opposite directions on purpose:
+
+- **A review routine's `APPROVED` satisfies condition 1.** This project's
+  reviewer posts under a person's account and says in every review that it is a
+  routine rather than a person, and that its approval should not be read as the
+  human gate. Take that as provenance worth recording — note it on the
+  `**Approved:**` line — not as a veto. Otherwise the loop can never finish by
+  its own rules: the only reviewer disclaims the only signal Step 9 reads, and
+  every run ends by asking the user to do the thing they already asked for.
+- **An approval only covers the commit it was given on.** `dismiss_stale_reviews`
+  is `false` on `main`, so GitHub carries an approval forward over every
+  subsequent push, mechanically and without anyone reading the new code. An
+  approval given on a spec-only commit does **not** authorise merging the
+  implementation that landed after it. Check `commit_id` on the approving review
+  against the diff since: if code the approval never saw is in the merge, push a
+  re-review request and keep looping rather than merging on it.
+
+The second rule is the one with teeth. It is also the one a green
+`reviewDecision: APPROVED` will happily hide from you, so check it explicitly.
 
 Then:
 
@@ -437,7 +470,7 @@ Stop the loop and hand back — `ScheduleWakeup` with `stop: true` — when:
 | A review thread disputes the spec, not the code | Re-litigating a recorded decision is out of scope for review and for you. |
 | A non-trivial merge conflict, or a push rejected | Never force-push out of it. |
 | A test/typecheck failure you have tried and failed to fix twice | Two attempts is enough; a third is thrashing. |
-| The same phase repeats 3 iterations with no state change | You are stuck. Say what on. |
+| The same phase repeats 3 iterations with no state change | You are stuck. Say what on. **A PR waiting on a review is not this** — it has state to change, so keep ticking. |
 | Uncommitted work appears in the tree that you did not write | The user is editing. Never stomp it. |
 
 On any stop, print the Step 10 block plus **Unblockers:** — the specific things a
@@ -446,8 +479,11 @@ human must decide, one line each.
 ## Guardrails
 
 - **Never force-push. Never touch `main` directly. Never close the PR.**
-- **Never merge without an approval**, even with green CI and every requirement
-  marked. The approval is the human in this loop.
+- **Never merge without an approval that covers the code being merged** — green
+  CI and every requirement marked are not a substitute, and neither is an
+  approval given before the implementation existed. See *Whose approval counts*.
+  Once you have one, **merge**: do not hand a finished PR back for a second
+  authorisation the `/sdlc` invocation already gave.
 - **Never invent a number, impute a missing country, ship an untiered figure or
   add an uncited override** to make a phase pass. These outrank the loop
   absolutely — stop and report instead.

@@ -164,7 +164,18 @@ names containing `_Fallback_`**, and its `src:` must reference an emitted
 `/_next/static/media/` URL rather than `local(...)`. The second clause is the
 one that actually separates *self-hosted* from *not*, which is the whole reason
 R3 moves to `next/font`. Plus the `--font-*` variables `app/layout.tsx`
-declares. **Both generated strings — the real face and the fallback face — are
+declares.
+
+**The family match is exact, not a substring, and the distinct count is
+asserted.** `__Geist_<hash>` is a substring of `__Geist_Mono_<hash>`, so a
+"Geist" match would be satisfied by Geist Mono's real face — and a build where
+Geist Mono self-hosted and Geist did not would pass every clause above, for both
+families. The two families whose names collide are exactly the two with no
+end-to-end backstop, so this is where it matters most. Two clauses close it, and
+both cost nothing the requirement does not already have: the per-family match
+uses the **exact** generated string from the confirm-from-a-real-build step, and
+the count of **distinct non-fallback `font-family` values in the built CSS is
+`3`** — which no partial build satisfies. **Both generated strings — the real face and the fallback face — are
 confirmed from one real build before the pattern is frozen**, rather than
 guessed.
 
@@ -547,9 +558,21 @@ mount, for `boot` only*; every later transition stays on today's `useState` +
 `history` + `popstate` path, untouched. That is the argument for this shape over
 the sibling one, and it is why no new probe is needed to choose it.
 
-**The cost of the chosen shape, recorded:** `WizardChrome` renders the static
-header a second time, so it can drift from the real header. Closed by a test
-asserting the two produce the same static markup, rather than by care.
+**There is no duplication to test, because it is extracted rather than
+copied.** An earlier draft of this requirement said `WizardChrome` renders the
+header a second time and closed the drift with a test asserting "the two produce
+the same static markup". That test **cannot pass**, and it contradicts
+acceptance 3: the real header always renders the `NN/04` counter (`:304`) and,
+because `shown` is `Math.max(step, 1)` (`:248`), always fills at least one
+segment (`:316`) — while `WizardChrome` must render neither. An implementer
+taking it literally would copy the header, put `01/04` into `out/index.html`,
+and produce exactly the failure signature acceptance 3 names.
+
+So the static frame — the live dot, the title, the `<header>` element and the
+four track *elements* — is **one component that both render**. `WizardChrome`
+renders it alone; the real header renders it and adds the counter and the fill
+state on top. Nothing is copied, so nothing can drift and no drift test is
+owed.
 
 **And the residue of the prerendered frame, recorded because it is real:**
 `shown` is `Math.max(step, 1)` (`:248`), so at step 0 segment 1 is *already*

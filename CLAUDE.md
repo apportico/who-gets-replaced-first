@@ -212,8 +212,8 @@ screen-reader behaviour we are not going to write by hand.
 
 ### Setup, given what is already here
 
-Tailwind v4 is installed via `@tailwindcss/vite`, and the codebase is **JSX, not
-TSX**. So:
+Tailwind v4 is installed via **`@tailwindcss/postcss`** (`postcss.config.mjs`),
+and since spec 0019 the codebase is **TSX, not JSX**. So:
 
 ```bash
 npx shadcn@latest init      # answer: no tailwind.config.js — v4 is CSS-first
@@ -287,6 +287,7 @@ and an SVG beating a dependency.
 ## Layout
 
 ```
+app/              Next.js App Router — layout, the wizard route, /methodology
 specs/            numbered specs — start here
 pipeline/         TypeScript data pipeline (zero runtime dependencies)
   run.ts          orchestrator: --pilot for the 6-area batch, bare for the full run
@@ -297,7 +298,7 @@ pipeline/         TypeScript data pipeline (zero runtime dependencies)
   raw/            cached API responses, gitignored (~130MB)
   data/           CSV, SQLite, cross-checks, outlier queue
   README.md       every field, its source, its limitations
-src/              React + Vite app (the wizard)
+src/              React app, TypeScript under `strict` (the wizard)
 .snapshots/       per-spec evaluation screenshots, committed — /sdlc posts these
                   into the PR comment by raw URL; outside src/ and public/, so
                   they never reach a build
@@ -414,12 +415,14 @@ Recorded so they are not re-proposed. From the AI-native SDLC playbook, spec
 
 ```bash
 npm run verify           # lint + build + pipeline tests + pipeline:pilot — the gate; run before saying anything is done
-npm run dev              # app at localhost:5173
-npm run build            # production build (base path /who-gets-replaced-first/)
+npm run dev              # app at localhost:3000 (next dev)
+npm run build            # static export to out/ — set PAGES_BASE_PATH for the
+                         #   project-site prefix, as .github/workflows/deploy.yml does
+npm run surface          # 0019 R11 — the 218-country data-surface snapshot
 npm run pipeline:pilot   # 6-area validation batch, prints regression checks
 npm run pipeline         # full run: 218 countries + 11 aggregates
 npm run lint
-npm run typecheck        # tsc --noEmit; never emits — see 0007 R7
+npm run typecheck        # both projects — pipeline and app; never emits (0007 R7)
 npm run test:pipeline    # 158-test regression suite, offline, <1s
 ```
 
@@ -488,9 +491,20 @@ that is resolved, an administrator *can* merge red CI. Branches do not have to b
 
 ## Gotchas
 
-- `vite preview` caches `index.html` in memory; it can serve a stale page and
-  look like a blank-page bug. Serve `dist/` with a plain static server when
-  debugging the production build.
+- **`next dev` cannot see the defects that matter.** It serves from the root, so
+  it exercises neither the base path nor the `_next/` asset paths, and it
+  renders routes on demand so `useSearchParams` never suspends. Serve `out/`
+  with a plain static server under a `/who-gets-replaced-first/` directory
+  instead — that is what spec 0019 R12 requires and what caught three defects a
+  clean build and 237 green tests both missed.
+- **`import.meta.glob` is a Vite feature, and vitest is Vite.** Turbopack does
+  not implement it, so a glob resolves in the suite and comes back empty in the
+  built app — green tests, broken page. 0019 replaced the one use of it
+  (`crossTabs.ts`) with a template-literal dynamic import. If you reach for a
+  Vite-only API, the suite will not tell you.
+- **Next does not apply `basePath` to `metadata.icons`.** A bare `/favicon.svg`
+  builds clean and 404s under the project prefix — the same shape as 0015 R4's
+  relative `og:image`. Build it from `PAGES_BASE_PATH`; `check-meta` asserts it.
 - Basemap tiles were a live gotcha while the map existed: CARTO now requires an
   API key and watermarks every tile without one, so the project used Esri's
   key-free light gray canvas, whose tiles are `{z}/{y}/{x}` rather than

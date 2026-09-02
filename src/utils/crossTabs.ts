@@ -25,10 +25,28 @@ import {
   WITHHELD,
 } from './absence'
 
-// Vite turns this glob into a map of lazy importers at build time, so the
-// per-country chunk is only fetched when it is asked for.
-const FILES = import.meta.glob('../data/crosstabs/*.json')
-
+// 0019. This was `import.meta.glob('../data/crosstabs/*.json')`, which is a
+// **Vite** feature. Turbopack does not implement it, so under `next build` the
+// map was empty, every ISO3 missed, and every country rendered "could not
+// load" — the artefacts were in the bundle and nothing ever asked for them.
+//
+// The suite could not see it and still cannot: vitest IS Vite, so the glob
+// resolved there and 237 tests passed green while the built app loaded nothing.
+// Same shape as the dropped `@import` (0010 R2) and the relative `og:image`
+// (0015 R4) — correct in source, correct in the suite, wrong in the artefact.
+// R12's browser walk is what found it.
+//
+// A template-literal dynamic import gives the same laziness: the bundler emits
+// one chunk per matching file and fetches only the one asked for.
+//
+// What is LOST, recorded rather than glossed: the glob told us the file SET at
+// build time, so "no artefact for this ISO3" could be told apart from "the
+// fetch failed" — the first cached as permanent, the second left retryable
+// (0010 R20's distinction). A dynamic import cannot know the set without
+// shipping a manifest, so both now land in the catch and are treated as
+// retryable. That is the safe direction: a transient failure stays retryable,
+// and the state is still LOAD_FAILED rather than a source absence, which is
+// the half R20 actually protects.
 const cache = new Map()
 
 /**
@@ -40,18 +58,8 @@ const cache = new Map()
 export async function loadCrossTabs(iso3: string | null | undefined) {
   if (!iso3) return { state: NOT_LOADED, data: null }
   if (cache.has(iso3)) return cache.get(iso3)
-  const key = `../data/crosstabs/${iso3}.json`
-  const importer = FILES[key]
-  if (!importer) {
-    // No artefact for this ISO3. The pipeline writes one per country row, so
-    // this means the app and the payload are out of step — a load problem, not
-    // a statement about ILOSTAT.
-    const miss = { state: LOAD_FAILED, data: null }
-    cache.set(iso3, miss)
-    return miss
-  }
   try {
-    const mod = (await importer()) as { default?: unknown }
+    const mod = (await import(`../data/crosstabs/${iso3}.json`)) as { default?: unknown }
     const ok = { state: PRESENT, data: mod.default ?? mod }
     cache.set(iso3, ok)
     return ok

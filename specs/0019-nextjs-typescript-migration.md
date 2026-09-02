@@ -319,7 +319,7 @@ exits 0; `npx eslint .` exits 0 with `no-explicit-any` at `error`; and
 `grep -rn "eslint-disable.*no-explicit-any" src/ app/` lists every escape, each
 with a reason, and the list is reproduced here.
 
-### R6. [ ] The app consumes the pipeline's schema types, so a tier cannot go missing at compile time
+### R6. [x] The app consumes the pipeline's schema types, so a tier cannot go missing at compile time
 
 The app imports `Tier`, `FieldTier`, `Vintage` and `DatasetRow` from
 `pipeline/schema.ts` rather than restating them. The JSON payloads are typed
@@ -327,6 +327,23 @@ against that schema instead of arriving as `any`, so the four failure modes #22
 names — a figure rendered without its tier, a `null` formatted as `0`, a value
 shown without its per-field year, an ISO3 that is not in the dataset — become
 type errors.
+
+**Done (2026-09-02), with the two-way check demonstrated rather than asserted.**
+`test/types/app.types.ts` holds five deliberately broken cases — a figure built
+without a tier, a payload field multiplied before narrowing, `'PLACEHOLDER'` as
+a `Tier`, a sixth atom smuggled into `WizardState`, and an assignment into the
+read-only `field_tiers` — each behind an `@ts-expect-error`, plus five positive
+controls. `npx tsc --noEmit` is clean, so every directive is being *used*.
+
+The half that matters, run and pasted: making `ShareCardFigure.tier` optional —
+one character — turns the first case green and therefore the build red:
+
+```
+$ # with `readonly tier?: string | null`
+test/types/app.types.ts(19,1): error TS2578: Unused '@ts-expect-error' directive.
+$ # restored
+(no output)
+```
 
 **No new numbers are produced.** Tiers continue to come from the payload's
 `field_tiers` block; this requirement makes that block's shape checked, and
@@ -428,12 +445,18 @@ files present, and lints zero files under `out/` or `.next/`; and
 **`grep -c "configs.vite" eslint.config.js` returns `0`** — the same grep shape
 R14 uses for `@tailwindcss/vite`, and the only thing that can catch edit 4.
 
-### R9. [ ] The 0016 URL contract is carried across byte-identically
+### R9. [x] The 0016 URL contract is carried across byte-identically
 
 The wizard's state stays a query string on the existing path — `?step=result&country=GBR&group=3` —
 exactly as 0016 R1 defines it. Next's App Router owns the URL, so the migration
 must not quietly change the serialisation, the cold-load restore, or Back
 walking the steps.
+
+**Done (2026-09-02).** `urlState.test.ts` passes unchanged but for its
+extension. The walk confirmed the contract against the built output at both
+viewports: `/?step=result&country=GBR&group=3` cold-loads onto the GBR
+technicians result, `?step=occupation&country=GBR` lands on step 02 with the
+country already chosen, and browser Back walks the steps.
 
 **Recorded, not acted on:** the probe above shows static export lifts the 404
 constraint that forced the query string in the first place. Turning that into
@@ -542,12 +565,46 @@ So the full comparison is a unit-level snapshot, not 177 browser walks.
 
 Not "the numbers look right" — the same strings.
 
-### R12. [ ] The built output renders under the real base path, at both viewports
+### R12. [x] The built output renders under the real base path, at both viewports
 
 CLAUDE.md: a green build is not evidence the page renders, and that applies with
 full force to a whole-framework migration. `next dev` is not the check either —
 it serves from the root, so it exercises neither the base path nor the `_next/`
 asset paths, which are the two things most likely to break.
+
+**Done (2026-09-02) — and it found three defects nothing else could.**
+
+```
+=== 375x812      console errors: 0  (hydration: 0)
+=== 1440x900     console errors: 0  (hydration: 0)
+=== JS disabled  chrome present: true · NN/04 counter: false · tracks: 4, filled 0
+WALK CLEAN — no problems
+```
+
+All four steps plus the result walked at both viewports, the methodology page
+loads, and 16 screenshots are in `.snapshots/0019/` (868K, none over 500K).
+
+**The three defects, each invisible to the build and to the suite:**
+
+1. **The cross-tabs never loaded.** `crossTabs.ts` used
+   `import.meta.glob('../data/crosstabs/*.json')` — a **Vite** feature.
+   Turbopack does not implement it, so the map was empty and every country
+   rendered *"Could not load. This is a problem at our end, not a gap in the
+   data."* The app degraded **honestly** — that sentence is 0010 R20 working
+   exactly as designed, a load problem never dressed as a source absence — but
+   nothing loaded. **The suite cannot see this and still cannot: vitest is
+   Vite**, so the glob resolves there and 237 tests passed green throughout.
+   Replaced with a template-literal dynamic import; the build now emits 228
+   chunks and the bands render with their tier and year.
+2. **The page declared no icon.** `index.html`'s `<link rel="icon">` was lost in
+   the conversion, so every browser fell back to auto-requesting `/favicon.ico`
+   at the **domain root** — outside the base path — and 404ing.
+3. **And the fix for (2) shipped the defect 0015 R4 exists to catch:** Next does
+   **not** apply `basePath` to `metadata.icons`, so a bare `/favicon.svg` built
+   clean and 404ed under the project prefix. Now built from the same
+   `PAGES_BASE_PATH` that feeds `basePath`, and **`check-meta` asserts the icon
+   too** — deriving the expected prefix from that same variable, so the check is
+   correct for a local build (no prefix) and a deploy build (prefix) alike.
 
 **This is the pre-merge half, and it is deliberately not the deployed site.**
 `deploy.yml` triggers on `push: branches: [main]`, so nothing reaches
@@ -579,13 +636,25 @@ spec rewired and the one it extended. The four regression anchors held: World
 **Acceptance:** `bash scripts/verify.sh` exits 0 and prints `verify PASSED`,
 with the full output pasted into the spec's evaluation section.
 
-### R14. [ ] CLAUDE.md and the issues are corrected in the same change
+### R14. [x] CLAUDE.md and the issues are corrected in the same change
 
 CLAUDE.md names `@tailwindcss/vite`, `localhost:5173`, `vite preview` and
 `dist/`; all four are wrong after this. Per CLAUDE.md's own rule, the file is
 fixed in the same change rather than left to drift. Issue #23's stale scope
 section — the 13 components, Leaflet, the scenario slider, the Jekyll gotcha —
 is corrected on the issue with a comment pointing at this spec's probe table.
+
+**Done (2026-09-02).** `grep -n "5173\|@tailwindcss/vite\|vite preview" CLAUDE.md`
+→ **no matches**. The *Commands* block lists the Next.js commands (`next dev` on
+:3000, the static export with `PAGES_BASE_PATH`, `npm run surface`), the shadcn
+*Setup* section says `@tailwindcss/postcss` and TSX, the *Layout* block adds
+`app/`, and **three new Gotchas** record what this migration learned the hard
+way: `next dev` cannot see the base path or the Suspense bailout;
+`import.meta.glob` is Vite-only and vitest is Vite; Next does not apply
+`basePath` to `metadata.icons`.
+
+Issue #23 carries a comment recording what its body got wrong and why —
+[#23 (comment)](https://github.com/apportico/who-gets-replaced-first/issues/23#issuecomment-5512815057).
 
 **Acceptance:** `grep -n "5173\|@tailwindcss/vite\|vite preview" CLAUDE.md`
 returns nothing that is not an explicit historical note; the *Commands* block

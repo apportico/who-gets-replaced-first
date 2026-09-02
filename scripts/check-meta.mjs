@@ -58,6 +58,26 @@ for (const page of ['index.html', 'methodology.html']) {
   const tags = metaTags(html)
   const byKey = new Map(tags.map((t) => [t.key, t.content]))
 
+  // 0019 R8. The icon link, which is not a <meta> and so was outside the nine.
+  // Next does not apply basePath to metadata.icons, so a bare `/favicon.svg`
+  // builds clean and 404s under the project-site prefix — the browser then
+  // falls back to auto-requesting /favicon.ico at the domain root and 404s
+  // again. Found by R12's walk; asserted here so it stays found.
+  // The expected prefix comes from the SAME environment variable that fed
+  // `basePath` at build time (R15), not from a hardcoded string: `verify`
+  // builds with no base path, the deploy builds with one, and both are correct.
+  // Hardcoding the project prefix would fail every local build; hardcoding ''
+  // would pass the broken deploy. The og:* URLs above are absolute and so are
+  // unaffected either way — the icon is the one asset Next leaves relative.
+  const prefix = process.env.PAGES_BASE_PATH ?? ''
+  const icon = /<link[^>]+rel="icon"[^>]+href="([^"]+)"/.exec(html)
+  if (!icon) fail(`${page}: no <link rel="icon">`)
+  else if (!icon[1].startsWith(`${prefix}/`)) {
+    fail(`${page}: icon href "${icon[1]}" is not under the build's base path "${prefix}/"`)
+  } else if (!existsSync(join(DIST, icon[1].slice(prefix.length)))) {
+    fail(`${page}: icon href "${icon[1]}" points at a file not in ${DIST}/`)
+  }
+
   // R4a — each of the nine, by name. Nine wrong tags must not pass.
   for (const key of REQUIRED_TAGS) {
     if (!byKey.has(key)) fail(`${page}: missing <meta> ${key}`)

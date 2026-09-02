@@ -48,6 +48,18 @@ const instrumentSerif = Instrument_Serif({
 // `npm run check:meta` asserts them over the built files.
 export const metadata: Metadata = {
   metadataBase: new URL('https://apportico.github.io/who-gets-replaced-first/'),
+  // Carried over from index.html, which declared it as a plain <link>. Dropping
+  // it was invisible in the build and in the suite: the page simply had no
+  // icon, so every browser fell back to auto-requesting /favicon.ico at the
+  // DOMAIN root — outside the base path — and 404ing. The R12 browser walk is
+  // what found it, which is the entire argument for R12 existing.
+  // The prefix is applied by hand, from the same environment variable that
+  // feeds `basePath` (R15). Next does NOT apply basePath to `metadata.icons`:
+  // a bare '/favicon.svg' ships verbatim and 404s at the domain root under a
+  // project-site prefix. That is the identical defect 0015 R4 records for
+  // `og:image` — correct in source, 404 in production — and check-meta now
+  // asserts the icon too, so it cannot come back silently.
+  icons: { icon: `${process.env.PAGES_BASE_PATH ?? ''}/favicon.svg` },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

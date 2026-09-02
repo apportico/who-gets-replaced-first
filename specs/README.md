@@ -61,7 +61,7 @@ build-first-document-later approach.
 | [0016](0016-url-state.md) | The wizard's state lives in the URL — a query string on the existing path, cold-load restore, browser Back walking the steps, and a copy-link on the result | done — 9 done · 2 revised |
 | [0017](0017-backtest.md) | Back-test the naive trend — fit 2013–2019, retrodict 2025, publish the per-country error and why no date ships | done — 9 done |
 | [0018](0018-workflow-hooks.md) | Workflow enforcement hooks — no commit on `main`, no malformed spec, no push while `verify` is red, no merge on a `verify` that is not green | done — 5 done · 3 revised |
-| [0019](0019-nextjs-typescript-migration.md) | Vite → Next.js App Router as a static export, and the whole app JS → TypeScript under `strict` — the migration that makes a URL per country possible | in-review |
+| [0019](0019-nextjs-typescript-migration.md) | Vite → Next.js App Router as a static export, and the whole app JS → TypeScript under `strict` — the migration that makes a URL per country possible | approved |
 
 ## Starting a new spec
 

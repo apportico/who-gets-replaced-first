@@ -1,11 +1,15 @@
 # 0019 — nextjs-typescript-migration
 
-**Status:** in-review
+**Status:** approved
 **Depends on:** 0007 (the pipeline's schema types, which the app adopts), 0010,
 0012, 0015, 0016 (the wizard, the desktop layout, the meta contract and the URL
 contract this migration must carry across unchanged)
 **Issue:** [#23](https://github.com/apportico/who-gets-replaced-first/issues/23),
 covering [#22](https://github.com/apportico/who-gets-replaced-first/issues/22)
+**Approved:** `syymza`, round 8, on `4b28702` —
+<https://github.com/apportico/who-gets-replaced-first/pull/95#pullrequestreview-5091792101>.
+Seven rounds of revision; the three findings that mattered were R15's base-path
+wiring, R17's hydration mismatch and R11's move from modules to functions.
 **Goal:** Move the app to Next.js and TypeScript in one pass, checked as:
 
 1. One spec covers both #22 (JS→TS) and #23 (Vite→Next.js), each requirement

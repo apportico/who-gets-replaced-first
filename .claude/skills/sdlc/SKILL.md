@@ -213,14 +213,17 @@ suppress its re-schedule, and schedule the `/sdlc` re-entry yourself (Step 11).
 Phase B exits when `gh pr view <pr> --json reviewDecision` is `APPROVED`.
 `CHANGES_REQUESTED` keeps the loop running through `/address-reviews`.
 
-**That approval can only come from a human.** `claude-review.yml` is inert until
-the Claude GitHub App is installed (#44) — its own header says so, and it *passes
-when it skips*, so a green `review` check is not evidence a review ran. Even once
-#44 lands, the workflow's prompt ends "you review; you do not approve". So phase B
-always ends in a wait on a person, and the loop should say which person it is
-waiting on rather than implying it can clear the gate itself. While the App is
-uninstalled, `/review-pr <pr>` is what actually puts findings on the PR — run it
-once on entering phase B so the human has something to react to.
+**Read *Whose approval counts* (Step 9) before deciding what clears this.** It
+governs phase B exactly as it governs phase G — same signal, and phase B is the
+*first* place a run meets a routine's approval, so a loop that stalls here never
+reaches the section that resolves it.
+
+`claude-review.yml` is inert until the Claude GitHub App is installed (#44) — its
+own header says so, and it *passes when it skips*, so a green `review` check is
+not evidence a review ran. Even once #44 lands, the workflow's prompt ends "you
+review; you do not approve". While the App is uninstalled, `/review-pr <pr>` is
+what actually puts findings on the PR — run it once on entering phase B so there
+is something to react to.
 
 ## Step 5 (Phase C) — Approve the spec
 
@@ -356,6 +359,12 @@ Two things to watch that phase B does not have:
 - **A review finding that contradicts the spec.** REVIEW.md puts re-litigating a
   decision the spec already records out of scope. Reply with the spec reference
   and the requirement ID; do not silently rebuild to match the comment.
+- **A standing `CHANGES_REQUESTED` with every thread resolved.** GitHub keeps
+  `reviewDecision: CHANGES_REQUESTED` until a *new* approving review lands, so a
+  PR whose findings are all answered still reads as blocked. Push the fixes,
+  reply on each thread, resolve them, then `POST
+  repos/<owner>/<repo>/pulls/<pr>/requested_reviewers` and let the next tick pick
+  the re-review up. Do not read the stale decision as a reason to stop.
 
 ## Step 9 (Phase G) — Merge and close out
 
@@ -363,13 +372,64 @@ Merge only when **all** of these hold — check them, do not assume:
 
 ```bash
 gh pr view <pr> --json reviewDecision,mergeable,statusCheckRollup
+
+# ...and, for condition 1, the commit the approval was actually given on —
+# `--json reviewDecision` does not carry it.
+gh api repos/<owner>/<repo>/pulls/<pr>/reviews \
+  --jq 'map(select(.state == "APPROVED")) | last | {commit_id, user: .user.login}'
 ```
 
-1. `reviewDecision` is `APPROVED`.
-2. Every check in `statusCheckRollup` is green (`verify` is a required check and
-   `enforce_admins` is true — there is no merging around it).
+`gh pr view <pr> --json reviews` also carries it, as `.commit.oid` rather than
+`commit_id` — probed 2026-09-02, both forms return the same SHA. Either is fine;
+the REST one is written out because its field name matches condition 1.
+
+1. `reviewDecision` is `APPROVED`, **on a review whose commit covers the code
+   being merged** — see *Whose approval counts* below for the command that
+   checks it.
+2. Every check in `statusCheckRollup` is green (`verify` is a required check).
 3. No requirement in the spec is still `[ ]`.
 4. Every clause of the goal contract is met, with the evidence named.
+
+### Whose approval counts
+
+**Do not wait for the user to say "merge".** They typed `/sdlc <ticket>`; that
+*is* the human authorising this run to reach its end. Stopping at a green,
+complete, approved PR to ask permission is the one thing this skill exists to
+avoid, and it is not made acceptable by phrasing it as an unblocker.
+
+Two things follow, and they pull in opposite directions on purpose:
+
+- **A review routine's `APPROVED` satisfies condition 1.** This project's
+  reviewer posts under a person's account and says in every review that it is a
+  routine rather than a person, and that its approval should not be read as the
+  human gate. Take that as provenance worth recording — note it on the
+  `**Approved:**` line — not as a veto. Otherwise the loop can never finish by
+  its own rules: the only reviewer disclaims the only signal Step 9 reads, and
+  every run ends by asking the user to do the thing they already asked for.
+- **An approval only covers the commit it was given on.** `dismiss_stale_reviews`
+  is `false` on `main`, so GitHub carries an approval forward over every
+  subsequent push, mechanically and without anyone reading the new code. An
+  approval given on a spec-only commit does **not** authorise merging the
+  implementation that landed after it.
+
+  **Check it with a command, not a judgment.** "Substantive" left to the loop is
+  worthless: this skill *manufactures* the ambiguous case, since Step 7 pushes
+  `.snapshots/<NNNN>/*.png` after the evaluation, so a PNG commit routinely lands
+  after the review that approved the code.
+
+  ```bash
+  # code the approving review never saw, ignoring evaluation snapshots
+  git diff --name-only <commit_id>..HEAD -- . ':(exclude).snapshots/'
+  ```
+
+  Empty output → the approval covers `HEAD` and condition 1 holds. Any path →
+  request a re-review (`POST repos/<owner>/<repo>/pulls/<pr>/requested_reviewers`)
+  and keep looping. **`.snapshots/` is the only exception**, because it is the
+  only thing the loop itself commits after a review; adding to that list is a
+  change to this file, not a call made per PR.
+
+The second rule is the one with teeth. It is also the one a green
+`reviewDecision: APPROVED` will happily hide from you, so check it explicitly.
 
 Then:
 
@@ -437,7 +497,7 @@ Stop the loop and hand back — `ScheduleWakeup` with `stop: true` — when:
 | A review thread disputes the spec, not the code | Re-litigating a recorded decision is out of scope for review and for you. |
 | A non-trivial merge conflict, or a push rejected | Never force-push out of it. |
 | A test/typecheck failure you have tried and failed to fix twice | Two attempts is enough; a third is thrashing. |
-| The same phase repeats 3 iterations with no state change | You are stuck. Say what on. |
+| The same phase repeats 3 iterations with no state change | You are stuck. Say what on. **A PR waiting on a review is not this** — it has state to change, so keep ticking. |
 | Uncommitted work appears in the tree that you did not write | The user is editing. Never stomp it. |
 
 On any stop, print the Step 10 block plus **Unblockers:** — the specific things a
@@ -446,8 +506,11 @@ human must decide, one line each.
 ## Guardrails
 
 - **Never force-push. Never touch `main` directly. Never close the PR.**
-- **Never merge without an approval**, even with green CI and every requirement
-  marked. The approval is the human in this loop.
+- **Never merge without an approval that covers the code being merged** — green
+  CI and every requirement marked are not a substitute, and neither is an
+  approval given before the implementation existed. See *Whose approval counts*.
+  Once you have one, **merge**: do not hand a finished PR back for a second
+  authorisation the `/sdlc` invocation already gave.
 - **Never invent a number, impute a missing country, ship an untiered figure or
   add an uncited override** to make a phase pass. These outrank the loop
   absolutely — stop and report instead.

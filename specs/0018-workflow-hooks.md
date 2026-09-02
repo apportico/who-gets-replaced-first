@@ -80,7 +80,15 @@ and cites 0005 R3/R4 for it. That is real drift between the documented gate and
 the live one, and it makes R4 more load-bearing rather than less — an
 administrator merging red is currently a thing GitHub permits. Fixing branch
 protection is outside issue #4's scope, so this spec records the finding and
-does not widen to cover it. It needs its own issue.
+does not widen to cover it.
+
+Filed as [#93](https://github.com/apportico/who-gets-replaced-first/issues/93)
+(2026-09-02). Re-probing for that issue found it is worse than drift: spec 0005
+**R4 is marked `[x]`** with the acceptance criterion "live protection returns
+`enforce_admins: true`", so this is a regression against a criterion that was met
+and recorded as met — not a claim that was never true. #93 carries both options
+0005 R4 already laid out, including re-marking that requirement `[~]` if the
+bypass is kept deliberately.
 
 ## Requirements
 

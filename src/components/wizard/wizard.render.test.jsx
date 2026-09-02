@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 
 import App from '@/App'
+import { siteCardModel } from '@/utils/shareCardCanvas'
 import * as crossTabs from '@/utils/crossTabs'
 
 
@@ -32,9 +33,15 @@ beforeEach(() => {
   resetUrl()
 })
 
+// The intro's CTA, by name. It reads `Find my group →` rather than `Start →`:
+// the face names what the reader receives, and `Start` also matched the result
+// screen's `Start again`, so the two screens' primary actions were selected by
+// the same pattern. One constant per file so a future rewording is one edit.
+const INTRO_CTA = /find my group/i
+
 function startWizard() {
   render(<App />)
-  fireEvent.click(screen.getByRole('button', { name: /start/i }))
+  fireEvent.click(screen.getByRole('button', { name: INTRO_CTA }))
 }
 
 // 0011 R1/R9 — step 01 is a search now, so reaching a country means typing at
@@ -48,7 +55,7 @@ function pickCountry(name) {
 describe('R5 — the shell renders and walks all five screens', () => {
   it('opens on the intro without throwing', () => {
     render(<App />)
-    expect(screen.getByRole('button', { name: /start/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: INTRO_CTA })).toBeTruthy()
     expect(document.body.textContent).toContain('The Replacement Date')
   })
 
@@ -83,7 +90,14 @@ describe('R5 — the shell renders and walks all five screens', () => {
     render(<App />)
     const text = document.body.textContent
     expect(text).toContain('Measured, not forecast')
-    expect(screen.getByRole('button', { name: /start/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: INTRO_CTA })).toBeTruthy()
+
+    // R5, revised 2026-09-02. The claim is the site's own question, pointed the
+    // way the series point. Asserted on the headline element rather than on the
+    // body text, so a copy that merely mentions the words somewhere lower down
+    // does not satisfy it.
+    expect(screen.getByRole('heading', { level: 1 }).textContent)
+      .toContain('One goes first')
 
     for (const chip of ['9 occupation groups', 'Every figure tiered', 'Gaps shown as gaps']) {
       expect(text).not.toContain(chip)
@@ -91,10 +105,23 @@ describe('R5 — the shell renders and walks all five screens', () => {
     expect(document.querySelectorAll('.wz-chip').length).toBe(0)
   })
 
+  // R5, revised 2026-09-02. The site's preview card is the intro seen from the
+  // outside, and a preview arguing something the screen does not is two
+  // products. The card draws its headline as one prose line and the intro
+  // breaks the same words over three, and `<br>` contributes nothing to
+  // `textContent`, so both sides have their whitespace removed rather than
+  // collapsed — the assertion is about the words, not about where they wrap.
+  it("the site share card makes the intro's claim, not a different one", () => {
+    render(<App />)
+    const words = (t) => t.replace(/\s+/g, '')
+    expect(words(siteCardModel().headline))
+      .toBe(words(screen.getByRole('heading', { level: 1 }).textContent))
+  })
+
   it('shows the step counter and fills the progress bar', () => {
     render(<App />)
     expect(document.body.textContent).toContain('01/04')
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    fireEvent.click(screen.getByRole('button', { name: INTRO_CTA }))
     expect(document.body.textContent).toContain('01/04')
   })
 })
@@ -194,7 +221,7 @@ describe('R20 — the cross-tabs are not fetched before a country is chosen', ()
     render(<App />)
     // The shell prefills from locale; under jsdom navigator.language is en-US,
     // which does not resolve to a payload country by name, so nothing loads.
-    expect(screen.getByRole('button', { name: /start/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: INTRO_CTA })).toBeTruthy()
     spy.mockRestore()
   })
 
@@ -602,10 +629,12 @@ describe('0016 R3 — a cold load restores the wizard from the URL', () => {
 
   it('never paints the intro on the way', () => {
     open('/?step=result&country=GBR&group=3')
-    // The intro's own headline is the tell -- not its CTA, which reads
-    // `Start ->` and would also match the result screen's `Start again`. If the
-    // shell had restored in an effect rather than a lazy initialiser, this
-    // would be in the tree for a frame.
+    // The intro's own headline is the tell rather than its CTA. That used to be
+    // because `Start ->` also matched the result screen's `Start again`; the
+    // intro's CTA reads `Find my group ->` now and no longer collides, but the
+    // headline remains the stronger probe -- it is the one string that can only
+    // come from the intro. If the shell had restored in an effect rather than a
+    // lazy initialiser, this would be in the tree for a frame.
     //
     // 0015 R1 changed how this is asked, not what it asks. This used to be
     // `queryByRole('heading', { level: 1 })` is null, which worked only while
@@ -615,7 +644,7 @@ describe('0016 R3 — a cold load restores the wizard from the URL', () => {
     // intro's headline text is absent, and the h1 that IS present belongs to
     // the result. The second form is strictly stronger -- it would have caught
     // an intro frame that rendered with no heading at all.
-    expect(document.body.textContent).not.toContain('says about')
+    expect(document.body.textContent).not.toContain('One goes first')
     expect(document.body.textContent).not.toContain('Measured, not forecast')
     expect(screen.getByRole('heading', { level: 1 }).textContent)
       .toContain("of United Kingdom's workers")
@@ -991,7 +1020,7 @@ describe('0014 R1 — every step after the intro can go back one step', () => {
     expect(document.body.textContent).toContain('01/04')
 
     // Step 01's back lands on the intro, which has no back of its own.
-    await goBack(() => expect(screen.getByRole('button', { name: /start/i })).toBeTruthy())
+    await goBack(() => expect(screen.getByRole('button', { name: INTRO_CTA })).toBeTruthy())
     expect(screen.queryByRole('button', { name: /back to/i })).toBeNull()
   })
 
@@ -1009,7 +1038,7 @@ describe('0014 R2 — back is a footer secondary, never a header control', () =>
       expect(document.querySelectorAll('header button').length).toBe(0)
 
     noHeaderButton()                                            // intro
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    fireEvent.click(screen.getByRole('button', { name: INTRO_CTA }))
     noHeaderButton()                                            // 01
     pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
@@ -1175,7 +1204,7 @@ describe('0014 R5 — Start again still clears what it used to clear', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /start again/i }))
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    fireEvent.click(screen.getByRole('button', { name: INTRO_CTA }))
 
     // Probed 2026-09-01 and left alone by this spec: `onRestart` never touches
     // `iso3`, so the country survives while the other three answers do not.

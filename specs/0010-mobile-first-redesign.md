@@ -228,6 +228,62 @@ rendering against a baseline committed from `91ec0f6` so this spec's shipped
 behaviour cannot drift under a desktop change. R5 stays `[~]`, not reopened:
 what it built is what shipped, and 0012 widens it rather than correcting it.
 
+**`[~]` revised again 2026-09-02 — the claim is reframed, and the CTA names
+its object.** R5 said "the intro carries the claim" without saying what the
+claim had to argue, and the shipped copy argued the wrong thing. "What the data
+says about your work / Two questions. You get what official labour statistics
+actually record" describes the mechanism and sells the provenance; read as a
+landing page it gives a first-time reader no stake, and the natural way to make
+it a claim — leading on R13's finding that no displacement date is published
+anywhere — argues the reader is safe. That is a misreading of this project's own
+result screen, and it is the one the copy must not make.
+
+It is a misreading because the absence of a date is not the absence of a
+trajectory, and the result screen already says why in two places: the share is a
+**net** figure, so displacement offsets against demand growth, offshoring,
+ageing and reclassification inside it (R16's back-test panel), and the
+occupation vintage runs years behind the reader (*The vintage rule*, above). A
+group's line can therefore fall after the fall has reached the people in it, and
+some of the nine are already falling — UK clerical runs 10.0% (2013) to 8.9%
+(2025), `DERIVED`, and R12 draws it.
+
+So the intro's claim is now the site's own question, pointed the way the series
+point: **"Nine groups. One goes first. Is yours next?"**, over a lede
+saying the count reaches the reader late. The CTA reads `Find my group →` rather
+than `Start →`, which also removes a collision — `Start` matched both the intro
+CTA and the result screen's `Start again`, and both suites selected them with
+the same pattern.
+
+**The three headline lines are hard-broken, so each has to fit its own measure.**
+Measured 2026-09-02 in Chromium with the real Instrument Serif faces injected as
+`woff2`, roman and italic each in its own slot. Two things had to be right before
+the numbers meant anything, and both were wrong on the first pass: the fallback
+stack is materially wider than the shipped face (the sandbox cannot reach
+`fonts.googleapis.com`, so an uninjected run measured the fallback and read five
+line boxes where the shipped font gives three), and the two faces were injected
+the wrong way round, which set the whole `h1` in italic and measured the roman
+lines on italic metrics. Instrument Serif's italic is the **wider** of the two
+here, so that error reads as a safety margin and is not one.
+
+Corrected, at 66px with `-0.025em`: `Nine groups.` is 264px, `One goes first.`
+289px and the italic `Is yours next?` 295px, against the **316px** measure a
+360px viewport leaves after the 22px page padding. All three hold at 375px
+(331px) and 390px (346px), and the rendered `h1` is three line boxes at 360,
+375 and 1280px. The first drafts were not close: `Someone goes first.` is 398px
+and `Which one is yours?` 430px, each wrapping and turning a three-line headline
+into five.
+
+**R14 is unchanged and still governs every word here:** no year, no date, no
+countdown, in words or digits. This note narrows R5's "the claim" rather than
+widening it — the copy still promises only what step 04 delivers, and what it
+delivers is a line and its limits, never a date.
+
+**Acceptance:** `wizard.render.test.jsx` asserts the intro renders `Someone goes
+first`, that R14's year/date/countdown patterns still find nothing in the intro
+text, and that the primary CTA is addressable as `/find my group/i`;
+`shareCardCanvas.siteCardModel().headline` carries the same claim as the intro's
+`h1`, so the site's preview card and the screen it previews make one argument.
+
 ### R6. [~] Step 01 — country, tagged by what the data actually carries
 
 List countries from the payload. Each row's `official series` / `no series` tag

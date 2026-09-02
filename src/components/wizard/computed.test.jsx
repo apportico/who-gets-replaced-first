@@ -103,11 +103,17 @@ describe('R4 — the palette actually reaches the elements', () => {
   })
 })
 
+// The intro's CTA, by name. It reads `Find my group →` rather than `Start →`:
+// the face names what the reader receives, and `Start` also matched the result
+// screen's `Start again`, so the two screens' primary actions were selected by
+// the same pattern. One constant per file so a future rewording is one edit.
+const INTRO_CTA = /find my group/i
+
 describe('R5 — the touch targets and focus ring reach real elements', () => {
   it('the primary CTA computes a 60px floor', () => {
     cleanup()
     render(<App />)
-    const cta = screen.getByRole('button', { name: /start/i })
+    const cta = screen.getByRole('button', { name: INTRO_CTA })
     // Asserted on the element, not on the file: this fails if the class stops
     // being applied or another rule wins.
     expect(resolved(cta, 'min-height')).toBe('60px')
@@ -116,7 +122,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
   it('country options compute a 56px floor', () => {
     cleanup()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    fireEvent.click(screen.getByRole('button', { name: INTRO_CTA }))
     fireEvent.change(screen.getByLabelText('Search countries'),
                      { target: { value: 'United Kingdom' } })
     const option = screen.getByRole('option', { name: /United Kingdom/ })
@@ -126,7 +132,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
   it('the tertiary action computes a 48px floor', () => {
     cleanup()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    fireEvent.click(screen.getByRole('button', { name: INTRO_CTA }))
     pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
@@ -171,7 +177,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
 
     cleanup(); render(<App />)
     sweep('intro')
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    fireEvent.click(screen.getByRole('button', { name: INTRO_CTA }))
     sweep('country')
     pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
@@ -193,7 +199,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     // Resolved off the rendered element, which is the whole point of this file.
     cleanup()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    fireEvent.click(screen.getByRole('button', { name: INTRO_CTA }))
     pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.change(screen.getByLabelText('Your job title'), { target: { value: 'bookkeeper' } })
@@ -245,7 +251,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
 
     cleanup(); render(<App />)
     sweep('intro')
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    fireEvent.click(screen.getByRole('button', { name: INTRO_CTA }))
     sweep('country')
     pickCountry('United Kingdom')
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))

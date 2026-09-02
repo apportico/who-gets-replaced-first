@@ -280,7 +280,11 @@ export function siteCardModel() {
   return {
     eyebrow: CARD_EYEBROW,
     subject: 'Official labour statistics · 177 countries · ISCO-08 major groups',
-    headline: 'What the data says about your work.',
+    // Tracks the intro's h1 rather than restating it: this card is the site's
+    // own preview, and a preview that makes a different claim to the screen it
+    // previews is two products. Flattened to one line because the card draws a
+    // headline as prose, not as the intro's three-line break.
+    headline: 'Nine groups. One goes first. Is yours next?',
     // **No figures, deliberately.** A tier badge renders the tier it is given
     // and never invents one, and nothing here has been measured: "177
     // countries" is a property of the dataset rather than a published

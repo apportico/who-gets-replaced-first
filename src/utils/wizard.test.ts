@@ -9,8 +9,7 @@
 // asserting it against the payload would mark it passing without ever running.
 import { describe, it, expect } from 'vitest'
 
-import payload from '../data/global_labor.json'
-import type { LaborRow } from '@/types'
+import { rows, fieldTiers } from '@/data/payload'
 import gbrCross from '../data/crosstabs/GBR.json'
 import canCross from '../data/crosstabs/CAN.json'
 // The countries R9 names, asserted against the committed artefacts rather than
@@ -49,10 +48,6 @@ import {
 } from './absence'
 import { ageBands, eduBands } from './crossTabs'
 
-// 0019 R6. One assertion at the payload boundary, the same shape WizardShell
-// uses: the JSON import infers a vast literal union, and `LaborRow[]` is the
-// contract the app actually consumes. One cast here beats a cast at every call.
-const rows = payload.rows as unknown as LaborRow[]
 const countries = rows.filter((r) => r.row_type === 'country')
 const byIso = Object.fromEntries(rows.map((r) => [r.iso3, r]))
 const GBR = byIso.GBR
@@ -138,7 +133,7 @@ describe('0011 R2 — the payload carries iso2, and TWN stays null', () => {
   })
 
   it('tiers it as an identifier, not a measurement', () => {
-    expect(payload.field_tiers.iso2).toBe('NOT_A_MEASUREMENT')
+    expect(fieldTiers.iso2).toBe('NOT_A_MEASUREMENT')
   })
 })
 

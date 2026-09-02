@@ -8,17 +8,13 @@
 // hand-picked example misses.
 import { describe, it, expect } from 'vitest'
 
-import payload from '@/data/global_labor.json'
+import { rows } from '@/data/payload'
 import type { LaborRow } from '@/types'
 import {
   shareCardModel, cardText, allowedYears, yearTokens, CARD_REFUSAL,
 } from '@/utils/shareCard'
 import { GROUPS } from '@/utils/isco'
 
-// 0019 R6. One assertion at the payload boundary, the same shape WizardShell
-// uses: the JSON import infers a vast literal union, and `LaborRow[]` is the
-// contract the app actually consumes. One cast here beats a cast at every call.
-const rows = payload.rows as unknown as LaborRow[]
 const gbr = rows.find((r) => r.iso3 === 'GBR')
 const TECHNICIANS = 3
 
@@ -26,6 +22,46 @@ const everyCell: [LaborRow, number][] = []
 for (const row of rows) {
   for (const g of GROUPS) everyCell.push([row, g.n])
 }
+
+// 0019 R5. `g.n`, not `g.number` — and a guard so the sweeps below cannot go
+// vacuous again.
+//
+// `GROUPS` has never had a `number` field (`isco.ts` maps to `{n, key, label,
+// short}`), so until the TypeScript conversion type-checked this file every one
+// of these 1,962 entries was `[row, undefined]`. What that cost was not the
+// harness but the assertions on top of it:
+//
+//   - `groupShare(row, undefined)` and `groupHeadcount(row, undefined)` both
+//     resolve `groupByNumber(undefined)` to null, return NOT_PUBLISHED, and are
+//     DROPPED by `figure()`. So "no figure is drawn without a tier" only ever
+//     saw the trend figure — the share and the headcount, which are the two the
+//     rule is actually about, were never in the sweep. Same for the tier
+//     vocabulary check and both R7 year-token sweeps.
+//   - `trendFor(iso3, undefined)` returns `standIn: true`, because
+//     `undefined !== CLERICAL_GROUP`. Every cell was a nominal stand-in, so the
+//     `group === 4` skip never fired and the case that test exists to separate
+//     was never exercised.
+//
+// The suite was green throughout. These two assertions are what make that
+// impossible to repeat: the cells must carry real group numbers, and the sweep
+// must actually produce the share and headcount figures.
+it('0019 R5 — the sweep is not vacuous: every cell carries a real ISCO group', () => {
+  expect(everyCell.length).toBe(rows.length * 9)
+  expect(everyCell.every(([, g]) => Number.isInteger(g) && g >= 1 && g <= 9)).toBe(true)
+
+  // The trend figure's label is derived per country — `Share since 2013`,
+  // `Share since 2017` — because a label naming a year the series does not
+  // start at would be wrong. So the check is on the three KINDS.
+  const kinds = new Set<string>()
+  for (const [row, group] of everyCell) {
+    for (const f of shareCardModel({ row, group }).figures) {
+      kinds.add(f.label.startsWith('Share since ') ? 'trend' : f.label)
+    }
+  }
+  // All three, not just the trend. This is the assertion that would have failed
+  // for the whole life of the `g.number` typo, which produced only `trend`.
+  expect([...kinds].sort()).toEqual(['People doing it', 'Share today', 'trend'])
+})
 
 describe('0015 R6 — every figure carries its tier, or is not drawn', () => {
   it('no figure on any card, for any cell, is drawn without a tier', () => {

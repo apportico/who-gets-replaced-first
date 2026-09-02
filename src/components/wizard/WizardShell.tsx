@@ -30,8 +30,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import WizardFrame from './WizardFrame'
 
-import payload from '@/data/global_labor.json'
-import type { LaborRow, OccupationEntry, WizardState } from '@/types'
+import { rows } from '@/data/payload'
+import type { OccupationEntry, WizardState } from '@/types'
 import { ageBands, eduBands, loadCrossTabs } from '@/utils/crossTabs'
 import { localeCountry } from '@/utils/countryList'
 import { NOT_LOADED, PRESENT } from '@/utils/absence'
@@ -47,11 +47,6 @@ const search = () => globalThis.location?.search ?? ''
 const pathname = () => globalThis.location?.pathname ?? ''
 
 export default function WizardShell() {
-  // The payload is JSON, so TypeScript infers a vast literal union from its
-  // contents. `LaborRow[]` is the contract the app actually consumes (0019 R6),
-  // and this is the single point where the two meet — one assertion at the
-  // boundary rather than a cast at every call site.
-  const rows = payload.rows as unknown as readonly LaborRow[]
 
   // R3. Decoded in a lazy initialiser, not an effect: the URL is known before
   // the first paint, so restoring in an effect would render the intro and then
@@ -177,9 +172,12 @@ export default function WizardShell() {
     }
     globalThis.addEventListener?.('popstate', onPop)
     return () => globalThis.removeEventListener?.('popstate', onPop)
-  }, [commit, rows])
+    // `rows` is a module constant now (0019 R6 put the payload cast in one
+    // place, `@/data/payload`), so it is not a valid dependency — it cannot
+    // change between renders.
+  }, [commit])
 
-  const row = useMemo(() => rows.find((r) => r.iso3 === iso3) ?? null, [rows, iso3])
+  const row = useMemo(() => rows.find((r) => r.iso3 === iso3) ?? null, [iso3])
 
   // 0014 R5. Step 01's search text and step 02's input state live here rather
   // than in the screens, because the screens are conditionally rendered and so

@@ -15,6 +15,18 @@
     "types": ["vitest/globals", "node", "vite/client"],
     "noEmit": true
   },
-  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "test/**/*.ts", "src/types.ts"],
-  "exclude": ["node_modules"]
+  // Every tracked test file, not just the ones under src/. Scoping the include
+  // to two directories would let this expire exactly the way the glob it
+  // replaced did: a test at `app/wizard/route.test.tsx` is excluded by the root
+  // config and would not be picked up here, so it would type-check in NEITHER
+  // project while `npm run typecheck` stayed green. `app/` is new in this spec
+  // and is the directory most likely to get a test next.
+  //
+  // The exclude keeps this project off `pipeline/tests/*.test.ts`, which
+  // `pipeline/tsconfig.json` already owns.
+  //
+  // `test/lint-config.test.mjs` asserts the property rather than trusting the
+  // globs — it fails loudly if a tracked test file falls outside both projects.
+  "include": ["**/*.test.ts", "**/*.test.tsx", "test/**/*.ts", "src/types.ts"],
+  "exclude": ["node_modules", "pipeline", "out", ".next", "dist", ".claude", "scripts"]
 }

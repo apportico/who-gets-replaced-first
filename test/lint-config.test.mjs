@@ -17,6 +17,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import config from '../eslint.config.js';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 test('R9 — the .mjs scripts and suite are inside a lint config block', () => {
   // `defineConfig` expands each `extends` into its own block but carries
@@ -49,3 +51,57 @@ test('R9 — that block gives the .mjs files their Node globals', () => {
     'no block covering the .mjs files declares the Node globals, so covering them would fail no-undef on `process`',
   );
 });
+
+// ---------------------------------------------------------------------------
+// Spec 0019 R5. Every tracked test file type-checks in SOME project.
+//
+// `tsconfig.test.json`'s include list is the second glob in this repo whose
+// silent expiry would cost real coverage — the first was 0010 R3/R4's
+// `src/components/ui/**/*.jsx`, which stopped matching the moment those files
+// became `.tsx` and would have turned `verify` red. This one fails the other
+// way: a test file outside the include type-checks in NEITHER project while
+// `npm run typecheck` stays green and reads nothing.
+//
+// So the property is asserted rather than the glob trusted, which is the shape
+// the review argued for and the shape this file already uses for eslint.
+// ---------------------------------------------------------------------------
+test('0019 R5 — no tracked test file escapes every tsconfig project', () => {
+  const tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
+    .split('\n')
+    .filter((f) => /\.test\.(ts|tsx)$/.test(f))
+
+  assert.ok(tracked.length > 0, 'found no tracked .test.ts/.tsx files at all')
+
+  // `pipeline/tsconfig.json` owns its own tests; everything else must be
+  // reachable from tsconfig.test.json's include globs.
+  const app = tracked.filter((f) => !f.startsWith('pipeline/'))
+  const cfg = JSON.parse(
+    readFileSync('tsconfig.test.json', 'utf8').replace(/^\s*\/\/.*$/gm, ''),
+  )
+  // Translate each include glob to a regex. The `**/` substitution has to be
+  // parked behind a sentinel first: replacing it with `(?:.*/)?` and THEN
+  // replacing every `*` rewrites the `*` inside that very output, which
+  // silently turns `**/*.test.ts` into a pattern matching nothing. Found by
+  // this assertion failing on all seven files it was written to accept —
+  // which is the assertion doing its job on its own implementation.
+  const SENTINEL = '\u0000'
+  const globs = cfg.include.map((g) =>
+    new RegExp(
+      '^' +
+        g
+          .replace(/\*\*\//g, SENTINEL)
+          .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+          .replace(/\*/g, '[^/]*')
+          .split(SENTINEL)
+          .join('(?:.*/)?') +
+        '$',
+    ),
+  )
+
+  const orphans = app.filter((f) => !globs.some((re) => re.test(f)))
+  assert.deepEqual(
+    orphans,
+    [],
+    `these test files type-check in no project:\n  ${orphans.join('\n  ')}`,
+  )
+})

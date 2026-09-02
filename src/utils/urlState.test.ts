@@ -6,15 +6,10 @@
 // would let the payload change underneath a green suite.
 import { describe, it, expect } from 'vitest'
 
-import payload from '@/data/global_labor.json'
-import type { LaborRow } from '@/types'
+import { rows } from '@/data/payload'
 import { AGE_BAND_KEYS, EDU_BAND_KEYS } from '@/utils/crossTabs'
 import { decode, encode, noticeFor, STEPS } from '@/utils/urlState'
 
-// 0019 R6. One assertion at the payload boundary, the same shape WizardShell
-// uses: the JSON import infers a vast literal union, and `LaborRow[]` is the
-// contract the app actually consumes. One cast here beats a cast at every call.
-const rows = payload.rows as unknown as LaborRow[]
 describe('R1 — encode', () => {
   it('writes the five parameters in a fixed order', () => {
     expect(encode({ step: 4, iso3: 'GBR', group: 3, age: '25_54', edu: 'adv' }))

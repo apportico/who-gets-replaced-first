@@ -8,3 +8,4 @@ Throwaway change to check which automations fire on a pull request:
 - any scheduled routine watching this repo
 
 Delete the branch once observed.
+- webhook re-wired 2026-09-02T11:51Z; this commit tests pull_request.synchronize delivery

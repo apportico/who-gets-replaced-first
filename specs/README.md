@@ -60,6 +60,7 @@ build-first-document-later approach.
 | [0015](0015-share-card.md) | The result survives leaving the site — one `h1` per screen, a methodology page, site-level OG/Twitter meta, and a client-side share card carrying its tiers and the stand-in disclosure, never a year | done — 9 done · merged at `cdbcfcc` |
 | [0016](0016-url-state.md) | The wizard's state lives in the URL — a query string on the existing path, cold-load restore, browser Back walking the steps, and a copy-link on the result | done — 9 done · 2 revised |
 | [0017](0017-backtest.md) | Back-test the naive trend — fit 2013–2019, retrodict 2025, publish the per-country error and why no date ships | done — 9 done |
+| [0018](0018-workflow-hooks.md) | Workflow enforcement hooks — no commit on `main`, no malformed spec, no push while `verify` is red, no merge on a `verify` that is not green | draft |
 
 ## Starting a new spec
 

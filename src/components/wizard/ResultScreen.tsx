@@ -32,8 +32,21 @@ import { ageBands, eduBands } from '@/utils/crossTabs'
 import { qualityTone } from '@/utils/laborMetrics'
 import { PRESENT, LOAD_FAILED, NOT_LOADED, absenceMessage } from '@/utils/absence'
 import ShareCardButton from './ShareCardButton'
+import type { ResultScreenProps } from '@/types'
 
-function Figure({ label, result, note }) {
+function Figure({ label, result, note }: {
+  label: string
+  /** Whatever groupShare/groupHeadcount returned — including the absent case,
+   *  which this renders in words rather than as a dash. */
+  result: {
+    state: string
+    display?: string
+    tier?: string | null
+    year?: number | null
+    message?: string | null
+  }
+  note?: string | null
+}) {
   return (
     <div className="wz-card" style={{ padding: '18px 16px' }}>
       <span className="wz-meta" style={{ letterSpacing: '0.16em', color: 'var(--muted)' }}>
@@ -61,7 +74,9 @@ function Figure({ label, result, note }) {
 }
 
 
-export default function ResultScreen({ row, group, age, edu, cross, onRestart, onBack }) {
+export default function ResultScreen({
+  row, group, age, edu, cross, onRestart, onBack,
+}: ResultScreenProps) {
   const g = groupByNumber(group)
   const share = groupShare(row, group)
   const head = groupHeadcount(row, group)
@@ -69,7 +84,7 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart, o
   const notice = classificationNotice(row, group)
   const data = cross?.state === PRESENT ? cross.data : null
   const terms = termsFor(row, group, data)
-  const quality = qualityTone(row?.data_quality_flag)
+  const quality = qualityTone(row?.data_quality_flag as string | null | undefined)
   const backtest = backtestFor(row?.iso3, group)
 
   const ages = data ? ageBands(data, group) : null
@@ -87,7 +102,7 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart, o
 
       <h1 className="wz-h2" style={{ marginTop: 14, fontSize: 40 }}>
         {share.state === PRESENT
-          ? <>{share.display} of {row.country_name}&apos;s workers</>
+          ? <>{share.display} of {row?.country_name ?? 'this country'}&apos;s workers</>
           : <>No published figure</>}
       </h1>
 
@@ -132,19 +147,19 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart, o
           {chosenAge && (
             <p className="wz-body" style={{ margin: '10px 0 0', color: 'var(--fg)' }}>
               {chosenAge.value.toFixed(1)}% are aged {chosenAge.label}
-              <span className="wz-badge" style={{ marginLeft: 8 }}>{ages.tier}</span>
-              <span className="wz-badge" style={{ marginLeft: 6 }}>{ages.year}</span>
+              <span className="wz-badge" style={{ marginLeft: 8 }}>{ages?.tier}</span>
+              <span className="wz-badge" style={{ marginLeft: 6 }}>{ages?.year}</span>
             </p>
           )}
           {chosenEdu && (
             <p className="wz-body" style={{ margin: '8px 0 0', color: 'var(--fg)' }}>
               {chosenEdu.value.toFixed(1)}% have {chosenEdu.label.toLowerCase()} education
-              <span className="wz-badge" style={{ marginLeft: 8 }}>{edus.tier}</span>
-              <span className="wz-badge" style={{ marginLeft: 6 }}>{edus.year}</span>
+              <span className="wz-badge" style={{ marginLeft: 8 }}>{edus?.tier}</span>
+              <span className="wz-badge" style={{ marginLeft: 6 }}>{edus?.year}</span>
             </p>
           )}
           <p className="wz-note" style={{ margin: '10px 0 0' }}>
-            {chosenAge?.residualNote ?? ages?.residualNote} {chosenEdu ? edus?.residualNote : ''}
+            {ages?.residualNote} {chosenEdu ? edus?.residualNote : ''}
           </p>
         </div>
       )}
@@ -192,9 +207,9 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart, o
                         ? { background: 'var(--accent-tint)', color: 'var(--accent-soft)', borderColor: 'var(--accent-edge)' }
                         : undefined}
                     >
-                      {t.tier ?? 'not sourced'}
+                      {String(t.tier ?? 'not sourced')}
                     </span>
-                    {t.year && <span className="wz-badge">{t.year}</span>}
+                    {t.year ? <span className="wz-badge">{String(t.year)}</span> : null}
                   </p>
                   <p className="wz-note" style={{ margin: '4px 0 0' }}>{t.desc}</p>
                 </div>
@@ -229,21 +244,21 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart, o
               {backtest.scored ? (
                 <>
                   <p className="wz-body" style={{ margin: '12px 0 0', color: 'var(--fg)' }}>
-                    For {g?.label.toLowerCase()} in {row.country_name}, the trend fitted to{' '}
+                    For {g?.label.toLowerCase()} in {row?.country_name}, the trend fitted to{' '}
                     {FIT_START_YEAR}–{FIT_END_YEAR} predicted{' '}
-                    <strong>{pct(backtest.retrodicted_2025_pct)}</strong> for {TARGET_YEAR}.
+                    <strong>{pct(backtest.retrodicted_2025_pct ?? 0)}</strong> for {TARGET_YEAR}.
                     <span className="wz-badge" style={{ marginLeft: 8 }}>
                       {tierFor('retrodicted_2025_pct')}
                     </span>
                   </p>
                   <p className="wz-body" style={{ margin: '8px 0 0', color: 'var(--fg)' }}>
-                    The published figure is <strong>{pct(backtest.observed_2025_pct)}</strong>.
+                    The published figure is <strong>{pct(backtest.observed_2025_pct ?? 0)}</strong>.
                     <span className="wz-badge" style={{ marginLeft: 8 }}>
                       {tierFor('observed_2025_pct')}
                     </span>
                   </p>
                   <p className="wz-note" style={{ margin: '10px 0 0' }}>
-                    Out by {signedPp(backtest.error_pp)}
+                    Out by {signedPp(backtest.error_pp ?? 0)}
                     {backtest.direction_correct === false
                       ? ', and in the wrong direction — the model expected this group to move the other way.'
                       : '.'}
@@ -262,8 +277,8 @@ export default function ResultScreen({ row, group, age, edu, cross, onRestart, o
 
               <p className="wz-note" style={{ margin: '14px 0 0', color: 'var(--accent-soft)' }}>
                 Across all {POOLED.n} country-and-group pairs that can be scored, that
-                model is out by {POOLED.mae_pp.toFixed(2)}pp on average — worse than the{' '}
-                {POOLED.persistence_mae_pp.toFixed(2)}pp you get by assuming nothing changes
+                model is out by {POOLED.mae_pp?.toFixed(2)}pp on average — worse than the{' '}
+                {POOLED.persistence_mae_pp?.toFixed(2)}pp you get by assuming nothing changes
                 at all — and it gets the direction of travel wrong{' '}
                 {POOLED.direction_wrong_n} times out of {POOLED.n}.
               </p>

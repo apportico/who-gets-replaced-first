@@ -19,7 +19,7 @@
 // eyeball.
 import { AGE_BAND_KEYS, EDU_BAND_KEYS } from './crossTabs'
 import { hasAnyIscoGroup } from './countryList'
-import type { WizardState, LaborRow, CountryOption } from '@/types'
+import type { WizardState, LaborRow, AbsentCountry } from '@/types'
 
 /**
  * The wizard's five screens. Moved here from `WizardShell` so the slugs the URL
@@ -95,7 +95,7 @@ function deepestSupported(iso3: string | null, group: number | null) {
 export function decode(search: string, rows: readonly LaborRow[] | null | undefined) {
   const q = new URLSearchParams(search ?? '')
   const dropped = []
-  let absent = null
+  let absent: AbsentCountry | null = null
 
   // Country. Aggregates are rejected: `WLD` is a row in the payload but it is
   // not a country, and rendering a world figure as somebody's country would be
@@ -184,7 +184,7 @@ const DROP_WORDING: Record<string, string> = {
  * not honour reads as a site that knows what it does not know.
  */
 export function noticeFor(
-  { absent, dropped }: { absent?: CountryOption | null; dropped?: readonly string[] } = {},
+  { absent, dropped }: { absent?: AbsentCountry | null; dropped?: readonly string[] } = {},
 ) {
   if (absent) {
     return `That link named ${absent.name}, which is in the dataset but reports no occupation breakdown to ILOSTAT — so there is no result to give you. Pick somewhere else below.`

@@ -1,3 +1,4 @@
+import type { IntroScreenProps } from '@/types'
 // R5 + R14. The intro.
 //
 // The canvas opens on "a year — not a probability". It does not say that here,
@@ -13,7 +14,7 @@
 //
 // The canvas's three capability chips are deliberately not here — R5's second
 // revision note says why, and `wizard.render.test.jsx` holds them out.
-export default function IntroScreen({ onStart }) {
+export default function IntroScreen({ onStart }: IntroScreenProps) {
   return (
     <div
       className="wz-pad"

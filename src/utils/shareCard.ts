@@ -97,7 +97,7 @@ function trendFigure(trend: FigureResult | null | undefined): ShareCardFigure | 
  */
 export function shareCardModel(
   { row, group, url }: { row?: LaborRow | null; group?: number | null; url?: string } = {},
-) {
+): ShareCardModel {
   // Falsy, not merely undefined: an empty `location.href` must fall back to
   // the site rather than drawing a card with no way back to the method.
   const link = url || SITE_URL
@@ -106,11 +106,16 @@ export function shareCardModel(
   const head = groupHeadcount(row, group)
   const trend = trendFor(row?.iso3, group)
 
+  // A type guard rather than `filter(Boolean)`: `figure()` returns null for a
+  // figure with no tier, and those are DROPPED from the card rather than drawn
+  // bare. The guard is what makes that promise checkable — without it the model
+  // would be typed as possibly carrying nulls, which is the shape 0015 R5
+  // forbids.
   const figures = [
     figure('Share today', share),
     figure('People doing it', head),
     trendFigure(trend),
-  ].filter(Boolean)
+  ].filter((f): f is ShareCardFigure => f !== null)
 
   // R6. A stand-in says it is standing in, in the card's own words rather than
   // a paraphrase — `trendFor` owns the sentence and the card reproduces it, so

@@ -15,12 +15,15 @@ import { ImageDown } from 'lucide-react'
 
 import { shareCardModel } from '@/utils/shareCard'
 import { drawCard, readyFonts, cardFilename } from '@/utils/shareCardCanvas'
+import type { LaborRow } from '@/types'
 
 const IDLE = 'idle'
 const WORKING = 'working'
 const FAILED = 'failed'
 
-export default function ShareCardButton({ row, group }) {
+export default function ShareCardButton({
+  row, group,
+}: { row: LaborRow | null; group: number | null }) {
   const [state, setState] = useState(IDLE)
 
   async function make() {
@@ -41,7 +44,7 @@ export default function ShareCardButton({ row, group }) {
         row, group, url: globalThis.location?.href || undefined,
       })
       const { canvas } = drawCard(model)
-      const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'))
+      const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'))
       if (!blob) throw new Error('canvas produced no blob')
 
       const file = new File([blob], cardFilename(model), { type: 'image/png' })
@@ -53,7 +56,7 @@ export default function ShareCardButton({ row, group }) {
         } catch (err) {
           // A cancelled share sheet is a choice, not a failure, and must not
           // fall through to a surprise download.
-          if (err?.name === 'AbortError') { setState(IDLE); return }
+          if (err instanceof Error && err.name === 'AbortError') { setState(IDLE); return }
         }
       }
 

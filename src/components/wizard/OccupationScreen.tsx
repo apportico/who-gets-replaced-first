@@ -17,8 +17,11 @@
 // box no longer holds.
 import { resolveTitle } from '@/utils/resolveTitle'
 import { GROUPS, groupDisplay } from '@/utils/isco'
+import type { OccupationScreenProps } from '@/types'
 
-export default function OccupationScreen({ group, notice, occ, onOcc, onPick, onNext, onBack }) {
+export default function OccupationScreen({
+  group, notice, occ, onOcc, onPick, onNext, onBack,
+}: OccupationScreenProps) {
   const { title, tried, echo } = occ
 
   const attempt = () => {

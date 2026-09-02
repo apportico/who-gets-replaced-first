@@ -87,7 +87,7 @@ reopens it deliberately rather than discovering it.
 
 ## Requirements
 
-### R1. [ ] The hosting shape is static export, and what that forecloses is written down
+### R1. [x] The hosting shape is static export, and what that forecloses is written down
 
 `next.config.ts` sets `output: 'export'` and takes `basePath` from the
 environment, following the official Pages template rather than hardcoding
@@ -97,12 +97,16 @@ reopens the decision explicitly.
 
 This requirement produces **no numbers** and therefore carries no tier.
 
+**Done (2026-09-02).** `grep -c "who-gets-replaced-first" next.config.ts` → `0`;
+`out/index.html` and `out/_next/` both emitted by `next build`; the foreclosed
+list is in the Non-goals.
+
 **Acceptance:** `next.config.ts` contains `output: 'export'`; `npm run build`
 creates `out/index.html` and an `out/_next/` directory; `grep -c "who-gets-replaced-first" next.config.ts`
 returns `0` (the path comes from `PAGES_BASE_PATH`); and this spec's *Non-goals*
 names the foreclosed features.
 
-### R2. [ ] The App Router replaces Vite, and both entry points become routes
+### R2. [~] The App Router replaces Vite, and both entry points become routes
 
 `app/layout.tsx` carries what `index.html`'s `<head>` carries today. `app/page.tsx`
 is the wizard; `app/methodology/page.tsx` is the second entry point 0015 R2
@@ -126,13 +130,31 @@ distinct `og:title`, `og:description` and `og:url` blocks today, so each keeps
 its own `export const metadata`, with only the shared `og:type`/`og:site_name`
 and the fonts in `app/layout.tsx`.
 
+**Revised (2026-09-02) — two clauses were wrong, and the build is what showed it.**
+
+1. **`out/index.html` carries no `<h1>`, and that is correct.** The wizard's
+   `h1` lives in `IntroScreen`, which is inside R17's Suspense boundary, so it
+   is client-rendered by construction. Requiring a prerendered `<h1>` on the
+   index contradicts R17. `out/methodology.html` does carry one (`grep -c '<h1'`
+   → `1`), because that page has no client island. The criterion now asks for a
+   rendered `<h1>` on the **methodology** page and the prerendered **chrome** on
+   the index, which is what R17's acceptance 3 checks in detail.
+2. **`@vitejs/plugin-react` stays, as a devDependency.** The probed Next.js
+   Vitest guide requires it for the test runner. It is no longer a build plugin
+   — `vite` and `@tailwindcss/vite` are gone — so the intent of the clause holds
+   while its literal grep does not.
+
+Everything else passed as written: `git ls-files` returns nothing for the five
+deleted paths, `trailingSlash: false` is set, and both routes prerender
+(`Route (app)` lists `/` and `/methodology` as `○ (Static)`).
+
 **Acceptance:** `git ls-files` returns nothing for `vite.config.js`,
 `index.html`, `methodology.html`, `src/main.jsx`; `grep -rn "\"vite\"\|@vitejs/plugin-react\|@tailwindcss/vite" package.json`
 is empty; `next.config.ts` sets `trailingSlash: false`; and **`out/index.html`
 and `out/methodology.html`** both exist after a build and both contain a
 rendered `<h1>`.
 
-### R3. [ ] Tailwind v4 moves to PostCSS, and the three font families still reach the browser
+### R3. [x] Tailwind v4 moves to PostCSS, and the three font families still reach the browser
 
 The `@tailwindcss/vite` plugin is replaced by `@tailwindcss/postcss` +
 `postcss.config.mjs`. **The font trap from 0010 R2 must not regress**: Tailwind
@@ -155,6 +177,36 @@ about filenames, which are build-generated hashes rather than family-named. Nor
 is the expected count three — Instrument Serif at `style: ['normal', 'italic']`
 is more than one file by itself, and subsetting moves the number again. The
 built CSS is where the family names actually are.
+
+**Done (2026-09-02), and the real build corrected our assumption about the
+generated names.** The spec predicted `__Geist_<hash>` / `__Geist_Fallback_<hash>`.
+The actual emitted descriptors are plain:
+
+```
+$ grep -o '@font-face{font-family:[^;]*' out/_next/static/chunks/*.css | sed 's/.*font-family://' | sort | uniq -c
+  20 Geist
+   1 Geist Fallback
+  12 Geist Mono
+   1 Geist Mono Fallback
+   4 Instrument Serif
+   1 Instrument Serif Fallback
+```
+
+**The substring hazard is real, with different strings than predicted:** `Geist`
+is a substring of `Geist Mono`, so the exact-match clause is doing exactly the
+work it was added for — just against `Geist` rather than `__Geist_<hash>`. The
+anchoring-versus-literal argument is moot, because there is no hash in the name
+to go stale. This is precisely why the requirement said to confirm from a real
+build before freezing the pattern rather than taking either reviewer's word for
+the shape.
+
+Distinct non-fallback descriptors: **3** (`Geist`, `Geist Mono`,
+`Instrument Serif`). A non-fallback `src` reads
+`url(../media/fef07dbb0973bf53-s.3p2_lha1f2xer.woff2)format("woff2")` — self-hosted,
+not `local(...)`. And the fallback face is exactly the defeater the review
+predicted:
+`@font-face{font-family:Geist Fallback;src:local(Arial);ascent-override:95.94%;…}`.
+`grep -c 'fonts.googleapis.com'` → `0` on **both** built pages.
 
 **Acceptance:** `postcss.config.mjs` names `@tailwindcss/postcss`; a built CSS
 file under `out/_next/` contains the palette (`grep -rl -- '--accent' out/_next/`
@@ -210,16 +262,33 @@ being made; and the R12 browser walk confirms the rendered `h1` computes to
 Instrument Serif rather than a fallback — measured on the page, since that is
 the only place this defect has ever been visible.
 
-### R4. [ ] The `'use client'` boundary is drawn as tightly as the wizard allows
+### R4. [~] The `'use client'` boundary is drawn as tightly as the wizard allows
 
 The wizard is interactive and becomes a Client Component. The boundary is placed
 deliberately and documented in a comment: the route files stay Server Components
 so #26 can later read the dataset at build time, and `'use client'` sits at the
 wizard root rather than being sprinkled per file.
 
-**Acceptance:** `grep -rc "'use client'" app/ src/` shows the directive on the
-wizard root and **not** on `app/layout.tsx` or `app/page.tsx`; `npm run build`
-completes with no "cannot be used in a Server Component" error.
+**Revised (2026-09-02): the grep gives a false positive on prose.** `app/page.tsx`
+*discusses* the directive in a comment explaining why it is absent, so
+`grep -rl "use client" app/` matches it. A directive is only a directive as the
+**first line** of a module, so that is what the check reads:
+
+```
+app/layout.tsx                                 server/none
+app/page.tsx                                   server/none
+app/methodology/page.tsx                       server/none
+src/components/wizard/WizardShell.tsx          DIRECTIVE
+```
+
+One island, at the wizard root, exactly as R17 requires. `next build` completed
+with no Server Component error. (`src/components/ui/toggle.tsx` also carries it,
+upstream from shadcn — it is inside the island either way.)
+
+**Acceptance:** the **first line** of `app/layout.tsx`, `app/page.tsx` and
+`app/methodology/page.tsx` is not `'use client'`, and the first line of
+`WizardShell` is; `npm run build` completes with no "cannot be used in a Server
+Component" error.
 
 ### R5. [ ] All 38 app files convert to TypeScript under `strict: true`
 
@@ -510,7 +579,7 @@ the network panel, since a stripped or misrouted asset is the failure mode this
 exists for), and the methodology page resolves. The run URL and the result are
 recorded on this requirement.
 
-### R17. [ ] The wizard's boot state survives prerendering, and the boundary is chosen rather than discovered
+### R17. [x] The wizard's boot state survives prerendering, and the boundary is chosen rather than discovered
 
 `WizardShell` reads `location.search` and `navigator.language` in a render-time
 `useMemo` that feeds `useState`. Under static export the build has neither, so
@@ -610,6 +679,19 @@ that prerenders the correct stateful screen, because the query string does not
 exist at build time. **#24's real per-country paths are what remove the problem**
 rather than trade against it, which is a further argument for this migration and
 not against it.
+
+**Done (2026-09-02), checked against `out/` exactly as written:**
+
+1. `next build` **succeeded** — which is itself the proof the Suspense boundary
+   exists, since the probe established that its absence is a build failure.
+2. `grep -o 'The Replacement Date' out/index.html` → present. The chrome is in
+   the prerendered HTML.
+3. `grep -oE '0[0-9]/04' out/index.html` → **empty**. No `NN/04` counter in the
+   static HTML, which is the failure signature acceptance 3 names for a seam cut
+   in the wrong place. The seam is on the data boundary, as intended.
+
+The base-path half, from R15: 31 references to `/who-gets-replaced-first/_next/`
+in `out/index.html` and **0** bare `"/_next/`.
 
 **Acceptance, against the built output** — a source-level test cannot see this,
 which is the rule R3 already applies to the fonts:

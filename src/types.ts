@@ -13,9 +13,12 @@
 //   - a country code that is not in the dataset
 //
 // The pipeline is the source of these definitions; nothing here redefines a
-// Tier or invents a default. `test/types/app.types.ts` holds the
-// @ts-expect-error cases that must FAIL if these stop rejecting — 0007 R7's
-// two-way pattern, because types are only met by rejecting, not by existing.
+// Tier or invents a default. `test/types/app.types.ts` holds the deliberately
+// broken cases that must FAIL if these types stop rejecting them — 0007 R7's
+// two-way pattern, because types are met by rejecting, not by existing.
+// (That file's directives are written there, not named here: a line beginning
+//  with the directive token inside a comment IS a directive to tsc, which is
+//  its own small lesson in checking the built thing rather than the source.)
 export type { Tier, FieldTier, Measured, Vintage, Int, DatasetRow } from '../pipeline/schema'
 export { TIERS, NOT_A_MEASUREMENT } from '../pipeline/schema'
 
@@ -60,6 +63,19 @@ export type Maybe<T> = T | null
 //
 // These are not pipeline contracts — they describe what the wizard's own pure
 // functions return, so a screen cannot read a field the function never sets.
+
+/**
+ * A country the URL named that has no series (0016 R5).
+ *
+ * Deliberately narrower than `CountryOption`: this is never rendered as a
+ * pickable option, only named in the sentence that states the absence, so it
+ * carries no `iso2`. Making it a `CountryOption` would imply it could be
+ * picked.
+ */
+export interface AbsentCountry {
+  readonly iso3: string
+  readonly name: string
+}
 
 /** One pickable country in step 01's search (0011 R1). */
 export interface CountryOption {
@@ -121,4 +137,83 @@ export interface ShareCardModel {
    * tiers the project uses; it never labels a number.
    */
   readonly legend?: readonly string[]
+}
+
+// ------------------------------------------------------------- screen props
+//
+// One interface per screen, so a screen cannot read a prop the shell never
+// passes — the fourth failure mode #22 names, one level up from the data.
+
+/** What a cross-tab fetch returned, or why it did not (0010 R20). */
+export interface CrossTabState {
+  readonly state: string
+  readonly data?: { values?: Record<string, unknown> } | null
+}
+
+export interface IntroScreenProps {
+  onStart: () => void
+}
+
+export interface CountryScreenProps {
+  rows: readonly LaborRow[]
+  iso3: string | null
+  excluded: CountryOption | null
+  notice: string | null
+  query: string
+  onQuery: (q: string) => void
+  onPick: (iso3: string) => void
+  onNext: () => void
+  onBack: () => void
+}
+
+/**
+ * Step 02's own state. `echo` records the string THIS resolution was made
+ * from, which is why it is separate from `title` — 0014 R2's chip override
+ * clears it, and deriving it from `title` would keep claiming "you typed
+ * paralegal" after a chip moved the answer elsewhere.
+ */
+export interface OccupationEntry {
+  readonly title: string
+  readonly tried: boolean
+  readonly echo: string | null
+}
+
+export interface OccupationScreenProps {
+  group: number | null
+  notice: string | null
+  occ: OccupationEntry
+  onOcc: (value: OccupationEntry) => void
+  /** null is a real answer: the title resolved to no group. */
+  onPick: (group: number | null) => void
+  onNext: () => void
+  onBack: () => void
+}
+
+export interface OptionalScreenProps {
+  group: number | null
+  cross: CrossTabState | null
+  age: string | null
+  edu: string | null
+  onAge: (key: string | null) => void
+  onEdu: (key: string | null) => void
+  onNext: () => void
+  onSkip: () => void
+  onBack: () => void
+}
+
+export interface ResultScreenProps {
+  row: LaborRow | null
+  group: number | null
+  age: string | null
+  edu: string | null
+  cross: CrossTabState | null
+  onRestart: () => void
+  onBack: () => void
+}
+
+/** One point on the sparkline. `value` may be null — a gap in a series is a
+ *  gap, and 0012 R12 draws around it rather than through zero. */
+export interface SeriesPoint {
+  readonly year: number
+  readonly value: number | null
 }

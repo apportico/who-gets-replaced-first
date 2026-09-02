@@ -27,6 +27,7 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import { renderedCountries } from '@/utils/countrySearch'
 import { countryOptions } from '@/utils/countryList'
+import type { CountryScreenProps } from '@/types'
 
 // 0014 R5. `query` is a prop now, owned by WizardShell: this screen unmounts on
 // every step change, so a locally-held search string meant a reader who came
@@ -36,7 +37,7 @@ import { countryOptions } from '@/utils/countryList'
 // asked for on arrival.
 export default function CountryScreen({
   rows, iso3, excluded, notice, query, onQuery, onPick, onNext, onBack,
-}) {
+}: CountryScreenProps) {
   // -1, not 0: on open the reader has expressed nothing, so painting the accent
   // ring around Afghanistan — with no element focused — claims a keyboard
   // position nobody took, and `Enter` on an empty box would select it. Typing
@@ -44,15 +45,15 @@ export default function CountryScreen({
   // an arbitrary pick.
   const [active, setActive] = useState(-1)
   const listId = useId()
-  const optionId = (i) => `${listId}-opt-${i}`
-  const listRef = useRef(null)
+  const optionId = (i: number) => `${listId}-opt-${i}`
+  const listRef = useRef<HTMLDivElement | null>(null)
 
   const { matches, absent, matchCount, absentCount, truncated, absentTruncated, resting } =
     useMemo(() => renderedCountries(rows, query, iso3), [rows, query, iso3])
   const total = useMemo(() => countryOptions(rows).length, [rows])
   const absentRemaining = absentCount - absent.length
 
-  function move(delta) {
+  function move(delta: number) {
     if (matches.length === 0) return
     // From the untouched state, down opens at the first match and up at the
     // last, rather than wrapping arithmetic off a -1 that means "none".
@@ -66,7 +67,7 @@ export default function CountryScreen({
     if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' })
   }
 
-  function onKeyDown(e) {
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'ArrowDown') { e.preventDefault(); move(1) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1) }
     else if (e.key === 'Enter') {

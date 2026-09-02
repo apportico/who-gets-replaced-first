@@ -31,6 +31,7 @@ import { useSearchParams } from 'next/navigation'
 import WizardFrame from './WizardFrame'
 
 import payload from '@/data/global_labor.json'
+import type { LaborRow, OccupationEntry, WizardState } from '@/types'
 import { ageBands, eduBands, loadCrossTabs } from '@/utils/crossTabs'
 import { localeCountry } from '@/utils/countryList'
 import { NOT_LOADED, PRESENT } from '@/utils/absence'
@@ -46,7 +47,11 @@ const search = () => globalThis.location?.search ?? ''
 const pathname = () => globalThis.location?.pathname ?? ''
 
 export default function WizardShell() {
-  const rows = payload.rows
+  // The payload is JSON, so TypeScript infers a vast literal union from its
+  // contents. `LaborRow[]` is the contract the app actually consumes (0019 R6),
+  // and this is the single point where the two meet — one assertion at the
+  // boundary rather than a cast at every call site.
+  const rows = payload.rows as unknown as readonly LaborRow[]
 
   // R3. Decoded in a lazy initialiser, not an effect: the URL is known before
   // the first paint, so restoring in an effect would render the intro and then
@@ -116,7 +121,7 @@ export default function WizardShell() {
    * `pop` writes nothing at all — the browser has already moved, and pushing
    * there would fight the user's own Back button.
    */
-  const commit = useCallback((next, mode) => {
+  const commit = useCallback((next: WizardState, mode: 'push' | 'replace' | 'pop') => {
     stateRef.current = next
     setState(next)
     if (mode === 'pop') return
@@ -129,13 +134,13 @@ export default function WizardShell() {
     else globalThis.history?.replaceState(null, '', url)
   }, [])
 
-  const go = useCallback((nextStep, patch = {}) => {
+  const go = useCallback((nextStep: number, patch: Partial<WizardState> = {}) => {
     setNotice(null)
     commit({ ...stateRef.current, ...patch, step: nextStep }, 'push')
     globalThis.scrollTo?.(0, 0)
   }, [commit])
 
-  const set = useCallback((patch) => {
+  const set = useCallback((patch: Partial<WizardState>) => {
     commit({ ...stateRef.current, ...patch }, 'replace')
   }, [commit])
 
@@ -189,7 +194,7 @@ export default function WizardShell() {
   // resolve, then pick Managers" would report that you typed `paralegal` to
   // reach Managers.
   const [query, setQuery] = useState('')
-  const [occ, setOcc] = useState({ title: '', tried: false, echo: null })
+  const [occ, setOcc] = useState<OccupationEntry>({ title: '', tried: false, echo: null })
 
   // 0014 R1, landing on the hook 0016 left for it — though not on the hook it
   // named. 0016 R10 suggested `commit(next, 'pop')`; that is wrong for a
@@ -250,7 +255,7 @@ export default function WizardShell() {
       // they then copy. This is 0010 R20's boundary, one layer up, in the
       // address bar.
       if (r.state !== PRESENT || !group) return
-      const patch = {}
+      const patch: { age?: string | null; edu?: string | null } = {}
       if (age) {
         const a = ageBands(r.data, group)
         if (a.state !== PRESENT || !a.bands.some((b) => b.key === age)) patch.age = null

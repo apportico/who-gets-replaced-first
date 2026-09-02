@@ -14,8 +14,16 @@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { ageBands, eduBands } from '@/utils/crossTabs'
 import { PRESENT, WITHHELD, LOAD_FAILED, NOT_LOADED, absenceMessage } from '@/utils/absence'
+import type { OptionalScreenProps } from '@/types'
+import type { BandRead } from '@/utils/crossTabs'
 
-function BandRow({ title, result, value, onPick, columns }) {
+function BandRow({ title, result, value, onPick, columns }: {
+  title: string
+  result: BandRead
+  value: string | null
+  onPick: (key: string | null) => void
+  columns: number
+}) {
   if (result.state === NOT_LOADED) {
     return <p className="wz-note" style={{ margin: '10px 0 0' }}>{absenceMessage(NOT_LOADED)}</p>
   }
@@ -72,7 +80,9 @@ function BandRow({ title, result, value, onPick, columns }) {
   )
 }
 
-export default function OptionalScreen({ group, cross, age, edu, onAge, onEdu, onNext, onSkip, onBack }) {
+export default function OptionalScreen({
+  group, cross, age, edu, onAge, onEdu, onNext, onSkip, onBack,
+}: OptionalScreenProps) {
   const data = cross?.state === PRESENT ? cross.data : null
   const ages = data ? ageBands(data, group) : { state: cross?.state ?? NOT_LOADED, bands: [] }
   const edus = data ? eduBands(data, group) : { state: cross?.state ?? NOT_LOADED, bands: [] }

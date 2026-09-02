@@ -49,7 +49,7 @@ const SUMMARY: Record<string, BacktestRow> = {}
 })
 
 export const BACKTEST_FIELD_TIERS = payload.field_tiers as Record<string, string>
-export const POOLED = SUMMARY.POOLED
+export const POOLED = SUMMARY.POOLED as PooledSummary
 export const FIT_START_YEAR = payload.fit_start_year
 export const FIT_END_YEAR = payload.fit_end_year
 export const TARGET_YEAR = payload.target_year
@@ -86,7 +86,36 @@ export function tierFor(field: string) {
  * it is, rather than letting a national-looking number stand in for one that
  * was never computed.
  */
-export function backtestFor(iso3: string | null | undefined, group: number | null | undefined) {
+/**
+ * A back-test read, with the columns the result screen actually renders named
+ * rather than left as `unknown`.
+ *
+ * They are all optional because `scored: false` carries none of them — the
+ * country-group could not be scored, and the screen says so instead of
+ * borrowing the pooled figure. Naming them here is what stops a screen reading
+ * a column the payload does not have.
+ */
+export interface BacktestRead extends BacktestRow {
+  scored: boolean
+  group: string | null
+  retrodicted_2025_pct?: number
+  observed_2025_pct?: number
+  error_pp?: number
+  direction_correct?: boolean
+}
+
+/** The pooled summary's rendered columns, same reasoning as BacktestRead. */
+export interface PooledSummary extends BacktestRow {
+  n?: number
+  mae_pp?: number
+  persistence_mae_pp?: number
+  direction_wrong_n?: number
+}
+
+export function backtestFor(
+  iso3: string | null | undefined,
+  group: number | null | undefined,
+): BacktestRead {
   const column = groupColumn(group)
   if (!iso3 || !column) return { scored: false, group: column }
   const row = SERIES[iso3]?.[column]

@@ -25,8 +25,8 @@ const REFUSED = 'refused'
 
 export default function CopyLink() {
   const [state, setState] = useState(IDLE)
-  const fieldRef = useRef(null)
-  const timer = useRef(null)
+  const fieldRef = useRef<HTMLInputElement | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => () => clearTimeout(timer.current), [])
 

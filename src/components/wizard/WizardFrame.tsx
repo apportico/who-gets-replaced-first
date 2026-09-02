@@ -19,7 +19,15 @@
 //
 // Only a track's `background` is step-derived, so the layout is static and the
 // fill is not. `step` is null in the fallback and a number in the real header.
-export default function WizardFrame({ step = null, children = null }) {
+export default function WizardFrame({
+  step = null,
+  children = null,
+}: {
+  /** `null` in the prerendered fallback, a step index in the real header.
+   *  That single distinction is the data seam this component is split on. */
+  step?: number | null
+  children?: React.ReactNode
+}) {
   const shown = step === null ? null : Math.max(step, 1)
 
   return (

@@ -1,3 +1,4 @@
+import type { SeriesPoint } from '@/types'
 /** Inline trend chart for one country's series. Kept by 0010 R1 and reused by
  *  R12 rather than writing a second one.
  *
@@ -11,8 +12,16 @@ export default function Sparkline({
   height = 58,
   unit = '%',
   markerYear = null,
+}: {
+  points: readonly SeriesPoint[] | null | undefined
+  width?: number
+  height?: number
+  unit?: string
+  markerYear?: number | null
 }) {
-  const clean = (points || []).filter((p) => p.value !== null && p.value !== undefined)
+  const clean = (points ?? []).filter(
+    (p): p is { year: number; value: number } => p.value !== null && p.value !== undefined,
+  )
   if (clean.length < 2) {
     return <span className="wz-note">Not enough years of data to draw a trend.</span>
   }
@@ -24,8 +33,8 @@ export default function Sparkline({
   const pad = (hi - lo) * 0.15 || 1
   const [yLo, yHi] = [lo - pad, hi + pad]
 
-  const px = (y) => ((y - x0) / (x1 - x0 || 1)) * (width - 4) + 2
-  const py = (v) => height - 8 - ((v - yLo) / (yHi - yLo || 1)) * (height - 22)
+  const px = (y: number) => ((y - x0) / (x1 - x0 || 1)) * (width - 4) + 2
+  const py = (v: number) => height - 8 - ((v - yLo) / (yHi - yLo || 1)) * (height - 22)
   const d = clean
     .map((p, i) => `${i ? 'L' : 'M'}${px(p.year).toFixed(1)},${py(p.value).toFixed(1)}`)
     .join(' ')

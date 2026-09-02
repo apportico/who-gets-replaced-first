@@ -41,6 +41,8 @@
     "out",
     ".next",
     "dist",
-    ".claude"
+    ".claude",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

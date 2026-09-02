@@ -6,10 +6,22 @@
 contract this migration must carry across unchanged)
 **Issue:** [#23](https://github.com/apportico/who-gets-replaced-first/issues/23),
 covering [#22](https://github.com/apportico/who-gets-replaced-first/issues/22)
-**Approved:** `syymza`, round 8, on `4b28702` —
+**Approved:** round 8, on `4b28702` —
 <https://github.com/apportico/who-gets-replaced-first/pull/95#pullrequestreview-5091792101>.
-Seven rounds of revision; the three findings that mattered were R15's base-path
-wiring, R17's hydration mismatch and R11's move from modules to functions.
+**Posted by a standing review routine running under the `syymza` account, not by
+a person reading the diff** — disclosed by the routine itself in round 9, and
+recorded here because `CLAUDE.md` deliberately notes that `main` can now be
+reached with no human having read the change (#93), and this is the line a later
+reader would check to find out whether that is what happened. Per `/sdlc`'s
+*Whose approval counts*, that provenance is recorded rather than treated as a
+veto. Seven rounds of revision; the three findings that changed the outcome were
+R15's base-path wiring, R17's hydration mismatch and R11's move from naming
+modules to naming functions.
+
+**Scope of that approval:** the spec's substance, at `4b28702`. The
+implementation landed after it, so it does **not** authorise the merge on its
+own — `git diff --name-only 4b28702..HEAD -- . ':(exclude).snapshots/'` returns
+69 files. A re-review on the implementation is what closes that.
 **Goal:** Move the app to Next.js and TypeScript in one pass, checked as:
 
 1. One spec covers both #22 (JS→TS) and #23 (Vite→Next.js), each requirement

@@ -31,11 +31,11 @@ const ACCENT = '#FF5A2B'
 const ACCENT_SOFT = '#FF9670'
 
 /** Flatten `rgba(fg, alpha)` over an opaque backdrop. */
-function over(hex, alpha, backdrop) {
-  const h = (s) => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16))
+function over(hex: string, alpha: number, backdrop: string) {
+  const h = (s: string) => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16))
   const [r1, g1, b1] = h(hex)
   const [r2, g2, b2] = h(backdrop)
-  const mix = (a, b) => Math.round(a * alpha + b * (1 - alpha))
+  const mix = (a: number, b: number) => Math.round(a * alpha + b * (1 - alpha))
   return `#${[mix(r1, r2), mix(g1, g2), mix(b1, b2)]
     .map((v) => v.toString(16).padStart(2, '0')).join('')}`
 }

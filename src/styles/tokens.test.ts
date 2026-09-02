@@ -19,7 +19,7 @@ const css = readFileSync(path.resolve('src/styles/index.css'), 'utf8')
 const LAYOUT = readFileSync(path.resolve('app/layout.tsx'), 'utf8')
 
 /** The declarations of one rule, comments stripped. Selector matched exactly. */
-function ruleBody(selector) {
+function ruleBody(selector: string) {
   const i = css.indexOf(`${selector} {`)
   if (i === -1) return ''
   const body = css.slice(i + selector.length + 2, css.indexOf('}', i))

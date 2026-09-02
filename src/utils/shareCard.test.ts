@@ -9,18 +9,22 @@
 import { describe, it, expect } from 'vitest'
 
 import payload from '@/data/global_labor.json'
+import type { LaborRow } from '@/types'
 import {
   shareCardModel, cardText, allowedYears, yearTokens, CARD_REFUSAL,
 } from '@/utils/shareCard'
 import { GROUPS } from '@/utils/isco'
 
-const rows = payload.rows
+// 0019 R6. One assertion at the payload boundary, the same shape WizardShell
+// uses: the JSON import infers a vast literal union, and `LaborRow[]` is the
+// contract the app actually consumes. One cast here beats a cast at every call.
+const rows = payload.rows as unknown as LaborRow[]
 const gbr = rows.find((r) => r.iso3 === 'GBR')
 const TECHNICIANS = 3
 
-const everyCell = []
+const everyCell: [LaborRow, number][] = []
 for (const row of rows) {
-  for (const g of GROUPS) everyCell.push([row, g.number])
+  for (const g of GROUPS) everyCell.push([row, g.n])
 }
 
 describe('0015 R6 — every figure carries its tier, or is not drawn', () => {
@@ -103,9 +107,11 @@ describe('0015 R7 — the card never states a year as an outcome', () => {
     // The canary. A blacklist keyed on "later than today" would let this
     // through in 2031; the whitelist rejects it now and then.
     const model = shareCardModel({ row: gbr, group: TECHNICIANS })
-    model.disclosures.push('Replacement expected by 2041.')
-    const allowed = allowedYears(model)
-    const bad = yearTokens(model).filter((t) => !allowed.has(t.year))
+    // A mutable copy: ShareCardModel's arrays are readonly by contract
+    // (0015 R5), and this test is deliberately injecting a bad disclosure.
+    const poisoned = { ...model, disclosures: [...model.disclosures, 'Replacement expected by 2041.'] }
+    const allowed = allowedYears(poisoned)
+    const bad = yearTokens(poisoned).filter((t) => !allowed.has(t.year))
     expect(bad.map((t) => t.year)).toEqual([2041])
   })
 
@@ -121,7 +127,7 @@ describe('0015 R7 — the card never states a year as an outcome', () => {
     // about provenance; this is about plausibility, and the two failing
     // together is what a projected date would look like.
     const latest = Math.max(
-      ...rows.map((r) => r.data_year_occupation ?? 0).filter(Boolean),
+      ...rows.map((r) => (r.data_year_occupation as number | null) ?? 0).filter(Boolean),
     )
     for (const [row, group] of everyCell) {
       for (const { year } of yearTokens(shareCardModel({ row, group }))) {

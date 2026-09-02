@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "eslint .",
-    "typecheck": "tsc -p pipeline/tsconfig.json && tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc -p pipeline/tsconfig.json && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "check:brand": "node scripts/check-schema-brand.mjs",
     "check:meta": "node scripts/check-meta.mjs",
     "check:settings": "node scripts/check-settings.mjs",

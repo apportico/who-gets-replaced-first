@@ -7,11 +7,14 @@
 import { describe, it, expect } from 'vitest'
 
 import payload from '@/data/global_labor.json'
+import type { LaborRow } from '@/types'
 import { AGE_BAND_KEYS, EDU_BAND_KEYS } from '@/utils/crossTabs'
 import { decode, encode, noticeFor, STEPS } from '@/utils/urlState'
 
-const rows = payload.rows
-
+// 0019 R6. One assertion at the payload boundary, the same shape WizardShell
+// uses: the JSON import infers a vast literal union, and `LaborRow[]` is the
+// contract the app actually consumes. One cast here beats a cast at every call.
+const rows = payload.rows as unknown as LaborRow[]
 describe('R1 — encode', () => {
   it('writes the five parameters in a fixed order', () => {
     expect(encode({ step: 4, iso3: 'GBR', group: 3, age: '25_54', edu: 'adv' }))
@@ -124,7 +127,7 @@ describe('R6 — bad input degrades to the deepest supported step', () => {
     ['?step=result&country=WLD&group=3', 1, ['country']],
   ]
 
-  for (const [search, step, dropped] of cases) {
+  for (const [search, step, dropped] of cases as [string, number, string[]][]) {
     it(`${search} → step ${step}`, () => {
       const out = decode(search, rows)
       expect(out.step).toBe(step)
@@ -135,7 +138,7 @@ describe('R6 — bad input degrades to the deepest supported step', () => {
   it('an aggregate row is not a country', () => {
     // WLD exists in the payload; it is just not somebody's country.
     expect(rows.some((r) => r.iso3 === 'WLD')).toBe(true)
-    expect(rows.find((r) => r.iso3 === 'WLD').row_type).not.toBe('country')
+    expect(rows.find((r) => r.iso3 === 'WLD')!.row_type).not.toBe('country')
     const out = decode('?step=result&country=WLD&group=3', rows)
     expect(out.iso3).toBeNull()
     expect(out.absent).toBeNull()

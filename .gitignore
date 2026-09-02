@@ -6,6 +6,7 @@ dist
 # `pipeline/raw` convention above so a symlink is ignored too.
 out
 .next
+*.tsbuildinfo
 .idea
 
 # Claude Code: share skills, keep local settings and worktrees out

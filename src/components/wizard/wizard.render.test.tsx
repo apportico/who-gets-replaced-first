@@ -40,7 +40,7 @@ function startWizard() {
 // 0011 R1/R9 — step 01 is a search now, so reaching a country means typing at
 // it. The options carry role="option" rather than the implicit button role,
 // which is why every call site below moved off getByRole('button').
-function pickCountry(name) {
+function pickCountry(name: string) {
   fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: name } })
   fireEvent.click(screen.getByRole('option', { name: new RegExp(name) }))
 }
@@ -232,7 +232,7 @@ describe('R3 — every installed component is actually rendered', () => {
   it('no component sits in src/components/ui unused', () => {
     const files = Object.keys(
       import.meta.glob('/src/components/ui/*.tsx', { eager: true }),
-    ).map((p) => p.split('/').pop().replace('.tsx', ''))
+    ).map((p) => p.split('/').pop()!.replace('.tsx', ''))
     expect(files.length).toBeGreaterThan(0)
 
     // Every component file outside ui/ itself, not just the wizard directory:
@@ -251,7 +251,7 @@ describe('R3 — every installed component is actually rendered', () => {
     // `toggle` as used purely because toggle-group is imported — which meant the
     // exemption below did nothing and a future `card` beside a `card-header`
     // would slip through the same way.
-    const imported = (f) => new RegExp(`components/ui/${f}['"\`]`).test(consumers)
+    const imported = (f: string) => new RegExp(`components/ui/${f}['"\`]`).test(consumers)
 
     // `toggle` is exempt on its merits: toggle-group imports it internally, so
     // it is a dependency of a rendered component rather than an unrendered one.
@@ -349,7 +349,7 @@ describe('0011 R9 — the search is operable by keyboard', () => {
 
     expect(screen.getByRole('option', { name: /United Kingdom/ }).getAttribute('aria-selected'))
       .toBe('true')
-    expect(screen.getByRole('button', { name: /continue/i }).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: /continue/i }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('opens with nothing active, so the ring claims no position nobody took', () => {
@@ -365,9 +365,9 @@ describe('0011 R9 — the search is operable by keyboard', () => {
       // And Enter on an untouched box selects nothing rather than Afghanistan.
       fireEvent.keyDown(screen.getByLabelText('Search countries'), { key: 'Enter' })
       expect(document.querySelector('[role=option][aria-selected=true]')).toBeNull()
-      expect(screen.getByRole('button', { name: /continue/i }).disabled).toBe(true)
+      expect((screen.getByRole('button', { name: /continue/i }) as HTMLButtonElement).disabled).toBe(true)
     } finally {
-      delete globalThis.navigator.language
+      delete (globalThis.navigator as { language?: string }).language
     }
   })
 
@@ -377,14 +377,14 @@ describe('0011 R9 — the search is operable by keyboard', () => {
     const names = () => [...document.querySelectorAll('[role=option]')].map((o) => o.textContent)
 
     fireEvent.keyDown(input, { key: 'ArrowDown' })
-    expect(document.querySelector('[role=option][data-active=true]').textContent)
+    expect(document.querySelector('[role=option][data-active=true]')!.textContent)
       .toBe(names()[0])
 
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(document.querySelector('[role=option][data-active=true]')).toBeNull()
 
     fireEvent.keyDown(input, { key: 'ArrowUp' })
-    expect(document.querySelector('[role=option][data-active=true]').textContent)
+    expect(document.querySelector('[role=option][data-active=true]')!.textContent)
       .toBe(names()[names().length - 1])
   })
 
@@ -407,18 +407,18 @@ describe('0011 R9 — the search is operable by keyboard', () => {
   it('announces the match count politely, and says nothing at rest', () => {
     startWizard()
     const live = document.querySelector('[aria-live=polite]')
-    expect(live.textContent.trim()).toBe('')
+    expect(live!.textContent!.trim()).toBe('')
     fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'china' } })
-    expect(live.textContent).toContain('3 of 177')
+    expect(live!.textContent).toContain('3 of 177')
   })
 
   it('carries combobox semantics that point at the list', () => {
     startWizard()
     const input = screen.getByRole('combobox')
-    const list = document.getElementById(input.getAttribute('aria-controls'))
-    expect(list.getAttribute('role')).toBe('listbox')
+    const list = document.getElementById(input.getAttribute('aria-controls')!)
+    expect(list!.getAttribute('role')).toBe('listbox')
     fireEvent.keyDown(input, { key: 'ArrowDown' })
-    expect(document.getElementById(input.getAttribute('aria-activedescendant')))
+    expect(document.getElementById(input.getAttribute('aria-activedescendant')!))
       .toBeTruthy()
   })
 })
@@ -426,9 +426,9 @@ describe('0011 R9 — the search is operable by keyboard', () => {
 describe('0011 R5 — a locale we cannot serve is named on arrival', () => {
   // `language` lives on Navigator.prototype, so there is no own descriptor to
   // put back — deleting the own property re-exposes the prototype getter.
-  const stubLocale = (value) => {
+  const stubLocale = (value: string) => {
     Object.defineProperty(globalThis.navigator, 'language', { value, configurable: true })
-    return () => { delete globalThis.navigator.language }
+    return () => { delete (globalThis.navigator as { language?: string }).language }
   }
 
   it('names China and pre-selects nothing for zh-CN', () => {
@@ -439,7 +439,7 @@ describe('0011 R5 — a locale we cannot serve is named on arrival', () => {
         'China reports no occupation breakdown to ILOSTAT',
       )
       expect(document.querySelector('[role=option][aria-selected=true]')).toBeNull()
-      expect(screen.getByRole('button', { name: /continue/i }).disabled).toBe(true)
+      expect((screen.getByRole('button', { name: /continue/i }) as HTMLButtonElement).disabled).toBe(true)
 
       // And it stops explaining an absence the reader has moved past.
       pickCountry('France')
@@ -469,13 +469,13 @@ describe('0011 R8 — the search cost no dependency and no fourth ui file', () =
     const pkg = (await import('../../../package.json')).default
     const deps = { ...pkg.dependencies, ...pkg.devDependencies }
     for (const name of ['cmdk', '@radix-ui/react-dialog']) {
-      expect(deps[name]).toBeUndefined()
+      expect((deps as Record<string, string>)[name]).toBeUndefined()
     }
   })
 
   it('leaves src/components/ui at the three files it already held', () => {
     const files = Object.keys(import.meta.glob('/src/components/ui/*.tsx'))
-      .map((p) => p.split('/').pop().replace('.tsx', ''))
+      .map((p) => p.split('/').pop()!.replace('.tsx', ''))
       .sort()
     expect(files).toEqual(['accordion', 'toggle', 'toggle-group'])
   })
@@ -567,10 +567,10 @@ describe('0015 R1 — one h1 per screen, no skipped level', () => {
   it('the result h1 is the figure sentence, and keeps its display size', async () => {
     await toResult()
     const h1 = document.querySelector('h1')
-    expect(h1.textContent).toContain("of United Kingdom's workers")
+    expect(h1!.textContent).toContain("of United Kingdom's workers")
     // 0012 R3 -- the type scale is attached to the class, not to the tag, so
     // promoting h2 to h1 must not move the display size.
-    expect(h1.className).toContain('wz-h2')
+    expect(h1!.className).toContain('wz-h2')
   })
 })
 
@@ -584,7 +584,7 @@ describe('0015 R1 — one h1 per screen, no skipped level', () => {
 
 const at = () => globalThis.location.pathname + globalThis.location.search
 
-function open(url) {
+function open(url: string) {
   globalThis.history.replaceState(null, '', url)
   render(<App />)
 }
@@ -788,7 +788,7 @@ describe('0016 R8 — the copy-link control', () => {
     fireEvent.click(screen.getByRole('button', { name: /copy link/i }))
     await waitFor(() => {
       const field = screen.getByLabelText('Link to this result')
-      expect(field.value).toBe(globalThis.location.href)
+      expect((field as HTMLInputElement).value).toBe(globalThis.location.href)
     })
     expect(screen.getByRole('status').textContent).toContain('clipboard is unavailable')
   })
@@ -799,7 +799,7 @@ describe('0016 R11 — no dependency, no figure module touched', () => {
     const pkg = (await import('../../../package.json')).default
     const deps = { ...pkg.dependencies, ...pkg.devDependencies }
     for (const name of ['react-router', 'react-router-dom', 'wouter', 'history', 'qs']) {
-      expect(deps[name]).toBeUndefined()
+      expect((deps as Record<string, string>)[name]).toBeUndefined()
     }
   })
 
@@ -819,9 +819,9 @@ describe('0016 R11 — no dependency, no figure module touched', () => {
 // #76 a green `verify` could not see, minus the heights, which need a browser
 // and live in `scripts/desktop-measure.mjs`.
 describe('0013 R1 — step 01 opens folded', () => {
-  const stubLocale = (value) => {
+  const stubLocale = (value: string) => {
     Object.defineProperty(globalThis.navigator, 'language', { value, configurable: true })
-    return () => { delete globalThis.navigator.language }
+    return () => { delete (globalThis.navigator as { language?: string }).language }
   }
 
   it('renders the locale pre-fill alone, not a wall of 177', () => {
@@ -832,7 +832,7 @@ describe('0013 R1 — step 01 opens folded', () => {
       expect(rows.length).toBe(1)
       expect(rows[0].textContent).toBe('United Kingdom')
       expect(rows[0].getAttribute('aria-selected')).toBe('true')
-      expect(screen.getByRole('button', { name: /continue/i }).disabled).toBe(false)
+      expect((screen.getByRole('button', { name: /continue/i }) as HTMLButtonElement).disabled).toBe(false)
     } finally {
       restore()
     }
@@ -887,9 +887,9 @@ describe('0013 R2 + R3 — both caps bite, and both say so', () => {
     expect(document.querySelectorAll('[role=option]').length).toBe(12)
 
     const live = document.querySelector('[aria-live=polite]')
-    expect(live.textContent).toContain('150 of 177 countries match')
-    expect(live.textContent).toContain('showing the first 12')
-    expect(live.textContent).toContain('36 more matching countries report no occupation breakdown')
+    expect(live!.textContent).toContain('150 of 177 countries match')
+    expect(live!.textContent).toContain('showing the first 12')
+    expect(live!.textContent).toContain('36 more matching countries report no occupation breakdown')
 
     // Visible, not only announced: the same claim outside the sr-only region.
     const seen = [...document.querySelectorAll('p')]
@@ -910,7 +910,7 @@ describe('0013 R2 + R3 — both caps bite, and both say so', () => {
     fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: 'united' } })
     expect(document.querySelectorAll('[role=option]').length).toBe(3)
     const live = document.querySelector('[aria-live=polite]')
-    expect(live.textContent.trim()).toBe('3 of 177 countries match')
+    expect(live!.textContent!.trim()).toBe('3 of 177 countries match')
     expect(document.body.textContent).not.toContain('showing the first')
     expect(document.body.textContent).not.toContain('more countries matching')
   })
@@ -944,7 +944,7 @@ const backButton = () => screen.getByRole('button', { name: /back to/i })
 // `popstate` on a later task. So the click and its consequence cannot land in
 // the same tick. That is the cost of having one navigation model instead of
 // two, and it is a property of the design rather than a flake to paper over.
-async function goBack(expectation) {
+async function goBack(expectation: () => unknown) {
   fireEvent.click(backButton())
   await waitFor(expectation)
 }
@@ -957,7 +957,7 @@ async function goBack(expectation) {
 // whether the *answers* survive going back, so both passes are settled first.
 async function settled() {
   await waitFor(() =>
-    expect(document.querySelector('main').textContent).not.toContain('Loading…'),
+    expect(document.querySelector('main')!.textContent).not.toContain('Loading…'),
   )
 }
 
@@ -1029,7 +1029,7 @@ describe('0014 R3 — going back preserves every answer already given', () => {
   it('reproduces the same result screen after a 04 → 01 → 04 round trip', async () => {
     await walkToResult()
     await settled()
-    const first = document.querySelector('main').textContent
+    const first = document.querySelector('main')!.textContent
 
     await goBack(() => expect(screen.getByText('Two more, if you like.')).toBeTruthy())
     await goBack(() => expect(screen.getByText('What do you do?')).toBeTruthy())
@@ -1046,7 +1046,7 @@ describe('0014 R3 — going back preserves every answer already given', () => {
 
     // String-for-string. A tier or a year that moved would fail here, which is
     // what makes this the check that the data rules survived the navigation.
-    expect(document.querySelector('main').textContent).toBe(first)
+    expect(document.querySelector('main')!.textContent).toBe(first)
   })
 })
 
@@ -1060,7 +1060,7 @@ describe('0014 R4 — step 02 names the string the reader typed, verbatim', () =
     })
     fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
 
-    const text = document.querySelector('main').textContent
+    const text = document.querySelector('main')!.textContent
     expect(text).toContain('paralegal')
     expect(text).toContain('3 · Technicians and associate professionals')
   })
@@ -1077,7 +1077,7 @@ describe('0014 R4 — step 02 names the string the reader typed, verbatim', () =
     })
     fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
 
-    const text = document.querySelector('main').textContent
+    const text = document.querySelector('main')!.textContent
     expect(text).toContain('Bookkeeper')
     expect(text).toContain('4 · Clerical support workers')
   })
@@ -1096,8 +1096,8 @@ describe('0014 R5 — the typed title and the search query survive a round trip'
     await goBack(() => expect(screen.getByText('Where do you work?')).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
 
-    expect(screen.getByLabelText('Your job title').value).toBe('paralegal')
-    expect(document.querySelector('main').textContent).toContain('paralegal')
+    expect((screen.getByLabelText('Your job title') as HTMLInputElement).value).toBe('paralegal')
+    expect(document.querySelector('main')!.textContent).toContain('paralegal')
   })
 
   it('keeps the country search filtered across forward and back', async () => {
@@ -1106,7 +1106,7 @@ describe('0014 R5 — the typed title and the search query survive a round trip'
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     await goBack(() => expect(screen.getByText('Where do you work?')).toBeTruthy())
 
-    expect(screen.getByLabelText('Search countries').value).toBe('United Kingdom')
+    expect((screen.getByLabelText('Search countries') as HTMLInputElement).value).toBe('United Kingdom')
     expect(screen.getAllByRole('option').length).toBe(1)
   })
 })
@@ -1122,7 +1122,7 @@ describe('0014 R6 — overriding by chip renders no echo', () => {
     toOccupation()
     fireEvent.click(screen.getByRole('button', { name: /4 · Clerical/ }))
 
-    const text = document.querySelector('main').textContent
+    const text = document.querySelector('main')!.textContent
     expect(text).toContain('4 · Clerical support workers')
     expect(text).not.toContain('You typed')
   })
@@ -1133,10 +1133,10 @@ describe('0014 R6 — overriding by chip renders no echo', () => {
       target: { value: 'paralegal' },
     })
     fireEvent.click(screen.getByRole('button', { name: /resolve title/i }))
-    expect(document.querySelector('main').textContent).toContain('You typed')
+    expect(document.querySelector('main')!.textContent).toContain('You typed')
 
     fireEvent.click(screen.getByRole('button', { name: /1 · Managers/ }))
-    const text = document.querySelector('main').textContent
+    const text = document.querySelector('main')!.textContent
     expect(text).toContain('1 · Managers')
     // The failure this guards: a derived echo would still say "you typed
     // paralegal" while the answer had moved to Managers.
@@ -1149,7 +1149,7 @@ describe('0014 R9 — no router and no URL state', () => {
     const pkg = (await import('../../../package.json')).default
     const deps = { ...pkg.dependencies, ...pkg.devDependencies }
     for (const name of ['react-router', 'react-router-dom', 'wouter']) {
-      expect(deps[name]).toBeUndefined()
+      expect((deps as Record<string, string>)[name]).toBeUndefined()
     }
   })
 })
@@ -1180,13 +1180,13 @@ describe('0014 R5 — Start again still clears what it used to clear', () => {
     // Probed 2026-09-01 and left alone by this spec: `onRestart` never touches
     // `iso3`, so the country survives while the other three answers do not.
     // The issue's claim that Start again "discards the country" is wrong.
-    expect(screen.getByLabelText('Search countries').value).toBe('')
+    expect((screen.getByLabelText('Search countries') as HTMLInputElement).value).toBe('')
     expect(screen.getByRole('option', { name: /United Kingdom/ }).getAttribute('aria-selected'))
       .toBe('true')
 
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
-    expect(screen.getByLabelText('Your job title').value).toBe('')
-    const text = document.querySelector('main').textContent
+    expect((screen.getByLabelText('Your job title') as HTMLInputElement).value).toBe('')
+    const text = document.querySelector('main')!.textContent
     expect(text).not.toContain('You typed')
     expect(text).not.toContain('paralegal')
   })

@@ -52,13 +52,13 @@ beforeAll(() => {
 
 // 0011 R1/R9 — step 01 is a search, and its rows carry role="option" rather
 // than the implicit button role, so reaching a country means typing at it.
-function pickCountry(name) {
+function pickCountry(name: string) {
   fireEvent.change(screen.getByLabelText('Search countries'), { target: { value: name } })
   fireEvent.click(screen.getByRole('option', { name: new RegExp(name) }))
 }
 
 /** Resolve a declaration that is written as `var(--token)`. */
-function resolved(el, prop) {
+function resolved(el: Element, prop: string) {
   const declared = getComputedStyle(el).getPropertyValue(prop).trim()
   const m = declared.match(/^var\((--[\w-]+)\)$/)
   if (!m) return declared
@@ -147,7 +147,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     //
     // A missing declaration is now a failure, not a skip. It also walks all
     // five screens rather than the intro, which had exactly one button.
-    const offenders = []
+    const offenders: [string, string][] = []
     // Counted PER SWEEP, not across all five. A single total against a
     // threshold of 200 was satisfied by the country screen alone — it renders
     // 218 options — so every later screen contributed nothing the assertion
@@ -157,7 +157,7 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     // Third time in three rounds I have written a guard that cannot fail for
     // the case it names. The pattern each time: assert a total where the thing
     // that can break is a part.
-    const sweep = (where) => {
+    const sweep = (where: string) => {
       let seen = 0
       for (const el of document.querySelectorAll('button, input, a[href], [tabindex]')) {
         seen += 1
@@ -222,16 +222,16 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
     // font-family resolves to the mono stack, so an inline override, a
     // non-adjacent declaration and a new rule are all covered by the same
     // check — on the element, which is the only place the question is real.
-    const small = []
+    const small: [string, string][] = []
     // Scoped to `.wz-step`, NOT the document. The sticky header's two .wz-meta
     // spans live outside the step switch and render on every screen, so a
     // document-wide counter was satisfied by them and a step rendering no mono
     // label at all still passed.
-    const sweep = (where) => {
+    const sweep = (where: string) => {
       let seen = 0
       const step = document.querySelector('.wz-step')
       expect(step, `${where} rendered no step`).toBeTruthy()
-      for (const el of step.querySelectorAll('*')) {
+      for (const el of step!.querySelectorAll('*')) {
         const fam = resolved(el, 'font-family')
         // Matched on `SFMono-Regular`, not on `Geist Mono`.
         //

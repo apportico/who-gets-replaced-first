@@ -1,0 +1,20 @@
+{
+  // 0019 R5. The test files, type-checked.
+  //
+  // The root tsconfig.json EXCLUDES `**/*.test.ts{,x}` because `next build`
+  // runs it, and Next would then type-check the suite on every production
+  // build — vitest globals and all. But excluding them from the only
+  // type-check meant seven converted files were renamed to `.ts`/`.tsx` and
+  // never checked, which is the half of R5 with teeth: the conversion is only
+  // worth something if the compiler reads what it converted.
+  //
+  // So the tests get their own project, run by `npm run typecheck` alongside
+  // the app and the pipeline. Same `strict`, same paths.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vitest/globals", "node", "vite/client"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "test/**/*.ts", "src/types.ts"],
+  "exclude": ["node_modules"]
+}

@@ -309,6 +309,23 @@ a root `tsconfig.json` at `strict: true`. Where a type is genuinely unclear it
 is modelled honestly; a conversion that lands on `any` buys nothing. `jsconfig.json`
 is deleted, its `@/*` alias moving to `tsconfig.json`.
 
+**Done (2026-09-02), and the review's finding on it was right: the tests were
+renamed and never checked.** The root `tsconfig.json` excludes `**/*.test.ts{,x}`
+because `next build` runs it and would otherwise type-check the suite on every
+production build. Excluding them from the *only* type-check meant seven
+converted files were never read by the compiler — the half of R5 with teeth.
+They now have their own project, `tsconfig.test.json`, run by `npm run typecheck`
+alongside the app and the pipeline. It found **196 errors**, now 0.
+
+**Two of them were real bugs in production signatures**, not test noise:
+
+- `encode(state: WizardState)` — the body is `{ ...EMPTY, ...state }`, so a
+  caller passing `{ step: 0 }` is doing exactly what the function is for. The
+  signature described a contract the implementation never had; it is
+  `Partial<WizardState>`.
+- `renderedCountries(rows, query, selectedIso3, opts?)` — `selectedIso3` is
+  optional, as the suite's own two-argument call shows.
+
 **Done (2026-09-02).** `git ls-files 'src/**/*.js' 'src/**/*.jsx' 'app/**/*.js'
 'app/**/*.jsx'` → **empty**. `tsconfig.json` has `"strict": true`.
 `npx tsc --noEmit -p tsconfig.json` exits 0 over 40 files. `npx eslint .` → **0
@@ -528,14 +545,28 @@ first rule and it outranks the migration: nothing is imputed, no country gains a
 value it did not have, and `no series` still renders as an absence rather than a
 number.
 
-**Done (2026-09-02) — layer 1 is a diff of zero.**
+**Done (2026-09-02) — layer 1 is a diff of zero, comparing VALUES.**
+
+The first version of this snapshot compared the trend series by **length** and
+omitted the back-test figures entirely, so a moved retrodiction would have left
+the diff empty — the same defect R10's file count had, one layer in, and caught
+by review rather than by the harness. It now emits every `[year, value]` pair,
+the four back-test columns with their tiers, and the pooled summary.
 
 ```
 countries compared: 218  (with a series: 177, without: 41)
 country-group pairs: 1962
 deep equal: True
-$ cmp surface.main.json surface.branch.json   →  IDENTICAL
+$ cmp s2.main.json s2.branch.json   →  IDENTICAL
+$ md5 s2.main.json s2.branch.json
+1c980babf68760c84f431cec38fb1d38
+1c980babf68760c84f431cec38fb1d38
 ```
+
+GBR group 4 carries its whole series — `[[2013, 10.0247], [2014, 9.8665],
+[2015, 10.0928], …]` — and its back-test: retrodicted `9.568814`, observed
+`8.8633`, error `0.705514`. Pooled: `n` 574, MAE 1.806438 against persistence's
+1.291857, direction wrong 241 times.
 
 Spot checks, both as expected: **GBR** group 4 → `8.9%` / `DERIVED` / `2025`
 (the figure `CLAUDE.md` records as the real dataset value); **NZL** group 4 →

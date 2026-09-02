@@ -205,10 +205,15 @@ export function searchCountries(
  * reader in the UK who picks France and presses `Escape` would otherwise see
  * United Kingdom rendered while France drove `Continue`.
  */
+/**
+ * 0019 R5. `selectedIso3` is OPTIONAL — found by type-checking the suite, which
+ * calls `renderedCountries(rows, 'united')` with two arguments. The stricter
+ * signature described a contract no caller had.
+ */
 export function renderedCountries(
   rows: readonly LaborRow[] | null | undefined,
   query: string,
-  selectedIso3: string | null | undefined,
+  selectedIso3?: string | null,
   opts?: { limit?: number; absentLimit?: number },
 ) {
   if (fold(query)) return { ...searchCountries(rows, query, opts), resting: false }

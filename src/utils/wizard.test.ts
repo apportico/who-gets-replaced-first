@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest'
 
 import payload from '../data/global_labor.json'
+import type { LaborRow } from '@/types'
 import gbrCross from '../data/crosstabs/GBR.json'
 import canCross from '../data/crosstabs/CAN.json'
 // The countries R9 names, asserted against the committed artefacts rather than
@@ -19,10 +20,11 @@ import djiCross from '../data/crosstabs/DJI.json'
 import ethCross from '../data/crosstabs/ETH.json'
 
 // Every artefact, for the cross-country invariants.
-const CROSS_MODULES = import.meta.glob('../data/crosstabs/*.json', { eager: true })
+type CrossModule = { default?: { values?: Record<string, unknown> }; values?: Record<string, unknown> }
+const CROSS_MODULES = import.meta.glob('../data/crosstabs/*.json', { eager: true }) as Record<string, CrossModule>
 const ALL_CROSS = Object.entries(CROSS_MODULES).map(([path, mod]) => ({
   iso3: path.slice(-8, -5),
-  v: (mod.default ?? mod).values,
+  v: (mod.default ?? mod).values as Record<string, unknown>,
 }))
 
 import { resolveTitle } from './resolveTitle'
@@ -47,7 +49,10 @@ import {
 } from './absence'
 import { ageBands, eduBands } from './crossTabs'
 
-const rows = payload.rows
+// 0019 R6. One assertion at the payload boundary, the same shape WizardShell
+// uses: the JSON import infers a vast literal union, and `LaborRow[]` is the
+// contract the app actually consumes. One cast here beats a cast at every call.
+const rows = payload.rows as unknown as LaborRow[]
 const countries = rows.filter((r) => r.row_type === 'country')
 const byIso = Object.fromEntries(rows.map((r) => [r.iso3, r]))
 const GBR = byIso.GBR
@@ -127,7 +132,7 @@ describe('0011 R2 — the payload carries iso2, and TWN stays null', () => {
   })
 
   it('leaves Taiwan null rather than transcribing ISO 3166-1', () => {
-    const twn = countryOptions(rows).find((c) => c.iso3 === 'TWN')
+    const twn = countryOptions(rows).find((c) => c.iso3 === 'TWN')!
     expect(twn).toBeDefined()
     expect(twn.iso2).toBeNull()
   })
@@ -139,7 +144,7 @@ describe('0011 R2 — the payload carries iso2, and TWN stays null', () => {
 
 // ------------------------------------------- 0011 R3 — the search predicate
 describe('0011 R3 — the query folds, and four routes can match it', () => {
-  const hit = (q) => searchCountries(rows, q).matches.map((c) => c.iso3)
+  const hit = (q: string) => searchCountries(rows, q).matches.map((c) => c.iso3)
 
   it('folds diacritics, drops apostrophes and collapses punctuation', () => {
     expect(fold('Côte d’Ivoire')).toBe('cote divoire')
@@ -309,7 +314,7 @@ describe('0011 R5 — pre-fill names the country it cannot select', () => {
 
 // ------------------------------------------- 0011 R6 — the stated absence
 describe('0011 R6 — a query that matches a dropped country names it', () => {
-  const part = (q) => {
+  const part = (q: string) => {
     const { matches: m, absent } = searchCountries(rows, q)
     return { pickable: m.map((c) => c.iso3), absent: absent.map((c) => c.iso3) }
   }
@@ -360,9 +365,9 @@ describe('R10 — the group’s share, with tier and vintage', () => {
     // the list is now the claim that gets withdrawn here.
     const partial = countries.find(
       (r) => hasAnyIscoGroup(r) && GROUPS.some((g) => r[g.key] === null),
-    )
+    )!
     expect(partial).toBeDefined()
-    const missing = GROUPS.find((g) => partial[g.key] === null)
+    const missing = GROUPS.find((g) => partial[g.key] === null)!
     expect(countryOptions(rows).map((c) => c.iso3)).toContain(partial.iso3)
     expect(groupShare(partial, missing.n).state).toBe(NOT_PUBLISHED)
   })
@@ -393,9 +398,9 @@ describe('R11 — headcount is derived per group, or it is absent', () => {
 
   it('labels the arithmetic as a two-source join, naming both', () => {
     const h = groupHeadcount(GBR, 4)
-    expect(h.sources).toHaveLength(2)
-    expect(h.sources.join(' ')).toMatch(/ILOSTAT/)
-    expect(h.sources.join(' ')).toMatch(/World Bank/)
+    expect(h.sources!).toHaveLength(2)
+    expect(h.sources!.join(' ')).toMatch(/ILOSTAT/)
+    expect(h.sources!.join(' ')).toMatch(/World Bank/)
   })
 
   it('renders no headcount when employed_total is null — a synthetic row', () => {
@@ -450,15 +455,15 @@ describe('R18 — ten countries publish ISCO-88, and the screen says so', () => 
   it('CAN × group 2 carries the notice; GBR × group 2 does not', () => {
     const can = classificationNotice(CAN, 2)
     expect(can).not.toBeNull()
-    expect(can.classification).toBe('ISCO-88')
+    expect(can!.classification).toBe('ISCO-88')
     expect(classificationNotice(GBR, 2)).toBeNull()
   })
 
   it('names the 2/3 boundary, which is where the README says it degrades', () => {
-    expect(classificationNotice(CAN, 2).boundary).toBe(true)
-    expect(classificationNotice(CAN, 3).boundary).toBe(true)
-    expect(classificationNotice(CAN, 9).boundary).toBe(false)
-    expect(classificationNotice(CAN, 2).text).toMatch(/groups 2 and 3/)
+    expect(classificationNotice(CAN, 2)!.boundary).toBe(true)
+    expect(classificationNotice(CAN, 3)!.boundary).toBe(true)
+    expect(classificationNotice(CAN, 9)!.boundary).toBe(false)
+    expect(classificationNotice(CAN, 2)!.text).toMatch(/groups 2 and 3/)
   })
 
   it('is present for all ten and absent for the other 167', () => {
@@ -496,7 +501,7 @@ describe('R15 — nothing is imputed, anywhere', () => {
   it('never borrows from another group, a region row or the world row', () => {
     // A synthetic row with one hole. The world row carries a value for group 7;
     // if any fallback existed, this would return it.
-    const world = rows.find((r) => r.row_type === 'world')
+    const world = rows.find((r) => r.row_type === 'world')!
     expect(world.isco7_craft_pct).not.toBeNull()
     const holed = { ...GBR, isco7_craft_pct: null }
     expect(groupShare(holed, 7).value).toBeNull()
@@ -505,7 +510,7 @@ describe('R15 — nothing is imputed, anywhere', () => {
   it('surfaces a data_quality_flag other than complete', () => {
     const flagged = countries.find(
       (r) => r.data_quality_flag && r.data_quality_flag !== 'complete',
-    )
+    )!
     expect(flagged).toBeDefined()
     expect(groupShare(flagged, 4).state).toBeDefined()
     expect(flagged.data_quality_flag).not.toBe('complete')
@@ -525,7 +530,7 @@ describe('R16 — the method panel tells the truth about the model', () => {
   })
 
   it('shows Duration as unsourced with its reason, never as a number', () => {
-    const duration = termsFor(GBR, 4, gbrCross).find((t) => t.name.startsWith('Duration'))
+    const duration = termsFor(GBR, 4, gbrCross).find((t) => t.name.startsWith('Duration'))!
     expect(duration.sourced).toBe(false)
     expect(duration.tier).toBeNull()
     expect(duration.desc).toMatch(/Not sourced/)
@@ -583,7 +588,7 @@ describe('0017 R7 — the back-test as the result screen reads it', () => {
 
   it('the pooled finding is that persistence wins', () => {
     expect(POOLED.n).toBe(574)
-    expect(POOLED.persistence_mae_pp).toBeLessThan(POOLED.mae_pp)
+    expect(POOLED.persistence_mae_pp).toBeLessThan(POOLED.mae_pp!)
     expect(POOLED.direction_wrong_n).toBe(241)
     expect(ELIGIBLE_COUNTRIES).toBe(64)
     expect(COUNTRIES_WITH_SERIES).toBe(177)
@@ -692,7 +697,7 @@ describe('R8 / R9 — the cross-tabs as the screen reads them', () => {
       for (let n = 1; n <= 9; n += 1) {
         const chips = ['bas', 'int', 'adv', 'ltb']
           .map((b) => v[`isco${n}_edu_${b}_pct`])
-          .filter((x) => x !== null && x !== undefined)
+          .filter((x): x is number => x !== null && x !== undefined)
         if (chips.length && chips.reduce((a, b) => a + b, 0) < 89.5) {
           below.push([iso3, n])
         }

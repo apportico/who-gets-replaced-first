@@ -44,7 +44,14 @@ export const EMPTY = { step: STEP_INTRO, iso3: null, group: null, age: null, edu
  * always produces the same string — a link copied twice is the same link, and
  * the test can assert it literally.
  */
-export function encode(state: WizardState) {
+/**
+ * 0019 R5. `Partial<WizardState>`, not `WizardState` — found by type-checking
+ * the suite, which is the half of R5 with teeth. The body is
+ * `{ ...EMPTY, ...state }`, so a caller supplying only `{ step }` is doing
+ * exactly what the function is built for; the stricter signature described a
+ * contract the implementation never had.
+ */
+export function encode(state: Partial<WizardState>) {
   const s = { ...EMPTY, ...state }
   if (s.step === STEP_INTRO) return ''
   const q = new URLSearchParams()

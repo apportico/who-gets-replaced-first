@@ -6,13 +6,30 @@ deliberately left the `hooks` block out until this spec — see its R4 and its
 "Practices deliberately declined"), 0005 (made `verify` a required check, which
 is what R2 and R4 enforce locally)
 **Issue:** [#4](https://github.com/apportico/who-gets-replaced-first/issues/4)
-**Merged:** PR [#92](https://github.com/apportico/who-gets-replaced-first/pull/92), 2026-09-02 — 5 done · 3 revised.
-**Approved:** Dani (@syymza), 2026-09-02, as a GitHub review on PR
-[#92](https://github.com/apportico/who-gets-replaced-first/pull/92) —
-[round 3](https://github.com/apportico/who-gets-replaced-first/pull/92#pullrequestreview-5086784465),
-after two rounds that found the same defect class both times: a requirement
-disagreeing with a probe recorded in the same file. Four non-blocking FYIs from
-that review are folded in below rather than deferred.
+**Reviewed:** eight rounds on PR
+[#92](https://github.com/apportico/who-gets-replaced-first/pull/92) — three on
+the spec, five on the implementation — by the **standing review routine posting
+under [@syymza](https://github.com/syymza)**, ending in `APPROVE` at `b9bb1b5`.
+
+**These are automated reviews, not a human sign-off.** The routine says so in
+every round: *"read the approval as findings closed, not as the human approval
+gate `CLAUDE.md` describes."* `CLAUDE.md` names that human approval as the gate
+this loop deliberately leaves open, and **it has not been given for this spec**.
+Recorded as *Reviewed* rather than *Approved* so the file does not read, later,
+as a person having signed it off — the distinction 0015 and 0016 make the other
+way round, recording approvals that were given directly but could not be GitHub
+reviews.
+
+The rounds earned their place regardless of who typed them: rounds 1–3 each
+found a requirement disagreeing with a probe recorded in the same file, and the
+implementation rounds found `verify` linting nothing under `.claude/hooks/`, an
+`[x]` whose acceptance case had never been written, and a guard printing success
+on the state it exists to detect. Every finding is answered in the file below.
+
+**Merged under `/sdlc`** on the operator's explicit instruction not to wait for
+a final word, with the routine's `APPROVE` at the head commit as the only
+approval. Spec 0005 R4's `enforce_admins` gate, which would otherwise have
+bound this, reads `false` — see [#93](https://github.com/apportico/who-gets-replaced-first/issues/93).
 **Goal:** The workflow rules stop being advisory. Checked as:
 
 Clauses 2–5 are scoped to **a Bash command issued by a Claude Code session in

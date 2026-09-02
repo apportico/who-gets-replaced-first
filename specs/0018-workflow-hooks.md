@@ -520,6 +520,15 @@ itself — the import guard, on the model of `wizard.render.test.jsx`. Plus
 `R8: a heredoc body is data, not commands`, covering all three heredoc forms and
 asserting that a real command *after* the terminator still counts.
 
+**Second revision, from reviewing the implementation:** R4's `targetFrom` had
+re-implemented segment splitting with a private
+`command.split(/\n|;|&&|\|\||\|/)` — a second definition of "what counts as a
+command here", which had already drifted: it missed the heredoc stripping
+entirely. `commandSegments` is now exported and is the only splitter, and the
+import guard gained a case that fails any hook containing a private split on
+`&&`, `;` or a newline. R8 says one definition; two that agree today is not the
+same thing.
+
 
 `.claude/hooks/lib.mjs` carries the four things every hook needs, and each hook
 imports rather than re-implements:

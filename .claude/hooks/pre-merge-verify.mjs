@@ -7,7 +7,15 @@
 // skips — its own header says so, and #44 is the fix. A hook that read the
 // rollup as a whole would launder a skipped review into a merge condition.
 
-import { readPayload, runsCommand, repoRoot, runIn, deny, silent } from "./lib.mjs";
+import {
+  readPayload,
+  runsCommand,
+  commandSegments,
+  repoRoot,
+  runIn,
+  deny,
+  silent,
+} from "./lib.mjs";
 
 const REQUIRED_CHECK = "verify";
 
@@ -75,9 +83,10 @@ if (import.meta.main) {
   // A PR number, a #-prefixed number, a URL, or a branch name given as the first
   // non-flag argument to `gh pr merge`.
   function targetFrom(command) {
-    const seg = command
-      .split(/\n|;|&&|\|\||\|/)
-      .find((s) => runsCommand(s, "gh pr merge"));
+    // commandSegments, not a private split: it strips heredoc bodies and
+    // handles quoting, and R8 exists so there is one definition of "what counts
+    // as a command here" rather than two that drift.
+    const seg = commandSegments(command).find((s) => runsCommand(s, "gh pr merge"));
     if (!seg) return null;
     const words = seg.trim().split(/\s+/);
     const at = words.findIndex((w, i) => w === "merge" && words[i - 1] === "pr");

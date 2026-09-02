@@ -191,11 +191,25 @@ const VALUED_GLOBAL_FLAGS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--
  * mention, and false for a longer command that merely starts with the same
  * letters (`git commit-tree` is not `git commit`).
  */
+/**
+ * The invocable segments of a shell command, heredoc bodies removed.
+ *
+ * Exported so a hook that needs to look *inside* the matching segment — R4
+ * reading the PR argument out of `gh pr merge` — uses this splitting rather
+ * than rolling a second, naive one. R8's whole point is one definition: a
+ * private `command.split(/;|&&/)` would miss the heredoc stripping and the
+ * quote handling, and would drift from `runsCommand` silently.
+ */
+export function commandSegments(command) {
+  if (typeof command !== "string" || !command) return [];
+  return segments(stripHeredocs(command));
+}
+
 export function runsCommand(command, target) {
   if (typeof command !== "string" || !command) return false;
   const want = target.trim().split(/\s+/);
 
-  for (const segment of segments(stripHeredocs(command))) {
+  for (const segment of commandSegments(command)) {
     let words = stripAssignments(segment.split(/\s+/).filter(Boolean));
     if (!words.length) continue;
 

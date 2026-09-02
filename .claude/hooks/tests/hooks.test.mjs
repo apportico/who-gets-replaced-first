@@ -107,7 +107,7 @@ function stubBin(name, script) {
 // R8 — runsCommand, the parser every hook shares
 // ---------------------------------------------------------------------------
 
-const { runsCommand, repoRoot } = await import(join(HOOKS, "lib.mjs"));
+const { runsCommand, commandSegments, repoRoot } = await import(join(HOOKS, "lib.mjs"));
 
 test("R8: runsCommand sees git commit through the forms commits actually take", () => {
   assert.equal(runsCommand("git commit -m x", "git commit"), true);
@@ -193,7 +193,27 @@ test("R8: each hook imports the shared module rather than re-implementing it", (
       /process\.env\.CLAUDE_PROJECT_DIR/,
       `${script} resolves the repo root itself — use repoRoot() from lib.mjs`,
     );
+    // A private split is a second definition of "what counts as a command
+    // here", and it drifts silently: the first one written missed heredoc
+    // stripping entirely. Use commandSegments().
+    assert.doesNotMatch(
+      src,
+      /\.split\(\s*\/[^/]*(&&|;|\\n)[^/]*\//,
+      `${script} splits the command itself — use commandSegments() from lib.mjs`,
+    );
   }
+});
+
+test("R8: commandSegments is the one splitter, and strips heredocs", () => {
+  assert.deepEqual(commandSegments("git add -A && git commit -m x"), [
+    "git add -A",
+    "git commit -m x",
+  ]);
+  assert.deepEqual(commandSegments(["cat <<EOF", "git push", "EOF", "echo ok"].join("\n")), [
+    "cat <<EOF",
+    "echo ok",
+  ]);
+  assert.deepEqual(commandSegments(""), []);
 });
 
 // ---------------------------------------------------------------------------

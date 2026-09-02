@@ -97,9 +97,14 @@ bypass is kept deliberately.
 Stated once here rather than four times, because the first review round found the
 same defect in R1 and the second found it unfixed in R2, R3 and R4:
 
-**Every hook resolves the repository from `$CLAUDE_PROJECT_DIR`, falling back to
-the payload's `cwd` only when that is unset, and spawns every subprocess with
-that directory as its working directory.** The payload probe is the reason: `cwd`
+**Every hook resolves the repository from `$CLAUDE_PROJECT_DIR` — falling back
+to the payload's `cwd` when that is unset, and *preferring* `cwd` when it is a
+worktree of the same repository — and spawns every subprocess with the resolved
+directory as its working directory.** ("The same repository" is decided by
+`git rev-parse --git-common-dir`, which every worktree of a repo shares and no
+other repo matches.) This is the rule a fifth hook is built from; the worktree
+clause was added by R8's third revision after implementation review, and the two
+halves guard opposite failures — see R8. The payload probe is the reason: `cwd`
 came back as `/private/tmp/.../scratchpad/hookprobe`, outside this repository,
 and the docs row records that `${CLAUDE_PROJECT_DIR}` "stays put even when Claude
 enters a worktree". Anchored on `cwd` instead, each hook fails open in its own
@@ -149,8 +154,11 @@ It must see `git commit` inside a compound command — `git add -A && git commit
 -m x`, `cd foo; git commit`, and a leading env assignment — because that is how
 commits are actually issued.
 
-**It resolves the branch inside `$CLAUDE_PROJECT_DIR`, falling back to the
-payload's `cwd` only when that is unset.** The probe recorded in the table above
+**It resolves the branch inside the repository `repoRoot()` returns** — see
+*Common to all four hooks*: `$CLAUDE_PROJECT_DIR`, `cwd` when that is unset, and
+`cwd` when `cwd` is a worktree of the same repository. R1 is the hook the
+worktree clause exists for, since its whole subject is which branch is checked
+out *here*. The probe recorded in the table above
 is the reason: `cwd` came back as `/private/tmp/.../scratchpad/hookprobe`, which
 is not this repository — `cwd` is wherever the session happens to be, and the
 docs row notes `${CLAUDE_PROJECT_DIR}` "stays put even when Claude enters a
@@ -366,7 +374,7 @@ is side-effect free. Without that, R5's own assertion could not be written.
 **Acceptance — run, in both directions:**
 
 - Passing: `npm run verify` prints
-  `==> hook wiring (0018 R5 ...)` → `check-settings: 4 hooks wired, all paths and deadlines OK`.
+  `==> hook wiring (0018 R5 ...)` → `check-settings: 4 hooks wired (4 on disk, all registered), paths and deadlines OK`.
 - Missing script: `check-settings FAILED: - PreToolUse: .claude/hooks/no-main.mjs does not exist on disk`, non-zero. Restored → green.
 - **Unwired hook** (the other direction, added after implementation review found the guard blind to it): removing the `no-main` entry from `settings.json` gives `check-settings FAILED: - .claude/hooks/no-main.mjs exists but is not registered in .claude/settings.json — an unwired hook guards nothing`. Before that check, this state printed `3 hooks wired, all paths and deadlines OK` and `verify` stayed green — a guard reporting success on precisely the state it exists to detect. Restored → green.
 - Equal deadlines: `check-settings FAILED: - pre-push-verify: timeout (120s) must be strictly greater than DEADLINE_MS (120s). Equal values race, and a lost race is a silently allowed push.` Restored → green.
@@ -580,9 +588,10 @@ imports rather than re-implements:
    place: `&&`, `||`, `;`, `|`, a leading env assignment, and `$( )`. R1 and R3
    both ask "does this run `git commit`", R2 asks `git push`, R4 asks
    `gh pr merge`. That is one definition with four callers.
-3. **`repoRoot()`** — `$CLAUDE_PROJECT_DIR`, falling back to the payload's `cwd`,
-   as *Common to all four hooks* requires, plus the `spawnSync` options that put
-   every subprocess there.
+3. **`repoRoot()`** — the resolution rule in *Common to all four hooks*
+   (`$CLAUDE_PROJECT_DIR`; `cwd` when unset; `cwd` when it is a worktree of the
+   same repository), plus the `spawnSync` options that put every subprocess
+   there.
 4. **`deny(reason)`** — emit the exact `hookSpecificOutput` shape probed above
    and exit 0. One place where the contract with the binary lives.
 

@@ -70,9 +70,18 @@ for (const { event, hook } of entries) {
 // OK". A guard reporting success on precisely the state it exists to detect is
 // the silent-guard shape this spec keeps finding. It also means the next hook
 // cannot be added and left unwired.
-const onDisk = readdirSync(join(ROOT, ".claude/hooks"))
-  .filter((f) => f.endsWith(".mjs") && !NOT_A_HOOK.has(f))
-  .sort();
+// Report rather than throw: an uncaught ENOENT here exits before the collected
+// problems are printed, so `verify` fails with a stack trace instead of this
+// guard's own message. It still fails either way — this is about the guard
+// being legible when it does.
+let onDisk = [];
+try {
+  onDisk = readdirSync(join(ROOT, ".claude/hooks"))
+    .filter((f) => f.endsWith(".mjs") && !NOT_A_HOOK.has(f))
+    .sort();
+} catch (err) {
+  fail(`.claude/hooks/ could not be read — ${err.code ?? err.message}`);
+}
 
 for (const file of onDisk) {
   if (!registered.has(file)) {
@@ -95,10 +104,20 @@ const pushHook = entries.find(({ hook }) =>
 if (!pushHook) {
   fail("no pre-push-verify hook is registered");
 } else {
-  // Imported, never parsed out of the source.
-  const { DEADLINE_MS } = await import(join(ROOT, ".claude/hooks/pre-push-verify.mjs"));
+  // Imported, never parsed out of the source. Wrapped for the same reason as
+  // readdirSync above: an unresolvable import throws ERR_MODULE_NOT_FOUND and
+  // exits before the collected problems print, turning this guard's failure
+  // into a stack trace.
+  let DEADLINE_MS;
+  try {
+    ({ DEADLINE_MS } = await import(join(ROOT, ".claude/hooks/pre-push-verify.mjs")));
+  } catch (err) {
+    fail(`could not import .claude/hooks/pre-push-verify.mjs — ${err.code ?? err.message}`);
+  }
 
-  if (typeof DEADLINE_MS !== "number") {
+  if (DEADLINE_MS === undefined) {
+    // Already reported by the catch above; nothing further to assert.
+  } else if (typeof DEADLINE_MS !== "number") {
     fail("pre-push-verify.mjs does not export a numeric DEADLINE_MS");
   } else {
     if (DEADLINE_MS < 120_000) {

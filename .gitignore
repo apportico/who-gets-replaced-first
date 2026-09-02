@@ -7,6 +7,8 @@ dist
 out
 .next
 *.tsbuildinfo
+# 0019 R11's snapshot: an artefact of a comparison run, never committed.
+surface.json
 .idea
 
 # Claude Code: share skills, keep local settings and worktrees out

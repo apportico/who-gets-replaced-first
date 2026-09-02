@@ -568,6 +568,33 @@ GBR group 4 carries its whole series — `[[2013, 10.0247], [2014, 9.8665],
 `8.8633`, error `0.705514`. Pooled: `n` 574, MAE 1.806438 against persistence's
 1.291857, direction wrong 241 times.
 
+**And the sweep reads the real cross-tabs, not `null`.** A second review round
+caught that passing `null` as `termsFor`'s third argument skipped its
+`if (crosstabs)` block entirely — so the Age and Education terms, their tiers,
+their per-field years and **the withholding sentence** never entered either
+snapshot. R11's own acceptance names that sentence, and the diff of zero was
+silent about it; worse, `crossTabs.ts` is the one module whose loading behaviour
+this migration rewrote. The justification for `null` did not hold either: all 218
+artefacts are committed under `src/data/crosstabs/`, so reading them is
+deterministic and offline.
+
+The harness now reads them off disk — deliberately **not** through
+`loadCrossTabs`, which is the function this migration changed and would be
+asking the code under test to describe itself — and snapshots both band reads
+including their `state`, which is what carries the withheld-versus-not-published
+distinction R20 protects. **110 withholding sentences** are now in the
+comparison.
+
+```
+$ cmp s3.main.json s3.branch.json   →  IDENTICAL   (7,495,435 bytes)
+$ md5 s3.main.json s3.branch.json
+9ff70e83be29d4cfa16d870126824cfc
+9ff70e83be29d4cfa16d870126824cfc
+```
+
+A wider comparison still coming back byte-identical is stronger evidence than
+the narrow one was.
+
 Spot checks, both as expected: **GBR** group 4 → `8.9%` / `DERIVED` / `2025`
 (the figure `CLAUDE.md` records as the real dataset value); **NZL** group 4 →
 `not_published`, no tier, and the sentence *"New Zealand does not publish a

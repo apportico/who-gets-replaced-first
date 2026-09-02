@@ -11,11 +11,14 @@
 // download to the step 01 → step 02 transition rather than removing it, and
 // delivers it mid-wizard.
 //
-// **A dynamic `import()`, not a `fetch` of `public/`.** `vite.config.js` sets
-// the production base to `/who-gets-replaced-first/`, so a hand-built URL has
-// to carry `import.meta.env.BASE_URL` and the failure mode is the nasty one:
-// works in dev, 404s on Pages, and the 404 then lands in one of the absence
-// branches below. Vite code-splits these and resolves the base itself.
+// **A dynamic `import()`, not a `fetch` of `public/`.** The production base is
+// `/who-gets-replaced-first/` (0019 R1, from `PAGES_BASE_PATH`), so a
+// hand-built URL has to carry that prefix itself and the failure mode is the
+// nasty one: works in dev, 404s on Pages, and the 404 then lands in one of the
+// absence branches below, turning a fetch problem into what reads as a
+// statement about ILOSTAT. The bundler code-splits an `import()` and resolves
+// the base itself, which is why it is still the right call after the move off
+// Vite.
 import {
   FLAG_WITHHELD,
   LOAD_FAILED,

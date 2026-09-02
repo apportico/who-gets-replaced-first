@@ -14,7 +14,7 @@
 // at all — the tier strings and both absence sentences come from `termsFor`,
 // and the stand-in flag from `trendFor`. "A stand-in says it is standing in" is
 // a Pass 1 rule, so a run that could not see `trendFor` would let it break.
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { it } from 'vitest'
 import payload from '@/data/global_labor.json'
 import { groupShare, groupHeadcount } from '@/utils/groupFigures'
@@ -24,9 +24,44 @@ import { seriesFor } from '@/utils/laborPanel'
 import { classificationNotice } from '@/utils/classification'
 import { noticeFor } from '@/utils/urlState'
 import { hasAnyIscoGroup } from '@/utils/countryList'
+import { ageBands, eduBands } from '@/utils/crossTabs'
+import { absenceMessage } from '@/utils/absence'
 import { backtestFor, summaryFor, tierFor, POOLED } from '@/utils/backtest'
 
 const GROUPS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+/**
+ * One country's committed cross-tab artefact, read straight off disk.
+ *
+ * Deliberately NOT through `loadCrossTabs`: that function is the thing this
+ * migration changed, and a comparison harness that routed through it would be
+ * asking the code under test to describe itself. Reading the file gives both
+ * trees the same input by construction, so any difference in the output is the
+ * migration's doing.
+ */
+/** A band read, flattened — including the state, which is what carries the
+ *  withheld-versus-not-published distinction R20 protects. */
+function bandSnapshot(b) {
+  return {
+    state: b.state,
+    tier: b.tier ?? null,
+    year: b.year ?? null,
+    residual: b.residual ?? null,
+    residualNote: b.residualNote ?? null,
+    bands: (b.bands ?? []).map((x) => [x.key, x.label, x.value]),
+    // The sentence itself, resolved the way a screen resolves it.
+    message: absenceMessage(b.state, { country: 'this country', group: 'this group' }),
+  }
+}
+
+const crossCache = new Map()
+function crossFor(iso3) {
+  if (crossCache.has(iso3)) return crossCache.get(iso3)
+  const path = new URL(`../src/data/crosstabs/${iso3}.json`, import.meta.url).pathname
+  const data = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null
+  crossCache.set(iso3, data)
+  return data
+}
 
 it('writes the data surface snapshot', () => {
   const rows = payload.rows.filter((r) => r.row_type === 'country')
@@ -38,9 +73,21 @@ it('writes the data surface snapshot', () => {
       const share = groupShare(row, g)
       const head = groupHeadcount(row, g)
       const trend = trendFor(row.iso3, g)
-      // Cross-tabs are per-country async artefacts; null exercises the absence
-      // branches deterministically and offline, which is what R11 compares.
-      const terms = termsFor(row, g, null)
+      // The REAL cross-tabs, not null.
+      //
+      // The first version passed `null`, which meant `termsFor`'s
+      // `if (crosstabs)` block never ran — so the Age and Education terms,
+      // their DERIVED tier, their per-field years and, most importantly, the
+      // **withholding sentence** never entered the snapshot. R11's own
+      // acceptance names that sentence as one of the strings it compares, and
+      // the diff of zero was silent about it. Worse, `crossTabs.ts` is the one
+      // module whose loading behaviour this migration actually rewrote.
+      //
+      // The justification for `null` did not hold: these are not async remote
+      // artefacts here. All 218 files are committed under
+      // `src/data/crosstabs/`, so reading them is deterministic and offline —
+      // exactly what `null` was protecting.
+      const terms = termsFor(row, g, crossFor(row.iso3))
       const notice = classificationNotice(row, g)
 
       per.groups[g] = {
@@ -79,6 +126,10 @@ it('writes the data surface snapshot', () => {
         terms: terms.map((t) => ({ name: t.name, tier: t.tier ?? null,
                                    sourced: t.sourced, year: t.year ?? null, desc: t.desc })),
         classification: notice ? notice.text : null,
+        // The band reads, so the withholding sentence and both band tiers and
+        // years are in the comparison rather than merely reachable from it.
+        ages: bandSnapshot(ageBands(crossFor(row.iso3), g)),
+        edus: bandSnapshot(eduBands(crossFor(row.iso3), g)),
       }
     }
     // Again the values, not the count.
@@ -104,5 +155,10 @@ it('writes the data surface snapshot', () => {
     none: noticeFor({}),
   }
 
-  writeFileSync(process.env.SURFACE_OUT, JSON.stringify(out, null, 1))
+  // Defaulted, not required. `CLAUDE.md` documents `npm run surface`, and
+  // reading a bare `process.env.SURFACE_OUT` meant the documented command threw
+  // ERR_INVALID_ARG_TYPE — R11's evidence was real but not reproducible from
+  // the repo. The default is gitignored alongside the other build output.
+  const out_path = process.env.SURFACE_OUT ?? 'surface.json'
+  writeFileSync(out_path, JSON.stringify(out, null, 1))
 })

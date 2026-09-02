@@ -49,6 +49,35 @@ export async function readPayload(stream = process.stdin) {
   };
 }
 
+// A heredoc body is DATA, not commands. Strip it before anything else.
+//
+// Found the hard way on this hook's first live use (2026-09-02): posting a PR
+// comment with `gh pr comment --body-file` and a heredoc whose text discussed
+// `gh pr merge` was denied by pre-merge-verify, which had read the prose as an
+// invocation. That is the false-positive direction — a hook that blocks real
+// work is one that gets switched off, which costs more than the case it caught.
+//
+// Handles <<WORD, <<-WORD (leading tabs stripped from the terminator) and the
+// quoted forms <<'WORD' / <<"WORD". `<<<` here-strings do not match, since the
+// character after `<<<` is not a word character.
+function stripHeredocs(command) {
+  const lines = command.split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i++];
+    out.push(line);
+    const openers = [...line.matchAll(/<<(-?)\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\2/g)];
+    for (const [, dash, , word] of openers) {
+      while (i < lines.length) {
+        const body = lines[i++];
+        if ((dash ? body.replace(/^\t+/, "") : body) === word) break;
+      }
+    }
+  }
+  return out.join("\n");
+}
+
 // Split a shell command into the segments that could each start a fresh
 // invocation: && || ; | newline, and the insides of $( ) and back-ticks.
 // Quoted regions are dropped, so `echo "git commit"` carries no invocation —
@@ -166,7 +195,7 @@ export function runsCommand(command, target) {
   if (typeof command !== "string" || !command) return false;
   const want = target.trim().split(/\s+/);
 
-  for (const segment of segments(command)) {
+  for (const segment of segments(stripHeredocs(command))) {
     let words = stripAssignments(segment.split(/\s+/).filter(Boolean));
     if (!words.length) continue;
 

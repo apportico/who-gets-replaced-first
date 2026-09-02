@@ -131,6 +131,35 @@ test("R8: runsCommand does not fire on a mention or a longer command", () => {
   assert.equal(runsCommand("", "git commit"), false);
 });
 
+test("R8: a heredoc body is data, not commands", () => {
+  // Found on this hook's first live use (2026-09-02): posting the evaluation
+  // with `gh pr comment --body-file` and a heredoc whose PROSE discussed the
+  // merge command was denied by pre-merge-verify, which read the prose as an
+  // invocation. A hook that blocks real work is one that gets switched off,
+  // which costs more than the case it caught.
+  const mergeCmd = ["gh", "pr", "merge"].join(" ");
+  const withHeredoc = [
+    "cat > /tmp/eval.md <<EOF",
+    "The bare form `" + mergeCmd + " --squash --delete-branch` is what /sdlc runs.",
+    "Also: git commit -m x, and git push.",
+    "EOF",
+    "gh pr comment 92 --body-file /tmp/eval.md",
+  ].join("\n");
+  assert.equal(runsCommand(withHeredoc, mergeCmd), false);
+  assert.equal(runsCommand(withHeredoc, "git commit"), false);
+  assert.equal(runsCommand(withHeredoc, "git push"), false);
+
+  // The quoted and tab-stripped forms too.
+  const quoted = ["run <<'EOF'", "git push", "EOF", "echo done"].join("\n");
+  assert.equal(runsCommand(quoted, "git push"), false);
+  const dashed = ["run <<-EOF", "\tgit push", "\tEOF", "echo done"].join("\n");
+  assert.equal(runsCommand(dashed, "git push"), false);
+
+  // A real command AFTER the heredoc terminator still counts.
+  const after = ["cat <<EOF", "just text", "EOF", "git push -u origin x"].join("\n");
+  assert.equal(runsCommand(after, "git push"), true);
+});
+
 test("R8: runsCommand handles push and gh pr merge", () => {
   assert.equal(runsCommand("git push", "git push"), true);
   assert.equal(runsCommand("git push -u origin feat/x", "git push"), true);

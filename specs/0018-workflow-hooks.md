@@ -485,10 +485,29 @@ it and repeating the boundary in one sentence. Checked by reading, and by a
 `bypassPermissions` passes a README that says the opposite of what was probed,
 which is the same defect as a tier badge that renders whatever it is handed.
 
-### R8. [x] One shared module, not four copies of the same parser
+### R8. [~] One shared module, not four copies of the same parser
 
-**Done (2026-09-02).** `.claude/hooks/lib.mjs` — `readPayload`, `runsCommand`,
-`repoRoot`, `runIn`, `deny`, `silent`.
+**Done, revised (2026-09-02).** `.claude/hooks/lib.mjs` — `readPayload`,
+`runsCommand`, `repoRoot`, `runIn`, `deny`, `silent`.
+
+**Revised: a heredoc body is data, not commands.** Found on the hooks' first
+live use, which is the only place it could have been found. Posting this spec's
+own evaluation with `gh pr comment --body-file` and a heredoc whose *prose*
+discussed the merge command was **denied** by `pre-merge-verify`, which had read
+the prose as an invocation:
+
+```
+Refusing to merge: could not read the checks for this PR.
+  gh pr view `gh --json statusCheckRollup
+  no pull requests found for branch "\`gh"
+```
+
+`runsCommand` now strips heredoc bodies (`<<WORD`, `<<-WORD`, `<<'WORD'`,
+`<<"WORD"`) before segmenting. This is the **false-positive** direction R3
+already worried about in its "cry wolf until someone disables it" sentence, and
+it turned out to bite R4 first: a hook that blocks real work is one that gets
+switched off, which costs more than the case it caught. It also blocked the
+command that would have fixed it, so the fix had to be applied without a shell.
 
 **Acceptance — run:** `npm run test:hooks` → three `runsCommand` cases covering
 every form in the requirement, including `git -C some/path commit -m x` → true
@@ -497,7 +516,9 @@ and the false directions (`echo "git commit"`, `git commit-tree`,
 CLAUDE_PROJECT_DIR over the payload cwd`; and `R8: each hook imports the shared
 module rather than re-implementing it`, which greps each of the four scripts and
 fails if any re-implements `runsCommand` or reads `process.env.CLAUDE_PROJECT_DIR`
-itself — the import guard, on the model of `wizard.render.test.jsx`.
+itself — the import guard, on the model of `wizard.render.test.jsx`. Plus
+`R8: a heredoc body is data, not commands`, covering all three heredoc forms and
+asserting that a real command *after* the terminator still counts.
 
 
 `.claude/hooks/lib.mjs` carries the four things every hook needs, and each hook

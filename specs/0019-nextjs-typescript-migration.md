@@ -179,8 +179,13 @@ end-to-end backstop, so this is where it matters most. Two clauses close it:
    survives a version bump. A literal string copied from the build would also
    separate them, but it goes stale the first time the hash changes, which
    matters once this is a committed check rather than a one-off.
-2. **The count is of the `font-family` descriptor inside `@font-face` blocks**,
-   excluding fallback faces, and it must be **`3`**. Counting "distinct
+2. **The count is of the *distinct* `font-family` descriptor values inside
+   `@font-face` blocks**, excluding fallback faces, and it must be **`3`**.
+   Distinct, not a raw block count: `next/font/google` emits one real face per
+   (family, style, subset), and R3 asks for Instrument Serif at
+   `style: ['normal', 'italic']`, so the number of `@font-face` blocks is **4 or
+   more** while the number of distinct family values is 3 — the same reason the
+   paragraph above rejects a headcount of files. Counting "distinct
    `font-family` values in the built CSS" is not a property that can hold:
    `src/styles/index.css` carries **fourteen** `font-family` declarations of its
    own (`:193`, `:264`, `:304`, `:308`, `:313`, `:317`, `:321`, `:332`, `:342`,

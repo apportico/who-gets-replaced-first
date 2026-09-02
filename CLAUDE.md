@@ -341,6 +341,19 @@ relaxes nothing above: unprobed sources, unmarked requirements, an untiered
 number or a red `npm run verify` each stop the run rather than being worked
 around.
 
+### Workflow hooks
+
+Four `PreToolUse` hooks in `.claude/hooks/`, wired through
+`.claude/settings.json`, refuse the four things this file already forbids: a
+commit on `main`, a commit staging a malformed spec, a push while `npm run
+verify` is red, and `gh pr merge` while the check named `verify` is not green.
+Spec 0018, issue #4.
+
+**They govern Bash commands from a Claude Code session in this repository — not
+a terminal, an editor's UI, the GitHub merge button, or CI.** That boundary is
+the point of `.claude/hooks/README.md`; read it before treating a hook as a
+guarantee. They *do* still fire under `bypassPermissions` (probed 2026-09-02).
+
 ### Intent lives in GitHub Issues
 
 Issues are the source of truth for **why** a change exists — they carry the

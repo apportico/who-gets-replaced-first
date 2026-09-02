@@ -77,6 +77,25 @@ echo "==> app tests (0008 lint-config guard)"
 npm run --silent test:app || fail "app tests — the .mjs lint config block regressed"
 
 echo ""
+# Spec 0018 R5. Closes 0003 R4's acceptance, which had only ever been run by
+# hand and had no `hooks` block to check until now: settings.json parses, every
+# hook command takes the required shape and points at a file that exists, and
+# R2's configured timeout is strictly greater than its own internal deadline.
+# That last one is the fail-open the hooks reference warns about -- a timed-out
+# command hook "doesn't block the tool call", so a lost race is a silent push.
+echo "==> hook wiring (0018 R5 -- settings.json, hook paths, the deadline order)"
+npm run --silent check:settings || fail "hook wiring — a hook path, shape or deadline is wrong"
+
+echo ""
+# Spec 0018 R6. Lives at .claude/hooks/tests/, deliberately outside test/**'s
+# recursive glob: under test/ it would run twice per verify AND a hooks failure
+# would surface as "the .mjs lint config block regressed" -- which R2's hook
+# then quotes into its own deny reason. Unconditional like the pipeline suite:
+# git, gh and npm are stubbed onto PATH, so no network and no response cache.
+echo "==> hook tests (0018 R6 -- each hook denies its case and stays silent otherwise)"
+npm run --silent test:hooks || fail "hook tests — a workflow hook denies the wrong thing, or nothing"
+
+echo ""
 if [ -d pipeline/raw ] && [ -n "$(ls -A pipeline/raw 2>/dev/null)" ]; then
   # Write the pilot's output to a temp dir, never pipeline/data/. Verifying the
   # pipeline must not republish its artifacts: otherwise "verify passed" and

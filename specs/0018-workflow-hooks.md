@@ -109,7 +109,28 @@ four copies. R1 and R3 both need "does this run `git commit`", R2 needs `git
 push`, R4 needs `gh pr merge`; that is one definition, and R1's compound-command
 rule is exactly the part that would be right in one copy and wrong in the others.
 
-### R1. [ ] `no-main` denies a commit on the default branch
+### R1. [~] `no-main` denies a commit on the default branch
+
+**Done, revised (2026-09-02).** `.claude/hooks/no-main.mjs`. Revised on one
+point found by its own acceptance case: the branch is read with
+`git branch --show-current`, **not** `git rev-parse --abbrev-ref HEAD`. Probed
+2026-09-02 — on a repository with no commits yet, `rev-parse` exits 128
+(`ambiguous argument 'HEAD'`) while `show-current` prints `main` and exits 0. The
+`rev-parse` form was written first and stayed silent on the *first* commit to
+`main`, which is the fail-open this hook exists to prevent. A case for the unborn
+branch is now in the suite.
+
+Also revised: the stub repository in the suite makes an empty initial commit, so
+`R1: silent on a feature branch` is not passing vacuously — on an unborn branch
+every branch lookup is degenerate and that test proved nothing.
+
+**Acceptance — run:** `npm run test:hooks` → `pass 35, fail 0`, including
+`R1: denies git commit on main, and on master`, `R1: denies inside a compound
+command`, `R1: denies on a repository with no commits yet`, `R1: silent on a
+feature branch`, `R1: silent on a non-commit command, and on a non-Bash tool`,
+and `R1: wrong-cwd — resolves the repo from CLAUDE_PROJECT_DIR, not the payload
+cwd`.
+
 
 A `PreToolUse` hook on `Bash` that inspects `tool_input.command`. If the command
 would run `git commit` **and** the repository's current branch is `main` or
@@ -139,7 +160,19 @@ empty stdout, exit 0. Plus the case the probe exposed: a payload whose `cwd` is 
 directory **outside the repository**, with `CLAUDE_PROJECT_DIR` set to a stub
 repo on `main` → deny, proving the anchor is `CLAUDE_PROJECT_DIR` and not `cwd`.
 
-### R2. [ ] `pre-push-verify` denies a push while the gate is red
+### R2. [x] `pre-push-verify` denies a push while the gate is red
+
+**Done (2026-09-02).** `.claude/hooks/pre-push-verify.mjs`, internal
+`DEADLINE_MS` 120s inside a configured `timeout` of 300s.
+
+**Acceptance — run:** `npm run test:hooks` → `R2: denies a push when verify is
+red, quoting the failing step`, `R2: silent when verify is green`, `R2: does not
+invoke verify for a non-push command` (asserted by the stub's call log being
+absent), `R2: a hanging verify DENIES rather than failing open` (deadline
+injected at 1500ms; deny reason `did not finish within 1.5s and was killed`), and
+`R2: wrong-cwd — verify runs in the project dir, not the payload cwd`. The
+`timeout > DEADLINE_MS` relationship is asserted by R5's check.
+
 
 A `PreToolUse` hook that, on a command that would run `git push`, runs
 `npm run verify` and denies the push if it exits non-zero, quoting the failing
@@ -179,7 +212,22 @@ because a gate that fails open looks exactly like a gate that passed. Separately
 `.claude/settings.json` gives this hook `timeout >= 120` and strictly greater
 than the hook's internal deadline, asserted by R5's settings test.
 
-### R3. [ ] `spec-format` denies a commit staging a malformed spec
+### R3. [x] `spec-format` denies a commit staging a malformed spec
+
+**Done (2026-09-02).** `.claude/hooks/spec-format.mjs`; `validateSpec` is
+exported so the corpus case calls it without spawning a process.
+
+**Acceptance — run:** `npm run test:hooks` → the five fixture cases (missing
+*Source verification*; `**Status:** finished` **and** `complete`; `### R2. [X]`
+and `### R2 [x]`; filename `spec-nine.md`; a conforming fixture), both scoping
+cases (an Implementation Plan lookalike outside the window is silent; an
+`### Rationale` subsection *inside* the window is not treated as a requirement
+heading), the corpus case — enumerated at run time, 18 specs found, every one
+except `0001` and `0002` passes and **both of those are rejected** — plus
+`R3: denies a commit staging a malformed spec, silent when it conforms`,
+`R3: silent when nothing under specs/ is staged`, and `R3: wrong-cwd — the
+failing case is not laundered into silence`.
+
 
 On a command that would run `git commit`, the hook inspects the **staged** files
 (`git diff --cached --name-only`). For each staged path under `specs/` that is
@@ -242,7 +290,19 @@ never a hard-coded count, which goes stale the moment a spec is added — and
 direct evidence that staged-only scoping is load-bearing rather than
 incidental — neither is ever staged, so neither is ever checked in anger.
 
-### R4. [ ] `pre-merge-verify` denies `gh pr merge` while `verify` is not green
+### R4. [x] `pre-merge-verify` denies `gh pr merge` while `verify` is not green
+
+**Done (2026-09-02).** `.claude/hooks/pre-merge-verify.mjs`.
+
+**Acceptance — run:** `npm run test:hooks` → `R4: denies when verify is FAILURE
+even though review is SUCCESS`, `R4: silent when verify is SUCCESS`, `R4: denies
+when the rollup carries no verify entry`, `R4: denies when gh itself fails,
+quoting stderr`, `R4: does not invoke gh for a non-merge command`, and
+`R4: a bare 'gh pr merge --squash --delete-branch' is guarded, with no PR
+argument` — that last one asserts the stub's call log is exactly
+`pr view --json statusCheckRollup`, i.e. `gh` was left to infer the PR from the
+branch.
+
 
 On a command that would run `gh pr merge`, the hook reads
 `gh pr view --json statusCheckRollup` for the target PR and denies unless the
@@ -275,7 +335,24 @@ with the stub asserting `gh` was spawned in the project directory. Anchored on
 `cwd`, `gh` would infer an unrelated repository's PR and could read its green
 `verify` — a worse outcome than the skipped-review trap R4 exists to avoid.
 
-### R5. [ ] The hooks are wired, and the wiring is guarded
+### R5. [x] The hooks are wired, and the wiring is guarded
+
+**Done (2026-09-02).** `.claude/settings.json` `hooks.PreToolUse`;
+`scripts/check-settings.mjs`, wired into `verify` as `check:settings`.
+
+One thing the build found: importing `pre-push-verify.mjs` for `DEADLINE_MS`
+originally **hung forever**, because the hook read stdin at module top level. All
+four hooks now guard their body behind `if (import.meta.main)`, so importing one
+is side-effect free. Without that, R5's own assertion could not be written.
+
+**Acceptance — run, in both directions:**
+
+- Passing: `npm run verify` prints
+  `==> hook wiring (0018 R5 ...)` → `check-settings: 4 hooks wired, all paths and deadlines OK`.
+- Missing script: `check-settings FAILED: - PreToolUse: .claude/hooks/no-main.mjs does not exist on disk`, non-zero. Restored → green.
+- Equal deadlines: `check-settings FAILED: - pre-push-verify: timeout (120s) must be strictly greater than DEADLINE_MS (120s). Equal values race, and a lost race is a silently allowed push.` Restored → green.
+- Off-shape command (`bash -c "node .claude/hooks/no-main.mjs"`): `check-settings FAILED: - PreToolUse: command is not the required shape`. Restored → green.
+
 
 `.claude/settings.json` grows a `hooks.PreToolUse` block registering all four
 scripts under `matcher: "Bash"`, each path written with `${CLAUDE_PROJECT_DIR}`
@@ -317,7 +394,21 @@ path, restored → green; setting R2's `timeout` equal to `DEADLINE_MS / 1000` �
 non-zero naming the relationship, restored → green; rewriting one `command` to a
 shape the pattern does not match → non-zero.
 
-### R6. [ ] Each hook is proved to block its case and stay silent otherwise
+### R6. [x] Each hook is proved to block its case and stay silent otherwise
+
+**Done (2026-09-02).** `.claude/hooks/tests/hooks.test.mjs`, `npm run test:hooks`,
+wired into `verify`. 35 cases, every hook with at least one deny and one silent.
+Unconditional: `git`, `gh` and `npm` are stubbed onto `PATH`, no network and no
+response cache.
+
+**Acceptance — run, in both directions:**
+
+- `npm run test:hooks` → `pass 35, fail 0`, and `npm run verify` runs it as
+  `==> hook tests (0018 R6 ...)`.
+- Mutation: changing R1's `PROTECTED` set to `new Set([])` turns the suite red —
+  `pass 31, fail 4`, failing exactly the four R1 deny cases. Restored →
+  `pass 35, fail 0`. A suite that cannot fail proves nothing.
+
 
 The Definition of done in #4 is "each hook demonstrably blocks its case and stays
 silent otherwise". Make that mechanical rather than a claim:
@@ -352,7 +443,21 @@ real.
 hook's condition in the source makes the suite go red — recorded in the
 evaluation for at least one hook, since a suite that cannot fail proves nothing.
 
-### R7. [ ] The hooks state what they do not cover
+### R7. [x] The hooks state what they do not cover
+
+**Done (2026-09-02).** `.claude/hooks/README.md`; `CLAUDE.md` gains a
+*Workflow hooks* subsection under *The workflow*.
+
+The `bypassPermissions` question is answered from the probe rather than guessed:
+**hooks fire and their deny is honoured**, so the four gates are not switched off
+by bypass mode. Stated positively in the README, since the reasonable assumption
+is the opposite.
+
+**Acceptance — run:** `npm run test:hooks` → `R7: the README states the probed
+bypassPermissions answer, not merely the word` (matches the *claim*, so a README
+saying the opposite fails) and `R7: CLAUDE.md points at the hooks README and
+repeats the boundary`.
+
 
 `.claude/hooks/README.md` records, in the same register `CLAUDE.md` uses for
 tiers: these are **Claude Code `PreToolUse` hooks**. They govern Bash commands
@@ -380,7 +485,20 @@ it and repeating the boundary in one sentence. Checked by reading, and by a
 `bypassPermissions` passes a README that says the opposite of what was probed,
 which is the same defect as a tier badge that renders whatever it is handed.
 
-### R8. [ ] One shared module, not four copies of the same parser
+### R8. [x] One shared module, not four copies of the same parser
+
+**Done (2026-09-02).** `.claude/hooks/lib.mjs` — `readPayload`, `runsCommand`,
+`repoRoot`, `runIn`, `deny`, `silent`.
+
+**Acceptance — run:** `npm run test:hooks` → three `runsCommand` cases covering
+every form in the requirement, including `git -C some/path commit -m x` → true
+and the false directions (`echo "git commit"`, `git commit-tree`,
+`git log --oneline`, `git pushall`, `gh pr view 92`); `R8: repoRoot prefers
+CLAUDE_PROJECT_DIR over the payload cwd`; and `R8: each hook imports the shared
+module rather than re-implementing it`, which greps each of the four scripts and
+fails if any re-implements `runsCommand` or reads `process.env.CLAUDE_PROJECT_DIR`
+itself — the import guard, on the model of `wizard.render.test.jsx`.
+
 
 `.claude/hooks/lib.mjs` carries the four things every hook needs, and each hook
 imports rather than re-implements:

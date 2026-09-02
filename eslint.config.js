@@ -1,5 +1,6 @@
 import js from '@eslint/js'
 import globals from 'globals'
+import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
@@ -16,13 +17,20 @@ export default defineConfig([
   // hook script would be real, lintable project code. A blanket `.claude`
   // would skip it silently — which is the failure this whole config note is
   // about, one directory over.
-  globalIgnores(['**/dist', '.claude/worktrees']),
+  globalIgnores(['**/dist', '**/out', '**/.next', '.claude/worktrees']),
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{js,jsx,ts,tsx}'],
+    // 0019 R8, edit 5 — which the spec did not anticipate and the first
+    // `npx eslint .` after the conversion found: with `.ts`/`.tsx` added to the
+    // glob but no TypeScript parser, every annotated file fails with
+    // `Parsing error: Unexpected token :` rather than being linted. The glob
+    // and the parser are one change; naming only the glob is how the four
+    // recorded edits would have left the gate red.
     extends: [
       js.configs.recommended,
+      ...tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
+      reactRefresh.configs.next,
     ],
     languageOptions: {
       ecmaVersion: 2020,
@@ -38,6 +46,31 @@ export default defineConfig([
     },
   },
   {
+    // 0019 R8. The base rule flags parameter NAMES inside TypeScript function
+    // types — `onPick: (group: number) => void` — as unused variables. They are
+    // not variables at all, they are documentation, and a codebase that renamed
+    // them to `_group` to appease the rule would be less readable for no gain.
+    // typescript-eslint's replacement understands the construct and is enabled
+    // above, so the base rule is switched off for annotated files rather than
+    // worked around at every declaration.
+    //
+    // Must come AFTER the block that turns it on: flat config is last-wins.
+    files: ['**/*.{ts,tsx}'],
+    rules: {
+      'no-unused-vars': 'off',
+      // The `_`-prefix convention the pipeline already uses to mark a binding
+      // as deliberately unused — `measured(value, _tier)`, `const _rows = …`.
+      // These files were never linted as TypeScript before this spec widened
+      // the glob, so the rule meets an existing convention rather than setting
+      // a new one.
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
+    },
+  },
+  {
     // Spec 0010 R3/R4. shadcn/ui components export their `cva` variants beside
     // the component — `buttonVariants`, `badgeVariants`, `toggleVariants` — and
     // R4 requires restyling by extending those variants rather than stacking
@@ -49,7 +82,7 @@ export default defineConfig([
     // full reload instead of a hot update when a variant is edited, which is a
     // fair price for not diverging from upstream in seven files that
     // `shadcn add` will overwrite.
-    files: ['src/components/ui/**/*.jsx'],
+    files: ['src/components/ui/**/*.{jsx,tsx}'],
     rules: {
       'react-refresh/only-export-components': 'off',
     },

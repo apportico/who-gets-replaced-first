@@ -3,17 +3,8 @@
   "pages404": true,
   "appType": "app",
   "caseSensitive": false,
-  "basePath": "/who-gets-replaced-first",
+  "basePath": "",
   "redirects": [
-    {
-      "source": "/who-gets-replaced-first/",
-      "destination": "/who-gets-replaced-first",
-      "basePath": false,
-      "internal": true,
-      "priority": true,
-      "statusCode": 308,
-      "regex": "^/who-gets-replaced-first/$"
-    },
     {
       "source": "/:path+/",
       "destination": "/:path+",

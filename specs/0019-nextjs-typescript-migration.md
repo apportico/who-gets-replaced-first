@@ -290,12 +290,21 @@ upstream from shadcn — it is inside the island either way.)
 `WizardShell` is; `npm run build` completes with no "cannot be used in a Server
 Component" error.
 
-### R5. [ ] All 38 app files convert to TypeScript under `strict: true`
+### R5. [x] All 38 app files convert to TypeScript under `strict: true`
 
 Every `.js`/`.jsx` under `src/` (and the new `app/`) becomes `.ts`/`.tsx`, with
 a root `tsconfig.json` at `strict: true`. Where a type is genuinely unclear it
 is modelled honestly; a conversion that lands on `any` buys nothing. `jsconfig.json`
 is deleted, its `@/*` alias moving to `tsconfig.json`.
+
+**Done (2026-09-02).** `git ls-files 'src/**/*.js' 'src/**/*.jsx' 'app/**/*.js'
+'app/**/*.jsx'` → **empty**. `tsconfig.json` has `"strict": true`.
+`npx tsc --noEmit -p tsconfig.json` exits 0 over 40 files. `npx eslint .` → **0
+errors**, and `grep -rn "eslint-disable.*no-explicit-any" src/ app/` → **empty**:
+**no `any` escape was needed anywhere.** Where the payload's index signature
+yields `unknown` the call site narrows at the read — `row[g.key] as number |
+null | undefined` in `groupFigures`, with a comment saying why — rather than
+asserting at the arithmetic.
 
 **The `any` check is mechanical, not a hand review.** `@typescript-eslint/no-explicit-any`
 is configured as an **error**, so every escape must carry an
@@ -330,18 +339,45 @@ added under `test/types/` with `@ts-expect-error`, so `tsc` fails if the types
 stop rejecting it. This is 0007 R7's pattern, and it is the only thing that
 proves the types are met by *rejecting*, not by existing.
 
-### R7. [ ] `typecheck` covers the app as well as the pipeline, in `verify` and in CI
+### R7. [x] `typecheck` covers the app as well as the pipeline, in `verify` and in CI
 
 `npm run typecheck` today is `tsc -p pipeline/tsconfig.json` and sees no app
 file. It must check both projects. Per CLAUDE.md, a check added to CI is added
 to `verify` in the same change — here both already invoke `verify`, so the edit
 is to `scripts/verify.sh` and `package.json` only.
 
+**Done (2026-09-02).** `typecheck` is now
+`tsc -p pipeline/tsconfig.json && tsc --noEmit -p tsconfig.json` — both projects,
+one command, and `verify` runs it. The pipeline's four `@ts-expect-error` cases
+still gate it (0007 R7), and 180 pipeline tests pass unchanged.
+
 **Acceptance:** `npm run typecheck` fails when a type error is introduced in an
 app file (demonstrated and the output pasted), and still fails on the four
 `@ts-expect-error` cases in `pipeline/tests/schema.types.ts` that 0007 R7 owns.
 
-### R8. [ ] The built-output checks follow the output directory, and 0015's meta contract survives
+### R8. [~] The built-output checks follow the output directory, and 0015's meta contract survives
+
+**Revised (2026-09-02): there are FIVE eslint edits, not four.** The fifth is
+the one the spec did not anticipate and the first `npx eslint .` after the
+conversion found: adding `.ts`/`.tsx` to the glob without adding a TypeScript
+**parser** makes every annotated file fail with `Parsing error: Unexpected token
+:` rather than being linted — 65 errors, none of them about the code. The glob
+and the parser are one change; naming only the glob is exactly how the four
+recorded edits would have left the gate red. `typescript-eslint` is now in
+`extends`, with `no-unused-vars` handed to its TypeScript-aware replacement
+(the base rule flags parameter *names* inside function types, which are
+documentation, not variables).
+
+**And widening the glob found a real defect in code this spec does not
+otherwise touch:** `pipeline/run.ts:24` imported `* as fetch` and never used it,
+invisible while `.ts` went unlinted. Removed — it changes no published number,
+and `npm run test:pipeline` still passes 180/180.
+
+`npm run check:meta` **also caught a real one**: `index.html: missing <meta>
+og:type`. Next **replaces** a route's `openGraph` object rather than merging the
+layout's fields into it, so `type` and `siteName` declared once in the layout
+silently did not ship. Both routes now state all nine tags in full. That is the
+built-output check earning its keep precisely as 0015 R4 intended.
 
 `scripts/check-meta.mjs` asserts over built files deliberately — the defect it
 guards (a relative `og:image`, correct in source and a 404 in production) exists
@@ -407,7 +443,7 @@ real paths is **#24's** work, not this spec's.
 import extension; and a manual walk confirms `/?step=result&country=GBR&group=3` cold-loads onto the
 result screen and browser Back returns to step 03, at the deployed base path.
 
-### R10. [ ] Every existing test still runs, and the ones that read build paths are repointed
+### R10. [x] Every existing test still runs, and the ones that read build paths are repointed
 
 The suite is the evidence base for 0010, 0012, 0015, 0016 and 0017 and none of it
 may be dropped to make the migration pass. `computed.test.jsx` injects the real
@@ -420,6 +456,21 @@ but silently loses assertions still counts as one file, so a file count cannot
 see the defect it is there to catch. This is the same shape as the null-mask
 problem CLAUDE.md records for the pipeline: a count invariant to the thing being
 counted for.
+
+**Done (2026-09-02).** `npx vitest run --reporter=json` on `main` (in a
+worktree) and on this branch:
+
+```
+main: 237  branch: 237
+R10 subset holds (no name lost): True
+LOST: (none)   ADDED: (none)
+```
+
+Set **equality**, which is stronger than the subset the criterion requires — no
+test was added, so the looser rule was not needed in the end. Three test files
+needed repointing and all three are recorded in the requirement below;
+`test:app` (1), `test:pipeline` (180) and `test:hooks` (40) are untouched and
+green.
 
 **Subset, not equality — deliberately.** Strict set equality would forbid this
 PR from adding a single test case, and it should not: R11 layer 1 may well land
@@ -435,12 +486,26 @@ evaluation comment. Both sets and the diff are published there. 0 failures.
 `npm run test:app`, `npm run test:pipeline` and `npm run test:hooks` are
 untouched and green.
 
-### R11. [ ] The data surface is identical before and after — same figures, same tiers, same vintages
+### R11. [x] The data surface is identical before and after — same figures, same tiers, same vintages
 
 The migration must not move a single published number. This is the project's
 first rule and it outranks the migration: nothing is imputed, no country gains a
 value it did not have, and `no series` still renders as an absence rather than a
 number.
+
+**Done (2026-09-02) — layer 1 is a diff of zero.**
+
+```
+countries compared: 218  (with a series: 177, without: 41)
+country-group pairs: 1962
+deep equal: True
+$ cmp surface.main.json surface.branch.json   →  IDENTICAL
+```
+
+Spot checks, both as expected: **GBR** group 4 → `8.9%` / `DERIVED` / `2025`
+(the figure `CLAUDE.md` records as the real dataset value); **NZL** group 4 →
+`not_published`, no tier, and the sentence *"New Zealand does not publish a
+figure for clerical support workers."* Layer 2's browser walk is R12.
 
 **The sweep is every country, not two.** The source table establishes why that
 is nearly free: the payloads are byte-identical across the migration *by
@@ -502,10 +567,14 @@ page loads; `/?step=result&country=GBR&group=3` cold-loads onto the result scree
 screenshots are committed to `.snapshots/0019/` and embedded in the evaluation
 comment.
 
-### R13. [ ] `npm run verify` is green
+### R13. [x] `npm run verify` is green
 
 All ten steps, including the two that this spec rewires (`build`, `check:meta`)
 and the one it extends (`typecheck`).
+
+**Done (2026-09-02).** `verify PASSED`, all ten steps, including the two this
+spec rewired and the one it extended. The four regression anchors held: World
+48.2, US 79.6, EU-27 72.9, India 32.6 — 0 validation problems.
 
 **Acceptance:** `bash scripts/verify.sh` exits 0 and prints `verify PASSED`,
 with the full output pasted into the spec's evaluation section.
@@ -523,7 +592,7 @@ returns nothing that is not an explicit historical note; the *Commands* block
 lists the Next.js commands; and issue #23 carries a comment recording what its
 body got wrong and why.
 
-### R15. [ ] The deploy workflow publishes `out/`, with the base path actually wired
+### R15. [x] The deploy workflow publishes `out/`, with the base path actually wired
 
 `.github/workflows/deploy.yml` uploads `path: dist`, and — the part that would
 have shipped broken — it sets **no base path at all**. It has no `id:` on its
@@ -543,6 +612,15 @@ The wiring is the official template's:
 - run: npm run build
   env:
     PAGES_BASE_PATH: ${{ steps.setup_pages.outputs.base_path }}
+```
+
+**Done (2026-09-02), checked on the outcome rather than the variable name.**
+`configure-pages` is line 45, `npm run build` line 47 — the reorder is in.
+Against the built output:
+
+```
+/who-gets-replaced-first/_next/ references in out/index.html : 31
+bare "/_next/ references                                     :  0
 ```
 
 **The `configure-pages` step must move above `npm run build`.** Today it runs

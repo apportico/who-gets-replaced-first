@@ -16,7 +16,11 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-const DIST = 'dist'
+// 0019 R8. Next's static export emits `out/`, not Vite's `dist/`. The rest of
+// this file is unchanged on purpose: R2 settles `trailingSlash: false`, so the
+// page list and BOTH og:url values are exactly what they were, which is what
+// makes this a path edit rather than a change to 0015 R4's contract.
+const DIST = 'out'
 const BASE = 'https://apportico.github.io/who-gets-replaced-first/'
 
 const REQUIRED_TAGS = [

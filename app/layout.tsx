@@ -38,12 +38,16 @@ const instrumentSerif = Instrument_Serif({
   display: 'swap',
 })
 
-// R2. Only what BOTH pages share lives here. og:title, og:description and
-// og:url differ per page and stay per-route, because 0015 R4's contract is
-// about those values rather than about the tags being present.
+// R2. Metadata is per-route, not hoisted here.
+//
+// Only `metadataBase` lives at the layout, because Next REPLACES a route's
+// `openGraph` object rather than merging the layout's fields into it — so a
+// shared `type`/`siteName` here would silently vanish from any page that
+// declares its own openGraph, which is both of them. Each route states its
+// nine tags in full; 0015 R4's contract is about those VALUES, and
+// `npm run check:meta` asserts them over the built files.
 export const metadata: Metadata = {
   metadataBase: new URL('https://apportico.github.io/who-gets-replaced-first/'),
-  openGraph: { type: 'website', siteName: 'Who Gets Replaced First' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

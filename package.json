@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "eslint .",
-    "typecheck": "tsc -p pipeline/tsconfig.json",
+    "typecheck": "tsc -p pipeline/tsconfig.json && tsc --noEmit -p tsconfig.json",
     "check:brand": "node scripts/check-schema-brand.mjs",
     "check:meta": "node scripts/check-meta.mjs",
     "check:settings": "node scripts/check-settings.mjs",
@@ -21,7 +21,8 @@
     "report": "node pipeline/report.ts",
     "verify": "bash scripts/verify.sh",
     "verify:data": "npm run pipeline:pilot",
-    "start": "next start"
+    "start": "next start",
+    "surface": "vitest run --config vitest.surface.config.js"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.3",

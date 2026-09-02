@@ -29,13 +29,28 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
+      # 0019 R15. THIS STEP MUST STAY ABOVE THE BUILD.
+      #
+      # It used to run after it. next.config.ts takes `basePath` from
+      # PAGES_BASE_PATH (R1), and `steps.setup_pages.outputs.base_path`
+      # referenced before this step has run expands to the EMPTY STRING rather
+      # than failing. `basePath: ''` is Next's default, so the build stays green
+      # while every _next/ asset is emitted at the domain root and the project
+      # site 404s its own JavaScript.
+      #
+      # A grep for the variable name cannot tell a wired base path from an empty
+      # one, which is why R15's acceptance checks the built output instead.
+      - name: Setup Pages
+        id: setup_pages
+        uses: actions/configure-pages@v5
 
-      - uses: actions/configure-pages@v5
+      - run: npm run build
+        env:
+          PAGES_BASE_PATH: ${{ steps.setup_pages.outputs.base_path }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: ./out
 
   deploy:
     needs: build

@@ -233,7 +233,21 @@ describe('R5 — the touch targets and focus ring reach real elements', () => {
       expect(step, `${where} rendered no step`).toBeTruthy()
       for (const el of step.querySelectorAll('*')) {
         const fam = resolved(el, 'font-family')
-        if (!fam || !fam.includes('Geist Mono')) continue
+        // Matched on `SFMono-Regular`, not on `Geist Mono`.
+        //
+        // 0019 R3 replaced the literal family names in the token with
+        // next/font's variables — `--font-mono` is now
+        // `var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+        // monospace`. next/font sets that variable through a className on
+        // <html> at render time, which jsdom never receives, so the string
+        // "Geist Mono" is simply not in the computed value any more and this
+        // sweep silently found nothing to check.
+        //
+        // `SFMono-Regular` is the stable literal that identifies the mono stack
+        // and appears in neither the body stack (`-apple-system`) nor the
+        // display stack (`Georgia`). What this test is actually about — that no
+        // mono label renders below 11px — is unchanged.
+        if (!fam || !fam.includes('SFMono-Regular')) continue
         seen += 1
         const size = resolved(el, 'font-size')
         if (size.endsWith('px') && parseFloat(size) < 11) {

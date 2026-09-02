@@ -1,4 +1,6 @@
 import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 // Spec 0010 R19. The suite this repo did not have.
 //
@@ -11,15 +13,25 @@ import { defineConfig } from 'vitest/config'
 // jsdom, not a browser. R4 and R5 stay manual on purpose — token rendering and
 // computed touch targets genuinely need one, and pretending otherwise is how a
 // suite reports green while proving nothing.
+// 0019 R10. The plugins are what the probed Next.js Vitest guide requires:
+// `@vitejs/plugin-react` to transform JSX and `vite-tsconfig-paths` so the
+// `@/*` alias resolves from tsconfig.json rather than being restated here.
+// Vitest runs standalone against Next — it does not go through `next build`.
 export default defineConfig({
+  plugins: [tsconfigPaths(), react()],
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.{js,jsx}'],
+    setupFiles: ['./test/setup.vitest.ts'],
+    include: ['src/**/*.test.{js,jsx,ts,tsx}'],
     globals: true,
     // The pipeline suite lives in Python and runs separately; keep vitest from
     // walking pipeline/raw/, which is ~80MB of cached API responses.
-    exclude: ['node_modules/**', 'dist/**', 'pipeline/**', '.claude/**'],
+    exclude: ['node_modules/**', 'dist/**', 'out/**', '.next/**', 'pipeline/**', '.claude/**'],
   },
+  // Kept alongside tsconfigPaths deliberately: tsconfig.json excludes the test
+  // files from the type-check project, so the plugin does not resolve `@/` for
+  // them. One explicit alias is cheaper than widening the tsconfig and having
+  // `next build` type-check the suite.
   resolve: {
     alias: { '@': new URL('./src', import.meta.url).pathname },
   },

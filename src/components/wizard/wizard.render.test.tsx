@@ -231,16 +231,16 @@ describe('R3 — every installed component is actually rendered', () => {
   // component nobody renders is that batch, arriving one file at a time.
   it('no component sits in src/components/ui unused', () => {
     const files = Object.keys(
-      import.meta.glob('@/components/ui/*.jsx', { eager: true }),
-    ).map((p) => p.split('/').pop().replace('.jsx', ''))
+      import.meta.glob('/src/components/ui/*.tsx', { eager: true }),
+    ).map((p) => p.split('/').pop().replace('.tsx', ''))
     expect(files.length).toBeGreaterThan(0)
 
     // Every component file outside ui/ itself, not just the wizard directory:
-    // Sparkline.jsx and any future sibling can import a ui component, and
+    // Sparkline.tsx and any future sibling can import a ui component, and
     // scanning only wizard/ would report that as unused. It fails safe, but a
     // guard that cries wolf gets disabled.
     const consumers = Object.entries(
-      import.meta.glob(['@/components/**/*.jsx', '@/*.jsx'], {
+      import.meta.glob(['/src/components/**/*.tsx', '/src/*.tsx'], {
         eager: true, query: '?raw', import: 'default',
       }),
     ).filter(([p]) => !p.includes('/components/ui/'))
@@ -474,8 +474,8 @@ describe('0011 R8 — the search cost no dependency and no fourth ui file', () =
   })
 
   it('leaves src/components/ui at the three files it already held', () => {
-    const files = Object.keys(import.meta.glob('@/components/ui/*.jsx'))
-      .map((p) => p.split('/').pop().replace('.jsx', ''))
+    const files = Object.keys(import.meta.glob('/src/components/ui/*.tsx'))
+      .map((p) => p.split('/').pop().replace('.tsx', ''))
       .sort()
     expect(files).toEqual(['accordion', 'toggle', 'toggle-group'])
   })

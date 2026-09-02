@@ -14,7 +14,10 @@ export const metadata: Metadata = {
   title: 'Method \u2014 WHO GETS REPLACED FIRST',
   description: DESCRIPTION,
   openGraph: {
+    // See app/page.tsx: a route's openGraph replaces the layout's rather than
+    // merging into it, so siteName is repeated here too.
     type: 'article',
+    siteName: 'Who Gets Replaced First',
     title: 'Method \u2014 Who Gets Replaced First',
     description: DESCRIPTION,
     url: 'https://apportico.github.io/who-gets-replaced-first/methodology.html',

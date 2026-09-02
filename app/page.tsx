@@ -23,6 +23,13 @@ export const metadata: Metadata = {
   description:
     'Which countries and occupations sit in the work most exposed to AI — from official labour statistics, with proxies and modelled estimates labelled as such.',
   openGraph: {
+    // `type` and `siteName` are repeated here rather than inherited: Next
+    // REPLACES a route's `openGraph` object wholesale rather than merging its
+    // fields into the layout's, so anything omitted here simply does not ship.
+    // check:meta caught this — `index.html: missing <meta> og:type` — which is
+    // the built-output check earning its keep exactly as 0015 R4 intended.
+    type: 'website',
+    siteName: 'Who Gets Replaced First',
     title: 'Who Gets Replaced First',
     description: DESCRIPTION,
     url: 'https://apportico.github.io/who-gets-replaced-first/',

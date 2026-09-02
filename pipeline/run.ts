@@ -21,7 +21,6 @@ import { fileURLToPath } from 'node:url';
 import * as C from './config.ts';
 import * as B from './build.ts';
 import type { Row, RowValue } from './build.ts';
-import * as fetch from './fetch.ts';
 import * as P from './panel.ts';
 import * as BT from './backtest.ts';
 import * as X from './crosscheck.ts';

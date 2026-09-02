@@ -74,7 +74,7 @@ export default function WizardShell() {
   // downstream re-reads this hook.
   const searchParams = useSearchParams()
 
-  const boot = useMemo(() => {
+  function computeBoot() {
     const qs = searchParams.toString()
     const url = decode(qs ? `?${qs}` : '', rows)
     const askedForCountry =
@@ -93,11 +93,18 @@ export default function WizardShell() {
       excluded: prefill.excluded,
       notice: noticeFor(url),
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- boot is a mount-time
-  // snapshot by design (0016 R3): re-deriving it on a searchParams change would
-  // fight the popstate listener, which is the single source of truth for later
-  // transitions.
-  }, [rows])
+  }
+
+  // A mount-time snapshot, written as one: a lazy `useState` initialiser runs
+  // exactly once and never again.
+  //
+  // Two earlier drafts said this less honestly. `useMemo` with a suppressed
+  // dependency warning claimed a dependency it deliberately ignored; a ref read
+  // during render is what `react-hooks/refs` exists to stop. Re-deriving `boot`
+  // when `searchParams` changes would fight the popstate listener below, and
+  // that listener is the single source of truth for every transition after the
+  // first (0016 R4).
+  const [boot] = useState(computeBoot)
 
   const [state, setState] = useState(boot.state)
   // The seam's functions must be stable: they are effect dependencies below,
@@ -271,7 +278,6 @@ export default function WizardShell() {
 
   const cross = loaded.iso3 === iso3 ? loaded : { state: NOT_LOADED, data: null }
 
-  const shown = Math.max(step, 1)
   const common = { row, iso3, group, age, edu, cross }
 
   return (

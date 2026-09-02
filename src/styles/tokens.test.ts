@@ -16,7 +16,7 @@ import { describe, it, expect } from 'vitest'
 // test modules over an http: URL, so `new URL('./x', import.meta.url)` is not a
 // file: URL and readFileSync rejects it.
 const css = readFileSync(path.resolve('src/styles/index.css'), 'utf8')
-const HTML = readFileSync(path.resolve('index.html'), 'utf8')
+const LAYOUT = readFileSync(path.resolve('app/layout.tsx'), 'utf8')
 
 /** The declarations of one rule, comments stripped. Selector matched exactly. */
 function ruleBody(selector) {
@@ -72,21 +72,31 @@ describe('R2 — the canvas tokens are declared, with the canvas values', () => 
   })
 
   it('requests all three families from the document, not from the CSS', () => {
-    // Two defects in a row here, and the second is the instructive one.
+    // Three defects in a row here, and the third is why this now reads a
+    // different file.
     //
     // First: the @import sat below the :root blocks, which CSS forbids, so
-    // browsers drop it. I moved it above the first rule and asserted the
-    // POSITION rather than the presence, which felt like the lesson.
+    // browsers drop it. Asserting the POSITION felt like the lesson.
     //
-    // It was not. Tailwind v4's processing drops a bare `@import url()`
+    // Second: it was not. Tailwind v4's processing drops a bare `@import url()`
     // entirely, so the built CSS carried no @import and no @font-face at either
-    // ordering -- the app shipped in fallback faces the whole time and a test
-    // reading the source file could not see it. The request now lives in
-    // index.html, and this asserts the file that actually ships.
-    expect(HTML).toContain('Instrument+Serif:ital@0;1')
-    expect(HTML).toContain('family=Geist:')
-    expect(HTML).toContain('Geist+Mono')
-    expect(HTML).toMatch(/rel="preconnect"[^>]*fonts\.gstatic\.com/)
+    // ordering — the app shipped in fallback faces and a test reading the
+    // source could not see it. The request moved to index.html.
+    //
+    // Third (0019 R3): index.html is gone, and so is the cross-origin request.
+    // `next/font/google` downloads the families at build time and self-hosts
+    // them, so there is no request left to drop. This asserts the declaration
+    // that produces that — but note what it CANNOT see, which is the whole
+    // history above: whether the families actually reached the built CSS. R3's
+    // acceptance checks that against `out/_next/**.css`, where the three
+    // non-fallback @font-face descriptors and their /_next/static/media/ srcs
+    // are, because the built artefact is the only place this defect has ever
+    // been visible.
+    expect(LAYOUT).toContain('Instrument_Serif')
+    expect(LAYOUT).toContain('Geist')
+    expect(LAYOUT).toContain('Geist_Mono')
+    // Both styles, because italic is the emphasis device in the headline.
+    expect(LAYOUT).toMatch(/style:\s*\['normal',\s*'italic'\]/)
     // And nothing tries to bring them in through the stylesheet again.
     expect(css).not.toContain('fonts.googleapis')
   })
